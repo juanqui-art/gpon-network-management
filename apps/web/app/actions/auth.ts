@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export async function signIn(
@@ -12,7 +13,7 @@ export async function signIn(
 		email: formData.get("email") as string,
 		password: formData.get("password") as string,
 	});
-	if (error) return error.message;
+	if (error) return "Email o contraseña incorrectos";
 	redirect("/map");
 }
 
@@ -24,9 +25,19 @@ export async function signUp(
 	const { data, error } = await supabase.auth.signUp({
 		email: formData.get("email") as string,
 		password: formData.get("password") as string,
-		options: { data: { role: "technician" } },
 	});
-	if (error) return error.message;
+	if (error) return "No se pudo crear la cuenta";
+	if (!data.user) return "No se pudo crear la cuenta";
+
+	// Assign role in app_metadata via service_role — users cannot self-edit app_metadata.
+	// Default: 'support' (read-only) until an admin promotes the account.
+	const admin = createAdminClient();
+	const { error: adminError } = await admin.auth.admin.updateUserById(
+		data.user.id,
+		{ app_metadata: { role: "support" } },
+	);
+	if (adminError) return "Error al asignar permisos";
+
 	// If a session was returned, email confirmation is disabled → go to map
 	if (data.session) redirect("/map");
 	// Otherwise email confirmation is required → go to login

@@ -35,17 +35,31 @@ export async function proxy(request: NextRequest) {
 
 	const { pathname } = request.nextUrl;
 	const isAuthPath = pathname === "/login" || pathname === "/register";
+	const isApiPath = pathname.startsWith("/api/");
 
 	if (!user && !isAuthPath) {
+		// API routes get 401 — not an HTML redirect (callers expect JSON).
+		if (isApiPath) {
+			return new NextResponse(null, { status: 401 });
+		}
 		const url = request.nextUrl.clone();
 		url.pathname = "/login";
-		return NextResponse.redirect(url);
+		const redirectResponse = NextResponse.redirect(url);
+		// Carry over any refreshed Supabase cookies so the session isn't lost.
+		for (const cookie of supabaseResponse.cookies.getAll()) {
+			redirectResponse.cookies.set(cookie.name, cookie.value);
+		}
+		return redirectResponse;
 	}
 
 	if (user && isAuthPath) {
 		const url = request.nextUrl.clone();
 		url.pathname = "/map";
-		return NextResponse.redirect(url);
+		const redirectResponse = NextResponse.redirect(url);
+		for (const cookie of supabaseResponse.cookies.getAll()) {
+			redirectResponse.cookies.set(cookie.name, cookie.value);
+		}
+		return redirectResponse;
 	}
 
 	return supabaseResponse;
