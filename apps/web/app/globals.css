@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+/* ── Design tokens ────────────────────────────────────────────────────────── */
+
+:root {
+  /* Map-aligned dark surfaces */
+  --surface-bg:      #1b1c1d;
+  --surface-panel:   #222324;
+  --surface-card:    #282929;
+  --surface-elevated:#303133;
+  --surface-border:  rgba(164,164,164,0.18);
+
+  /* Text */
+  --text-primary:    #e6e6e6;
+  --text-secondary:  #a4a4a4;
+  --text-muted:      #777879;
+
+  /* GPON operations
+     Mirror in lib/map/palette.ts — Mapbox cannot read CSS vars at paint time. */
+  --gpon-olt:        #38bdf8;
+  --gpon-splitter:   #a78bfa;
+  --gpon-nap:        #f59e0b;
+  --gpon-ont:        #34d399;
+  --gpon-amplifier:  #fde047;
+  --gpon-wdm:        #22d3ee;
+  --gpon-unknown:    #a4a4a4;
+  --gpon-incident:   #fb4d6d;
+
+  /* Status */
+  --status-online:        #34d399;
+  --status-alarm:         #fb4d6d;
+  --status-offline:       #858585;
+  --status-maint:         #f59e0b;
+  --status-decommissioned:#5c5d5f;
+  --status-unknown:       #a4a4a4;
+
+  /* Cables — share hue with endpoint family */
+  --cable-feeder:        var(--gpon-olt);
+  --cable-distribution:  var(--gpon-splitter);
+  --cable-drop:          var(--gpon-ont);
+  --cable-default:       #858585;
+  --cable-casing:        rgba(0, 0, 0, 0.55);
+
+  /* Incident severity */
+  --severity-critical:   #fb4d6d;
+  --severity-high:       #f59e0b;
+  --severity-medium:     #fde047;
+  --severity-low:        #38bdf8;
+
+  /* Optical signal classes (ITU-T G.984) */
+  --signal-good:     #34d399;
+  --signal-warning:  #f59e0b;
+  --signal-critical: #fb4d6d;
+  --signal-unknown:  #858585;
+
+  /* Accent */
+  --accent:          #a4a4a4;
+  --accent-hover:    #d7d7d7;
+
+  /* Fonts */
+  --font-sans:  var(--font-geist-sans);
+  --font-mono:  var(--font-geist-mono);
+}
+
+@theme inline {
+  --color-background: var(--surface-bg);
+  --color-foreground: var(--text-primary);
+  --color-card: var(--surface-panel);
+  --color-border: var(--surface-border);
+  --color-muted: var(--surface-card);
+  --color-muted-foreground: var(--text-muted);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* ── Base ─────────────────────────────────────────────────────────────────── */
+
+html, body {
+  background: var(--surface-bg);
+  color: var(--text-primary);
+}
+
+/* Mapbox attribution — make it less intrusive */
+.mapboxgl-ctrl-attrib {
+  background: rgba(27,28,29,0.72) !important;
+  backdrop-filter: blur(4px);
+}
+.mapboxgl-ctrl-attrib a {
+  color: var(--text-muted) !important;
+}
+
+/* Cable info popup — strip Mapbox defaults */
+.gpon-cable-popup .mapboxgl-popup-content {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+.gpon-cable-popup .mapboxgl-popup-tip {
+  display: none;
+}
+
+/* Nav control */
+.mapboxgl-ctrl-group {
+  background: rgba(34,35,36,0.88) !important;
+  border: 1px solid var(--surface-border) !important;
+  backdrop-filter: blur(8px);
+}
+.mapboxgl-ctrl-group button {
+  color: var(--text-secondary) !important;
+}
+.mapboxgl-ctrl-group button:hover {
+  background: rgba(164,164,164,0.12) !important;
+}
+.mapboxgl-ctrl-icon {
+  filter: invert(0.72);
+}
