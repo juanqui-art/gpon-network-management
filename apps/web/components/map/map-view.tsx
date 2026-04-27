@@ -12,6 +12,8 @@ import {
 	TYPE_COLOR,
 } from "@/lib/map/palette";
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_STYLE } from "@/lib/mapbox/config";
+import type { UserRole } from "@/lib/types/gpon";
+import { canWriteInfrastructure } from "@/lib/types/gpon";
 import type {
 	ConnectionMapItem,
 	EquipmentMapItem,
@@ -26,6 +28,7 @@ interface Props {
 	connections: ConnectionMapItem[];
 	routePoints?: RoutePoint[];
 	incidents: IncidentMapItem[];
+	userRole?: UserRole | null;
 }
 
 // ── Connection GeoJSON builder ────────────────────────────────────────────────
@@ -843,7 +846,9 @@ export function MapView({
 	connections,
 	routePoints = [],
 	incidents,
+	userRole = null,
 }: Props) {
+	const canEdit = canWriteInfrastructure(userRole);
 	const router = useRouter();
 	const containerRef = useRef<HTMLDivElement>(null);
 	const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -868,7 +873,7 @@ export function MapView({
 	const [filterStatus, setFilterStatus] = useState("all");
 	const [zoom, setZoom] = useState(DEFAULT_ZOOM); // matches map constructor zoom
 	const [activeTool, setActiveTool] = useState<EditorTool>("select");
-	const [mode, setMode] = useState<EditorMode>("edit");
+	const [mode, setMode] = useState<EditorMode>(canEdit ? "edit" : "view");
 	const [leftTab, setLeftTab] = useState<LeftPanelTab>("layers");
 	const [statusMessage, setStatusMessage] = useState(
 		"Modo infraestructura listo.",
@@ -2018,18 +2023,20 @@ export function MapView({
 
 			<div ref={containerRef} className="h-full w-full" />
 
-			<EditorTopBar
-				activeToolLabel={activeToolLabel}
-				mode={mode}
-				onModeChange={(nextMode) => {
-					setMode(nextMode);
-					if (nextMode === "view") {
-						setActiveTool("select");
-					}
-				}}
-			/>
+			{canEdit && (
+				<EditorTopBar
+					activeToolLabel={activeToolLabel}
+					mode={mode}
+					onModeChange={(nextMode) => {
+						setMode(nextMode);
+						if (nextMode === "view") {
+							setActiveTool("select");
+						}
+					}}
+				/>
+			)}
 
-			{isEditing && (
+			{canEdit && isEditing && (
 				<EditorToolbar activeTool={activeTool} onToolChange={setActiveTool} />
 			)}
 
