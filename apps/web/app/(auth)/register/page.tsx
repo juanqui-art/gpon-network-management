@@ -50,7 +50,7 @@ export default function RegisterPage() {
 						type="password"
 						required
 						autoComplete="new-password"
-						minLength={6}
+						minLength={8}
 						className="w-full rounded-md border border-[rgba(164,164,164,0.18)] bg-[#282929] px-3 py-2 text-sm text-[#e6e6e6] placeholder-[#777879] focus:border-[#a4a4a4] focus:outline-none focus:ring-1 focus:ring-[#a4a4a4]"
 					/>
 				</div>
