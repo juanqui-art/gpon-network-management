@@ -967,6 +967,8 @@ export function MapView({
 	const modeRef = useRef<EditorMode>("view");
 	const drawRef = useRef<MapboxDraw | null>(null);
 	const draftRouteCountRef = useRef(1);
+	// Stable ref so dragend listeners always call the latest save fn
+	const saveExistingElementRef = useRef<(el: EquipmentMapItem, patch: Partial<EquipmentMapItem>) => void>(() => {});
 	const [selectedFeature, setSelectedFeature] =
 		useState<AnySelectedFeature | null>(null);
 	const [draftCount, setDraftCount] = useState(1);
@@ -1333,6 +1335,7 @@ export function MapView({
 	selectedFeatureRef.current = selectedFeature;
 	modeRef.current = mode;
 	draftRouteCountRef.current = draftRouteCount;
+	saveExistingElementRef.current = saveExistingElement;
 
 	useEffect(() => {
 		const map = mapRef.current;
@@ -1351,6 +1354,15 @@ export function MapView({
 				: TOOL_HELP[activeTool],
 		);
 	}, [activeTool, mode]);
+
+	// Enable / disable marker drag when mode changes
+	useEffect(() => {
+		const draggable = mode === "edit";
+		for (const { marker, outerEl } of markersByEqId.current.values()) {
+			marker.setDraggable(draggable);
+			outerEl.style.cursor = draggable ? "grab" : "pointer";
+		}
+	}, [mode]);
 
 	// Activate / deactivate mapbox-gl-draw based on active tool
 	useEffect(() => {
@@ -1619,9 +1631,26 @@ export function MapView({
 		for (const eq of equipment) {
 			if (markersByEqId.current.has(eq.id)) continue;
 			const el = createMarkerEl(eq, incidentMap[eq.id] ?? null);
-			const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
+			const marker = new mapboxgl.Marker({
+				element: el,
+				anchor: "center",
+				draggable: modeRef.current === "edit",
+			})
 				.setLngLat([eq.lng, eq.lat])
 				.addTo(map);
+
+			marker.on("dragstart", () => {
+				// Visual feedback during drag
+				el.style.opacity = "0.7";
+				el.style.cursor = "grabbing";
+			});
+			marker.on("dragend", () => {
+				el.style.opacity = "1";
+				el.style.cursor = "pointer";
+				const { lng, lat } = marker.getLngLat();
+				saveExistingElementRef.current(eq, { lng, lat });
+			});
+
 			el.addEventListener("click", (e) => {
 				e.stopPropagation();
 				popupRef.current?.remove();
@@ -3515,35 +3544,13 @@ function SelectedFeatureProperties({
 
 	if (selectedFeature.kind === "route") {
 		const route = selectedFeature.route;
-		return (
-			<div className="space-y-3">
-				<PropertyRow label="Entidad" value="Ruta de fibra" />
-				<PropertyRow label="Tipo" value={route.type} />
-				<PropertyRow label="Estado" value={route.status} />
-				<PropertyRow label="Calidad" value={route.route_quality} />
-				<PropertyRow
-					label="Longitud"
-					value={
-						route.length_meters != null
-							? `${route.length_meters.toFixed(0)} m`
-							: "Pendiente"
-					}
-				/>
-				<PropertyRow label="Fibra" value={route.fiber_type ?? "Pendiente"} />
-				<PropertyRow
-					label="Pérdida total"
-					value={
-						route.total_loss_db != null
-							? `${route.total_loss_db.toFixed(2)} dB`
-							: "Pendiente"
-					}
-				/>
-				<PendingMutationNotice />
-				{isDeleting && (
-					<DeleteConfirm onConfirm={() => onDelete(selectedFeature)} />
-				)}
-			</div>
-		);
+		return <ExistingRoutePanel
+			route={route}
+			mode={mode}
+			isDeleting={isDeleting}
+			onDelete={() => onDelete(selectedFeature)}
+			onSave={(patch) => onSaveRoute(route, patch)}
+		/>;
 	}
 
 	if (selectedFeature.kind === "routePoint") {
@@ -3852,6 +3859,111 @@ function ExistingElementPanel({
 				label="Notas"
 				value={(currentValue("notes") as string | null) ?? ""}
 				onChange={(v) => field("notes", (v || null) as EquipmentMapItem["notes"])}
+			/>
+			{isDirty && (
+				<button
+					type="button"
+					onClick={() => { onSave(patch); setPatch({}); }}
+					className="w-full rounded-md border border-[rgba(245,158,11,0.4)] bg-[rgba(245,158,11,0.14)] px-3 py-2 text-xs font-medium text-[#fbbf24] transition-colors hover:bg-[rgba(245,158,11,0.24)]"
+				>
+					Guardar cambios
+				</button>
+			)}
+			{isDeleting && <DeleteConfirm onConfirm={onDelete} />}
+		</div>
+	);
+}
+
+function ExistingRoutePanel({
+	route,
+	mode,
+	isDeleting,
+	onDelete,
+	onSave,
+}: {
+	route: ConnectionMapItem;
+	mode: EditorMode;
+	isDeleting: boolean;
+	onDelete: () => void;
+	onSave: (patch: Partial<ConnectionMapItem>) => void;
+}) {
+	const [patch, setPatch] = useState<Partial<ConnectionMapItem>>({});
+	const isDirty = Object.keys(patch).length > 0;
+	const field = <K extends keyof ConnectionMapItem>(key: K, val: ConnectionMapItem[K]) =>
+		setPatch((p) => ({ ...p, [key]: val }));
+	const cur = <K extends keyof ConnectionMapItem>(key: K): ConnectionMapItem[K] =>
+		(patch[key] !== undefined ? patch[key] : route[key]) as ConnectionMapItem[K];
+
+	const lengthLabel = route.length_meters != null
+		? `${route.length_meters.toFixed(0)} m`
+		: "Sin calcular";
+
+	if (mode !== "edit") {
+		return (
+			<div className="space-y-3">
+				<PropertyRow label="Tipo" value={route.type} />
+				{route.code && <PropertyRow label="Código" value={route.code} />}
+				<PropertyRow label="Estado" value={route.status} />
+				<PropertyRow label="Calidad" value={route.route_quality} />
+				<PropertyRow label="Longitud" value={lengthLabel} />
+				<PropertyRow label="Fibra" value={route.fiber_type ?? "—"} />
+				{route.total_loss_db != null && (
+					<PropertyRow label="Pérdida" value={`${route.total_loss_db.toFixed(2)} dB`} />
+				)}
+			</div>
+		);
+	}
+
+	return (
+		<div className="space-y-3">
+			<PropertyRow label="Tipo actual" value={route.type} />
+			<DraftTextField
+				label="Código"
+				value={(cur("code") as string | null) ?? ""}
+				onChange={(v) => field("code", (v || null) as ConnectionMapItem["code"])}
+			/>
+			<DraftSelectField
+				label="Tipo de ruta"
+				value={cur("type") as string}
+				options={[
+					["feeder", "Feeder"],
+					["distribution", "Distribution"],
+					["other", "Otro"],
+				]}
+				onChange={(v) => field("type", v as ConnectionMapItem["type"])}
+			/>
+			<DraftSelectField
+				label="Estado"
+				value={cur("status") as string}
+				options={[
+					["planned", "Planificado"],
+					["installed", "Instalado"],
+					["active", "Activo"],
+					["damaged", "Averiado"],
+					["retired", "Retirado"],
+				]}
+				onChange={(v) => field("status", v as ConnectionMapItem["status"])}
+			/>
+			<DraftSelectField
+				label="Fibra"
+				value={(cur("fiber_type") as string | null) ?? "g652d"}
+				options={[
+					["g652d", "G.652D — Feeder"],
+					["g657a1", "G.657A1 — Distribution"],
+					["g657a2", "G.657A2 — Drop"],
+				]}
+				onChange={(v) => field("fiber_type", v as ConnectionMapItem["fiber_type"])}
+			/>
+			<DraftNumberField
+				label="Hilos"
+				value={cur("fiber_count") as number | null}
+				onChange={(v) => field("fiber_count", v as ConnectionMapItem["fiber_count"])}
+			/>
+			<PropertyRow label="Longitud" value={lengthLabel} />
+			<DraftTextField
+				label="Notas"
+				value={(cur("notes") as string | null) ?? ""}
+				onChange={(v) => field("notes", (v || null) as ConnectionMapItem["notes"])}
 			/>
 			{isDirty && (
 				<button
