@@ -2,19 +2,20 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { signIn } from "@/app/actions/auth";
+import { requestPasswordReset } from "@/app/actions/auth";
 
-export default function LoginPage() {
-	const [error, action, pending] = useActionState(signIn, null);
+export default function ForgotPasswordPage() {
+	const [message, action, pending] = useActionState(requestPasswordReset, null);
+	const isSuccess = message?.startsWith("Si el email");
 
 	return (
 		<>
 			<div className="mb-8 text-center">
 				<h1 className="text-2xl font-semibold tracking-tight text-[#e6e6e6]">
-					GPON Network
+					Recuperar contraseña
 				</h1>
 				<p className="mt-1 text-sm text-[#a4a4a4]">
-					Inicia sesión para continuar
+					Te enviaremos un enlace de recuperación
 				</p>
 			</div>
 
@@ -37,54 +38,33 @@ export default function LoginPage() {
 					/>
 				</div>
 
-				<div className="space-y-1.5">
-					<label
-						htmlFor="password"
-						className="block text-sm font-medium text-[#d7d7d7]"
+				{message && (
+					<p
+						className={`rounded-md border px-3 py-2 text-sm ${
+							isSuccess
+								? "border-[#4ade80]/30 bg-[#4ade80]/10 text-[#86efac]"
+								: "border-[#fb4d6d]/30 bg-[#fb4d6d]/10 text-[#ff9aaa]"
+						}`}
 					>
-						Contraseña
-					</label>
-					<input
-						id="password"
-						name="password"
-						type="password"
-						required
-						autoComplete="current-password"
-						className="w-full rounded-md border border-[rgba(164,164,164,0.18)] bg-[#282929] px-3 py-2 text-sm text-[#e6e6e6] placeholder-[#777879] focus:border-[#a4a4a4] focus:outline-none focus:ring-1 focus:ring-[#a4a4a4]"
-					/>
-				</div>
-
-				{error && (
-					<p className="rounded-md border border-[#fb4d6d]/30 bg-[#fb4d6d]/10 px-3 py-2 text-sm text-[#ff9aaa]">
-						{error}
+						{message}
 					</p>
 				)}
 
 				<button
 					type="submit"
-					disabled={pending}
+					disabled={pending || isSuccess}
 					className="w-full rounded-md bg-[#e6e6e6] px-4 py-2 text-sm font-medium text-[#242424] transition-colors hover:bg-[#d7d7d7] focus:outline-none focus:ring-2 focus:ring-[#a4a4a4] focus:ring-offset-2 focus:ring-offset-[#222324] disabled:cursor-not-allowed disabled:opacity-50"
 				>
-					{pending ? "Ingresando…" : "Ingresar"}
+					{pending ? "Enviando…" : "Enviar enlace"}
 				</button>
-
-				<div className="text-center">
-					<Link
-						href="/forgot-password"
-						className="text-sm text-[#a4a4a4] hover:text-[#e6e6e6] hover:underline"
-					>
-						¿Olvidaste tu contraseña?
-					</Link>
-				</div>
 			</form>
 
 			<p className="mt-6 text-center text-sm text-[#a4a4a4]">
-				¿No tienes cuenta?{" "}
 				<Link
-					href="/register"
+					href="/login"
 					className="font-medium text-[#e6e6e6] hover:underline"
 				>
-					Regístrate
+					Volver al inicio de sesión
 				</Link>
 			</p>
 		</>

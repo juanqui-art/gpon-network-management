@@ -34,10 +34,19 @@ export async function proxy(request: NextRequest) {
 	} = await supabase.auth.getUser();
 
 	const { pathname } = request.nextUrl;
-	const isAuthPath = pathname === "/login" || pathname === "/register";
+	// Paths accessible without a session (no guard, no redirect to /map when authenticated).
+	const isPublicOnlyPath =
+		pathname === "/login" ||
+		pathname === "/register" ||
+		pathname === "/forgot-password";
+	// Paths that must not redirect to /map even when authenticated.
+	const isPublicPath =
+		isPublicOnlyPath ||
+		pathname.startsWith("/auth/") ||
+		pathname === "/reset-password";
 	const isApiPath = pathname.startsWith("/api/");
 
-	if (!user && !isAuthPath) {
+	if (!user && !isPublicPath) {
 		// API routes get 401 — not an HTML redirect (callers expect JSON).
 		if (isApiPath) {
 			return new NextResponse(null, { status: 401 });
@@ -52,7 +61,7 @@ export async function proxy(request: NextRequest) {
 		return redirectResponse;
 	}
 
-	if (user && isAuthPath) {
+	if (user && isPublicOnlyPath) {
 		const url = request.nextUrl.clone();
 		url.pathname = "/map";
 		const redirectResponse = NextResponse.redirect(url);
