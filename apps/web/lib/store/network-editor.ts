@@ -301,6 +301,29 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 							message: `${el.code}: Splitter sin relación de división`,
 						});
 					}
+
+					// Capacity validation for NAPs
+					if (el.type === "nap" && el.total_ports) {
+						const used = el.ports_used ?? 0;
+						const reserved = el.ports_reserved ?? 0;
+						const available = el.total_ports - (used + reserved);
+
+						if (available <= 0) {
+							errors.push({
+								id: el.id,
+								kind: "element",
+								field: "capacity",
+								message: `${el.code}: NAP SATURADA — sin puertos disponibles`,
+							});
+						} else if (used / el.total_ports >= 0.9) {
+							errors.push({
+								id: el.id,
+								kind: "element",
+								field: "capacity",
+								message: `${el.code}: NAP casi llena (${available} puerto${available !== 1 ? "s" : ""} disponible${available !== 1 ? "s" : ""})`,
+							});
+						}
+					}
 				}
 
 				for (const r of Object.values(routes)) {

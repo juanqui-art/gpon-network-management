@@ -11,6 +11,7 @@ import {
 } from "@/lib/map/palette";
 import type { EquipmentMapItem, IncidentMapItem } from "./types";
 import { DataQualityBadge } from "./data-quality-badge";
+import { NapCapacity } from "./nap-capacity";
 
 const TYPE_LABELS: Record<string, string> = {
 	olt: "OLT",
@@ -185,11 +186,9 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 				)}
 
 				{eq.type === "nap" && eq.total_ports != null && (
-					<Row label="Puertos">
-						<span className="font-mono text-xs text-[#d7d7d7]">
-							{eq.total_ports}
-						</span>
-					</Row>
+					<div className="mb-3">
+						<NapCapacity element={eq} size="md" />
+					</div>
 				)}
 
 				{/* ── ONT enriched section ────────────────────────────────────── */}

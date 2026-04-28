@@ -50,6 +50,8 @@ export interface InfrastructureElement {
 	split_ratio: SplitRatio | null;
 	insertion_loss_db: number | null;
 	total_ports: number | null;
+	ports_used: number | null;
+	ports_reserved: number | null;
 
 	properties: Record<string, unknown>;
 	notes: string | null;
