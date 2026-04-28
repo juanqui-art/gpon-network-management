@@ -20,6 +20,7 @@ import {
 	canDeleteInfrastructure,
 	canWriteInfrastructure,
 } from "@/lib/types/gpon";
+import { NapCapacity } from "./nap-capacity";
 import type {
 	ConnectionMapItem,
 	EquipmentMapItem,
@@ -1262,6 +1263,62 @@ export function MapView({
 		[router],
 	);
 
+	const saveExistingElement = useCallback(
+		async (element: EquipmentMapItem, patch: Partial<EquipmentMapItem>) => {
+			const { createClient } = await import("@/lib/supabase/client");
+			const supabase = createClient();
+			setStatusMessage(`Guardando ${element.code}…`);
+
+			const { error } = await supabase.rpc("update_infrastructure_element", {
+				p_id: element.id,
+				p_code: patch.code ?? element.code,
+				p_name: patch.name ?? element.name,
+				p_status: patch.status ?? element.status,
+				p_location_quality: patch.location_quality ?? element.location_quality,
+				p_total_pon_ports: patch.total_pon_ports ?? element.total_pon_ports,
+				p_split_ratio: patch.split_ratio ?? element.split_ratio,
+				p_insertion_loss_db: patch.insertion_loss_db ?? element.insertion_loss_db,
+				p_total_ports: patch.total_ports ?? element.total_ports,
+				p_address_reference: patch.address_reference ?? element.address_reference,
+				p_notes: patch.notes ?? element.notes,
+			});
+
+			if (error) {
+				setStatusMessage(`Error al guardar: ${error.message}`);
+				return;
+			}
+			setStatusMessage(`${element.code} actualizado.`);
+			setActiveTool("select");
+			router.refresh();
+		},
+		[router],
+	);
+
+	const saveExistingRoute = useCallback(
+		async (route: ConnectionMapItem, patch: Partial<ConnectionMapItem>) => {
+			const { createClient } = await import("@/lib/supabase/client");
+			const supabase = createClient();
+			setStatusMessage("Guardando ruta…");
+
+			const { error } = await supabase.rpc("update_fiber_route", {
+				p_id: route.id,
+				p_code: patch.code ?? route.code,
+				p_type: patch.type ?? route.type,
+				p_fiber_type: patch.fiber_type ?? route.fiber_type,
+				p_fiber_count: patch.fiber_count ?? route.fiber_count,
+				p_notes: patch.notes ?? route.notes,
+			});
+
+			if (error) {
+				setStatusMessage(`Error al guardar: ${error.message}`);
+				return;
+			}
+			setStatusMessage("Ruta actualizada.");
+			router.refresh();
+		},
+		[router],
+	);
+
 	// Keep refs in sync so Mapbox effects can access latest props without deps
 	equipmentRef.current = equipment;
 	connectionsRef.current = connections;
@@ -2483,6 +2540,8 @@ export function MapView({
 				onSaveDraft={saveDraftElement}
 				onSaveDraftRoute={saveDraftRoute}
 				onSaveRoutePointDraft={saveRoutePointDraft}
+				onSaveElement={saveExistingElement}
+				onSaveRoute={saveExistingRoute}
 			/>
 
 			{mode === "view" && <Legend />}
@@ -3116,6 +3175,8 @@ function PropertiesPanel({
 	onSaveDraft,
 	onSaveDraftRoute,
 	onSaveRoutePointDraft,
+	onSaveElement,
+	onSaveRoute,
 }: {
 	selectedFeature: AnySelectedFeature | null;
 	incident: IncidentMapItem | null;
@@ -3130,6 +3191,8 @@ function PropertiesPanel({
 	onSaveDraft: (draft: DraftElement) => void | Promise<void>;
 	onSaveDraftRoute: (draft: DraftRoute) => void | Promise<void>;
 	onSaveRoutePointDraft: (draft: DraftRoutePoint) => void | Promise<void>;
+	onSaveElement: (element: EquipmentMapItem, patch: Partial<EquipmentMapItem>) => void | Promise<void>;
+	onSaveRoute: (route: ConnectionMapItem, patch: Partial<ConnectionMapItem>) => void | Promise<void>;
 }) {
 	const title =
 		selectedFeature?.kind === "draftElement"
@@ -3189,6 +3252,7 @@ function PropertiesPanel({
 					<SelectedFeatureProperties
 						selectedFeature={selectedFeature}
 						incident={incident}
+						mode={mode}
 						isDeleting={isDeleting}
 						onCancelDraft={onCancelDraft}
 						onDraftChange={onDraftChange}
@@ -3198,6 +3262,8 @@ function PropertiesPanel({
 						onSaveDraft={onSaveDraft}
 						onSaveDraftRoute={onSaveDraftRoute}
 						onSaveRoutePointDraft={onSaveRoutePointDraft}
+						onSaveElement={onSaveElement}
+						onSaveRoute={onSaveRoute}
 					/>
 				) : (
 					<div className="space-y-3 text-xs text-[#a4a4a4]">
@@ -3225,6 +3291,7 @@ function PropertiesPanel({
 function SelectedFeatureProperties({
 	selectedFeature,
 	incident,
+	mode,
 	isDeleting,
 	onCancelDraft,
 	onDraftChange,
@@ -3234,9 +3301,12 @@ function SelectedFeatureProperties({
 	onSaveDraft,
 	onSaveDraftRoute,
 	onSaveRoutePointDraft,
+	onSaveElement,
+	onSaveRoute,
 }: {
 	selectedFeature: AnySelectedFeature;
 	incident: IncidentMapItem | null;
+	mode: EditorMode;
 	isDeleting: boolean;
 	onCancelDraft: () => void;
 	onDraftChange: (patch: DraftElementPatch) => void;
@@ -3246,6 +3316,8 @@ function SelectedFeatureProperties({
 	onSaveDraft: (draft: DraftElement) => void | Promise<void>;
 	onSaveDraftRoute: (draft: DraftRoute) => void | Promise<void>;
 	onSaveRoutePointDraft: (draft: DraftRoutePoint) => void | Promise<void>;
+	onSaveElement: (element: EquipmentMapItem, patch: Partial<EquipmentMapItem>) => void | Promise<void>;
+	onSaveRoute: (route: ConnectionMapItem, patch: Partial<ConnectionMapItem>) => void | Promise<void>;
 }) {
 	if (selectedFeature.kind === "draftElement") {
 		const draft = selectedFeature.element;
@@ -3649,43 +3721,148 @@ function SelectedFeatureProperties({
 	}
 
 	const element = selectedFeature.element;
+	return <ExistingElementPanel
+		element={element}
+		incident={incident}
+		mode={mode}
+		isDeleting={isDeleting}
+		onDelete={() => onDelete(selectedFeature)}
+		onSave={(patch) => onSaveElement(element, patch)}
+	/>;
+}
+
+function ExistingElementPanel({
+	element,
+	incident,
+	mode,
+	isDeleting,
+	onDelete,
+	onSave,
+}: {
+	element: EquipmentMapItem;
+	incident: IncidentMapItem | null;
+	mode: EditorMode;
+	isDeleting: boolean;
+	onDelete: () => void;
+	onSave: (patch: Partial<EquipmentMapItem>) => void;
+}) {
+	const [patch, setPatch] = useState<Partial<EquipmentMapItem>>({});
+	const isDirty = Object.keys(patch).length > 0;
+
+	const field = <K extends keyof EquipmentMapItem>(key: K, val: EquipmentMapItem[K]) =>
+		setPatch((p) => ({ ...p, [key]: val }));
+
+	const currentValue = <K extends keyof EquipmentMapItem>(key: K): EquipmentMapItem[K] =>
+		(patch[key] !== undefined ? patch[key] : element[key]) as EquipmentMapItem[K];
+
+	if (mode !== "edit") {
+		// View / design → read-only
+		return (
+			<div className="space-y-3">
+				<PropertyRow label="Tipo" value={element.type.toUpperCase()} />
+				<PropertyRow label="Código" value={element.code} />
+				<PropertyRow label="Estado" value={element.status} />
+				<PropertyRow label="Calidad" value={element.location_quality} />
+				{element.type === "olt" && (
+					<PropertyRow label="Puertos PON" value={element.total_pon_ports?.toString() ?? "—"} />
+				)}
+				{element.type === "splitter" && (
+					<PropertyRow label="Ratio" value={element.split_ratio ?? "—"} />
+				)}
+				{element.type === "nap" && element.total_ports != null && (
+					<NapCapacity element={element} size="sm" />
+				)}
+				<PropertyRow label="Coordenadas" value={`${element.lat.toFixed(5)}, ${element.lng.toFixed(5)}`} />
+				{incident && (
+					<div className="rounded-md border border-[rgba(251,77,109,0.22)] bg-[rgba(251,77,109,0.09)] px-3 py-2">
+						<p className="text-[10px] font-semibold uppercase tracking-widest text-[#fb7185]">Incidente activo</p>
+						<p className="mt-1 text-xs text-[#f0b2bf]">{incident.title}</p>
+					</div>
+				)}
+			</div>
+		);
+	}
+
+	// Edit mode → editable fields
 	return (
 		<div className="space-y-3">
-			<PropertyRow label="Entidad" value="Elemento" />
 			<PropertyRow label="Tipo" value={element.type.toUpperCase()} />
-			<PropertyRow label="Estado" value={element.status} />
-			<PropertyRow label="Calidad" value={element.location_quality} />
+			<DraftTextField
+				label="Código"
+				value={currentValue("code") as string}
+				onChange={(v) => field("code", v as EquipmentMapItem["code"])}
+			/>
+			<DraftTextField
+				label="Nombre"
+				value={(currentValue("name") as string | null) ?? ""}
+				onChange={(v) => field("name", (v || null) as EquipmentMapItem["name"])}
+			/>
+			<DraftSelectField
+				label="Estado"
+				value={currentValue("status") as string}
+				options={[
+					["planned", "Planificado"],
+					["active", "Activo"],
+					["inactive", "Inactivo"],
+					["faulty", "Averiado"],
+					["retired", "Retirado"],
+				]}
+				onChange={(v) => field("status", v as EquipmentMapItem["status"])}
+			/>
+			<DraftSelectField
+				label="Calidad"
+				value={currentValue("location_quality") as string}
+				options={[
+					["unknown", "Desconocida"],
+					["approximate", "Aproximada"],
+					["drawn", "Dibujada"],
+					["gps_captured", "GPS"],
+					["verified", "Verificada"],
+				]}
+				onChange={(v) => field("location_quality", v as EquipmentMapItem["location_quality"])}
+			/>
 			{element.type === "olt" && (
-				<PropertyRow
+				<DraftNumberField
 					label="Puertos PON"
-					value={element.total_pon_ports?.toString() ?? "Pendiente"}
+					value={currentValue("total_pon_ports") as number | null}
+					onChange={(v) => field("total_pon_ports", v as EquipmentMapItem["total_pon_ports"])}
 				/>
 			)}
 			{element.type === "splitter" && (
-				<PropertyRow label="Ratio" value={element.split_ratio ?? "Pendiente"} />
-			)}
-			{element.type === "nap" && (
-				<PropertyRow
-					label="Puertos"
-					value={element.total_ports?.toString() ?? "Pendiente"}
+				<DraftSelectField
+					label="Ratio"
+					value={(currentValue("split_ratio") as string | null) ?? "1:8"}
+					options={[["1:2","1:2"],["1:4","1:4"],["1:8","1:8"],["1:16","1:16"],["1:32","1:32"],["1:64","1:64"]]}
+					onChange={(v) => field("split_ratio", v as EquipmentMapItem["split_ratio"])}
 				/>
 			)}
-			<PropertyRow
-				label="Ubicación"
-				value={`${element.lat.toFixed(5)}, ${element.lng.toFixed(5)}`}
+			{element.type === "nap" && (
+				<DraftNumberField
+					label="Puertos totales"
+					value={currentValue("total_ports") as number | null}
+					onChange={(v) => field("total_ports", v as EquipmentMapItem["total_ports"])}
+				/>
+			)}
+			<DraftTextField
+				label="Referencia"
+				value={(currentValue("address_reference") as string | null) ?? ""}
+				onChange={(v) => field("address_reference", (v || null) as EquipmentMapItem["address_reference"])}
 			/>
-			{incident && (
-				<div className="rounded-md border border-[rgba(251,77,109,0.22)] bg-[rgba(251,77,109,0.09)] px-3 py-2">
-					<p className="text-[10px] font-semibold uppercase tracking-widest text-[#fb7185]">
-						Incidente activo
-					</p>
-					<p className="mt-1 text-xs text-[#f0b2bf]">{incident.title}</p>
-				</div>
+			<DraftTextField
+				label="Notas"
+				value={(currentValue("notes") as string | null) ?? ""}
+				onChange={(v) => field("notes", (v || null) as EquipmentMapItem["notes"])}
+			/>
+			{isDirty && (
+				<button
+					type="button"
+					onClick={() => { onSave(patch); setPatch({}); }}
+					className="w-full rounded-md border border-[rgba(245,158,11,0.4)] bg-[rgba(245,158,11,0.14)] px-3 py-2 text-xs font-medium text-[#fbbf24] transition-colors hover:bg-[rgba(245,158,11,0.24)]"
+				>
+					Guardar cambios
+				</button>
 			)}
-			<PendingMutationNotice />
-			{isDeleting && (
-				<DeleteConfirm onConfirm={() => onDelete(selectedFeature)} />
-			)}
+			{isDeleting && <DeleteConfirm onConfirm={onDelete} />}
 		</div>
 	);
 }
