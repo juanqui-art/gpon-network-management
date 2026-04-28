@@ -6,8 +6,11 @@ import {
 	type SignalClass,
 	STATUS_COLOR,
 	TYPE_COLOR,
+	DATA_QUALITY_COLOR,
+	DATA_QUALITY_LABEL,
 } from "@/lib/map/palette";
 import type { EquipmentMapItem, IncidentMapItem } from "./types";
+import { DataQualityBadge } from "./data-quality-badge";
 
 const TYPE_LABELS: Record<string, string> = {
 	olt: "OLT",
@@ -148,6 +151,11 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 							{STATUS_LABELS[eq.status] ?? eq.status}
 						</span>
 					</div>
+				</Row>
+
+				{/* Data Quality */}
+				<Row label="Calidad">
+					<DataQualityBadge quality={eq.location_quality} size="sm" />
 				</Row>
 
 				{/* Vendor / Model */}

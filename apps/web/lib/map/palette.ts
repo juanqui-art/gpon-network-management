@@ -79,6 +79,30 @@ export const SIGNAL_COLOR: Record<SignalClass, string> = {
 	unknown: "#858585",
 };
 
+// ── Data quality ────────────────────────────────────────────────────────────
+export type DataQualityLevel =
+	| "unknown"
+	| "approximate"
+	| "drawn"
+	| "gps_captured"
+	| "verified";
+
+export const DATA_QUALITY_COLOR: Record<DataQualityLevel, string> = {
+	unknown: "#777879", // muted gray
+	approximate: "#f59e0b", // amber
+	drawn: "#a78bfa", // purple
+	gps_captured: "#38bdf8", // sky blue
+	verified: "#34d399", // emerald (most trusted)
+};
+
+export const DATA_QUALITY_LABEL: Record<DataQualityLevel, string> = {
+	unknown: "Sin información",
+	approximate: "Aproximado",
+	drawn: "Dibujado",
+	gps_captured: "Capturado por GPS",
+	verified: "Verificado",
+};
+
 // ── Surface (matches globals.css) ───────────────────────────────────────────
 export const SURFACE = {
 	bg: "#1b1c1d",

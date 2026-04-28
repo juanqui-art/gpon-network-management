@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import {
 	CABLE_COLOR,
+	DATA_QUALITY_COLOR,
 	SEVERITY_COLOR,
 	STATUS_COLOR,
 	TYPE_COLOR,
@@ -336,6 +337,25 @@ function createMarkerEl(
     pointer-events: none;
   `;
 	wrapper.appendChild(statusRing);
+
+	// Quality ring — shows data trustworthiness (outer, dotted)
+	const qualityColor = DATA_QUALITY_COLOR[eq.location_quality] ?? DATA_QUALITY_COLOR.unknown;
+	const qualityRingSize = ringSize + 6;
+	const qualityRing = document.createElement("div");
+	qualityRing.dataset.role = "quality-ring";
+	qualityRing.style.cssText = `
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: ${qualityRingSize}px;
+    height: ${qualityRingSize}px;
+    border-radius: 999px;
+    border: 1.5px dashed ${qualityColor};
+    opacity: 0.65;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  `;
+	wrapper.appendChild(qualityRing);
 
 	if (showStatusBadge) {
 		const statusBadge = document.createElement("div");
@@ -1442,6 +1462,15 @@ export function MapView({
 		for (const eq of equipment) {
 			const entry = markersByEqId.current.get(eq.id);
 			if (!entry) continue;
+
+			// Update quality ring
+			const qualityRing = entry.outerEl.querySelector(
+				'[data-role="quality-ring"]',
+			) as HTMLElement | null;
+			if (qualityRing) {
+				const qualityColor = DATA_QUALITY_COLOR[eq.location_quality] ?? DATA_QUALITY_COLOR.unknown;
+				qualityRing.style.borderColor = qualityColor;
+			}
 
 			if (entry.status !== eq.status) {
 				const statusColor = STATUS_COLOR[eq.status] ?? STATUS_COLOR.unknown;
