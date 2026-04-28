@@ -121,6 +121,9 @@ The current MVP is defined as an **Infrastructure Editor for GPON external plant
 See [`docs/MVP_SCOPE.md`](docs/MVP_SCOPE.md) for the closed MVP scope and
 implementation order.
 
+Research notes for Ecuadorian GPON/FTTH deployment criteria are consolidated in
+[`docs/GPON_FTTH_ECUADOR_RESEARCH.md`](docs/GPON_FTTH_ECUADOR_RESEARCH.md).
+
 ---
 
 ## 🔮 Future Enhancements

@@ -63,7 +63,7 @@ export async function proxy(request: NextRequest) {
 
 	if (user && isPublicOnlyPath) {
 		const url = request.nextUrl.clone();
-		url.pathname = "/map";
+		url.pathname = "/networks";
 		const redirectResponse = NextResponse.redirect(url);
 		for (const cookie of supabaseResponse.cookies.getAll()) {
 			redirectResponse.cookies.set(cookie.name, cookie.value);

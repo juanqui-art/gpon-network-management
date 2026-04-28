@@ -1,5 +1,7 @@
 "use client";
 
+import MapboxDraw from "@mapbox/mapbox-gl-draw";
+import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import mapboxgl from "mapbox-gl";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
@@ -13,7 +15,10 @@ import {
 } from "@/lib/map/palette";
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_STYLE } from "@/lib/mapbox/config";
 import type { UserRole } from "@/lib/types/gpon";
-import { canWriteInfrastructure } from "@/lib/types/gpon";
+import {
+	canDeleteInfrastructure,
+	canWriteInfrastructure,
+} from "@/lib/types/gpon";
 import type {
 	ConnectionMapItem,
 	EquipmentMapItem,
@@ -29,6 +34,13 @@ interface Props {
 	routePoints?: RoutePoint[];
 	incidents: IncidentMapItem[];
 	userRole?: UserRole | null;
+	// v2 network editor integration
+	networkId?: string | null;
+	externalTool?: EditorTool;
+	onElementSaved?: (element: InfrastructureElement) => void;
+	onRouteSaved?: (route: FiberRoute) => void;
+	onElementDeleted?: (id: string) => void;
+	onRouteDeleted?: (id: string) => void;
 }
 
 // ── Connection GeoJSON builder ────────────────────────────────────────────────
@@ -531,6 +543,67 @@ type DraftRoutePointPatch = Partial<
 	>
 >;
 
+// ── MapboxDraw dark-theme styles ─────────────────────────────────────────────
+const DRAW_STYLES: object[] = [
+	{
+		id: "draw-line-active",
+		type: "line",
+		filter: ["all", ["==", "$type", "LineString"], ["!=", "mode", "static"]],
+		layout: { "line-cap": "round", "line-join": "round" },
+		paint: {
+			"line-color": "#38bdf8",
+			"line-width": 2.5,
+			"line-dasharray": [2, 1.5],
+		},
+	},
+	{
+		id: "draw-vertex-halo",
+		type: "circle",
+		filter: [
+			"all",
+			["==", "meta", "vertex"],
+			["==", "$type", "Point"],
+			["!=", "mode", "static"],
+		],
+		paint: { "circle-radius": 7, "circle-color": "#1b1c1d" },
+	},
+	{
+		id: "draw-vertex",
+		type: "circle",
+		filter: [
+			"all",
+			["==", "meta", "vertex"],
+			["==", "$type", "Point"],
+			["!=", "mode", "static"],
+		],
+		paint: { "circle-radius": 4.5, "circle-color": "#38bdf8" },
+	},
+	{
+		id: "draw-midpoint",
+		type: "circle",
+		filter: ["all", ["==", "$type", "Point"], ["==", "meta", "midpoint"]],
+		paint: { "circle-radius": 3.5, "circle-color": "#a78bfa" },
+	},
+];
+
+// Returns the nearest element within thresholdM meters, or null.
+function nearestElementTo(
+	point: LngLat,
+	elements: EquipmentMapItem[],
+	thresholdM = 40,
+): EquipmentMapItem | null {
+	let best: EquipmentMapItem | null = null;
+	let bestDist = thresholdM;
+	for (const eq of elements) {
+		const d = distanceMeters(point, [eq.lng, eq.lat]);
+		if (d < bestDist) {
+			best = eq;
+			bestDist = d;
+		}
+	}
+	return best;
+}
+
 const TYPE_FILTERS = [
 	{ value: "all", label: "Todos" },
 	{ value: "olt", label: "OLT" },
@@ -849,6 +922,7 @@ export function MapView({
 	userRole = null,
 }: Props) {
 	const canEdit = canWriteInfrastructure(userRole);
+	const canDelete = canDeleteInfrastructure(userRole);
 	const router = useRouter();
 	const containerRef = useRef<HTMLDivElement>(null);
 	const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -865,6 +939,9 @@ export function MapView({
 	const fiberDrawingRef = useRef<FiberDrawing | null>(null);
 	const activeToolRef = useRef<EditorTool>("select");
 	const selectedFeatureRef = useRef<AnySelectedFeature | null>(null);
+	const modeRef = useRef<EditorMode>("view");
+	const drawRef = useRef<MapboxDraw | null>(null);
+	const draftRouteCountRef = useRef(1);
 	const [selectedFeature, setSelectedFeature] =
 		useState<AnySelectedFeature | null>(null);
 	const [draftCount, setDraftCount] = useState(1);
@@ -873,8 +950,13 @@ export function MapView({
 	const [filterStatus, setFilterStatus] = useState("all");
 	const [zoom, setZoom] = useState(DEFAULT_ZOOM); // matches map constructor zoom
 	const [activeTool, setActiveTool] = useState<EditorTool>("select");
-	const [mode, setMode] = useState<EditorMode>(canEdit ? "edit" : "view");
+	const [mode, setMode] = useState<EditorMode>("view");
 	const [leftTab, setLeftTab] = useState<LeftPanelTab>("layers");
+	const [contextMenu, setContextMenu] = useState<{
+		x: number;
+		y: number;
+		feature: SelectedFeature;
+	} | null>(null);
 	const [statusMessage, setStatusMessage] = useState(
 		"Modo infraestructura listo.",
 	);
@@ -958,9 +1040,16 @@ export function MapView({
 				return;
 			}
 
+			// Fly to the saved position so the new marker appears in view
+			mapRef.current?.flyTo({
+				center: [draft.lng, draft.lat],
+				zoom: Math.max(mapRef.current.getZoom(), 16),
+				duration: 400,
+				essential: true,
+			});
 			clearDraft();
 			setActiveTool("select");
-			setStatusMessage(`${draft.code} guardado como borrador.`);
+			setStatusMessage(`${draft.code} guardado — marcador visible en el mapa.`);
 			router.refresh();
 		},
 		[clearDraft, router],
@@ -1060,9 +1149,22 @@ export function MapView({
 				return;
 			}
 
+			// Fly to the midpoint of the route
+			const coords = draft.geojson_coordinates;
+			const mid = coords[Math.floor(coords.length / 2)];
+			if (mid) {
+				mapRef.current?.flyTo({
+					center: mid,
+					zoom: Math.max(mapRef.current?.getZoom() ?? 14, 14),
+					duration: 400,
+					essential: true,
+				});
+			}
 			clearDraft();
 			setActiveTool("select");
-			setStatusMessage(`${draft.code ?? "Ruta"} guardada como borrador.`);
+			setStatusMessage(
+				`${draft.code ?? "Ruta"} guardada — visible en el mapa.`,
+			);
 			router.refresh();
 		},
 		[clearDraft, router],
@@ -1146,6 +1248,8 @@ export function MapView({
 	);
 	activeToolRef.current = activeTool;
 	selectedFeatureRef.current = selectedFeature;
+	modeRef.current = mode;
+	draftRouteCountRef.current = draftRouteCount;
 
 	useEffect(() => {
 		const map = mapRef.current;
@@ -1165,6 +1269,23 @@ export function MapView({
 		);
 	}, [activeTool, mode]);
 
+	// Activate / deactivate mapbox-gl-draw based on active tool
+	useEffect(() => {
+		const draw = drawRef.current;
+		if (!draw) return;
+		if (mode === "edit" && activeTool === "fiber") {
+			draw.changeMode("draw_line_string");
+		} else {
+			try {
+				if (draw.getMode() !== "simple_select")
+					draw.changeMode("simple_select");
+			} catch {
+				// map may not be fully loaded yet
+			}
+			draw.deleteAll();
+		}
+	}, [activeTool, mode]);
+
 	useEffect(() => {
 		function onKeyDown(event: KeyboardEvent) {
 			if (
@@ -1176,6 +1297,55 @@ export function MapView({
 			}
 
 			const key = event.key.toLowerCase();
+
+			// Ctrl/Cmd+Z — undo last action
+			if ((event.ctrlKey || event.metaKey) && key === "z") {
+				event.preventDefault();
+				const draw = drawRef.current;
+				if (draw?.getMode() === "draw_line_string") {
+					const all = draw.getAll();
+					const feat = all.features[0];
+					if (feat?.geometry?.type === "LineString") {
+						const coords = feat.geometry.coordinates as LngLat[];
+						if (coords.length <= 1) {
+							draw.deleteAll();
+							draw.changeMode("draw_line_string");
+							setStatusMessage("Trazo reiniciado. Haz click para empezar.");
+						} else {
+							draw.set({
+								type: "FeatureCollection",
+								features: [
+									{
+										...feat,
+										geometry: {
+											type: "LineString",
+											coordinates: coords.slice(0, -1),
+										},
+									},
+								],
+							});
+							setStatusMessage(
+								`Vértice eliminado — ${coords.length - 1} puntos restantes.`,
+							);
+						}
+					}
+					return;
+				}
+				const cur = selectedFeatureRef.current;
+				if (
+					cur?.kind === "draftElement" ||
+					cur?.kind === "draftRoute" ||
+					cur?.kind === "draftRoutePoint"
+				) {
+					clearDraft();
+					setStatusMessage("Borrador eliminado.");
+					return;
+				}
+				setStatusMessage("Nada que deshacer.");
+				return;
+			}
+
+			if (modeRef.current !== "edit") return;
 			const shortcutMap: Partial<Record<string, EditorTool>> = {
 				v: "select",
 				h: "pan",
@@ -1350,7 +1520,51 @@ export function MapView({
 					SEVERITY_COLOR[incident.severity] ?? SEVERITY_COLOR.low;
 			}
 		}
-	}, [equipment, incidents]);
+
+		// Add markers for elements that arrived after router.refresh() but aren't on the map yet
+		const map = mapRef.current;
+		if (!map) return;
+		for (const eq of equipment) {
+			if (markersByEqId.current.has(eq.id)) continue;
+			const el = createMarkerEl(eq, incidentMap[eq.id] ?? null);
+			const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
+				.setLngLat([eq.lng, eq.lat])
+				.addTo(map);
+			el.addEventListener("click", (e) => {
+				e.stopPropagation();
+				popupRef.current?.remove();
+				popupRef.current = null;
+				if (activeToolRef.current === "fiber") {
+					if (drawRef.current?.getMode() !== "draw_line_string") {
+						handleFiberElementClick(eq);
+					}
+					return;
+				}
+				setSelectedFeature({ kind: "element", element: eq });
+			});
+			el.addEventListener("contextmenu", (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				setContextMenu({
+					x: e.clientX,
+					y: e.clientY,
+					feature: { kind: "element", element: eq },
+				});
+				setSelectedFeature({ kind: "element", element: eq });
+			});
+			el.addEventListener("dblclick", (e) => {
+				e.stopPropagation();
+				setSelectedFeature({ kind: "element", element: eq });
+				setMode("edit");
+			});
+			markersByEqId.current.set(eq.id, {
+				marker,
+				outerEl: el,
+				type: eq.type,
+				status: eq.status,
+			});
+		}
+	}, [equipment, incidents, handleFiberElementClick]);
 
 	// ── Unified visibility: user filters + zoom hierarchy ────────────────────
 	useEffect(() => {
@@ -1923,7 +2137,9 @@ export function MapView({
 					popupRef.current?.remove();
 					popupRef.current = null;
 					if (activeToolRef.current === "fiber") {
-						handleFiberElementClick(eq);
+						if (drawRef.current?.getMode() !== "draw_line_string") {
+							handleFiberElementClick(eq);
+						}
 						return;
 					}
 					if (activeToolRef.current !== "select") {
@@ -1932,6 +2148,23 @@ export function MapView({
 						);
 					}
 					setSelectedFeature({ kind: "element", element: eq });
+				});
+
+				outerEl.addEventListener("contextmenu", (e) => {
+					e.preventDefault();
+					e.stopPropagation();
+					setContextMenu({
+						x: e.clientX,
+						y: e.clientY,
+						feature: { kind: "element", element: eq },
+					});
+					setSelectedFeature({ kind: "element", element: eq });
+				});
+
+				outerEl.addEventListener("dblclick", (e) => {
+					e.stopPropagation();
+					setSelectedFeature({ kind: "element", element: eq });
+					setMode("edit");
 				});
 			}
 
@@ -1942,15 +2175,34 @@ export function MapView({
 				map.fitBounds(bounds, { padding: 100, maxZoom: 15, animate: false });
 			}
 
-			// Click on empty map area → deselect + close cable popup
+			// Right-click on route → context menu
+			map.on("contextmenu", "connections-line", (e) => {
+				const props = e.features?.[0]?.properties;
+				if (!props) return;
+				const route = routesByIdRef.current.get(props.connection_id);
+				if (!route) return;
+				e.preventDefault?.();
+				setContextMenu({
+					x: e.originalEvent.clientX,
+					y: e.originalEvent.clientY,
+					feature: { kind: "route", route },
+				});
+				setSelectedFeature({ kind: "route", route });
+			});
+
+			// Click on empty map area → deselect + close cable popup + close context menu
 			map.on("click", (event) => {
+				setContextMenu(null);
 				const tool = activeToolRef.current;
 				if (tool === "select" || tool === "pan") {
 					setSelectedFeature(null);
 				} else if (tool === "olt" || tool === "splitter" || tool === "nap") {
 					createElementDraftAt(tool, event.lngLat);
 				} else if (tool === "fiber") {
-					addFiberVertex(event.lngLat);
+					// draw_line_string mode captures its own clicks; skip manual handler
+					if (drawRef.current?.getMode() !== "draw_line_string") {
+						addFiberVertex(event.lngLat);
+					}
 				} else if (
 					tool === "crossing" ||
 					tool === "reserve" ||
@@ -1999,6 +2251,76 @@ export function MapView({
 			});
 		});
 
+		// ── MapboxDraw (fiber route editing) ────────────────────────────────
+		const draw = new MapboxDraw({
+			displayControlsDefault: false,
+			styles: DRAW_STYLES,
+		});
+		map.addControl(draw);
+		drawRef.current = draw;
+
+		map.on("draw.create", (event: { features: GeoJSON.Feature[] }) => {
+			const feature = event.features[0];
+			if (feature?.geometry?.type !== "LineString") return;
+			const coords = feature.geometry.coordinates as LngLat[];
+			if (coords.length < 2) return;
+
+			const allEq = equipmentRef.current;
+			const from = nearestElementTo(coords[0], allEq);
+			const to = nearestElementTo(coords[coords.length - 1], allEq);
+			const idx = draftRouteCountRef.current;
+			const code = `R-DRAFT-${String(idx).padStart(3, "0")}`;
+			const routeType = from?.type === "olt" ? "feeder" : "distribution";
+
+			const draftRoute: DraftRoute = {
+				isDraft: true,
+				id: `draft-route-${Date.now()}-${idx}`,
+				organization_id: null,
+				code,
+				type: routeType,
+				status: "planned",
+				from_element_id: from?.id ?? null,
+				to_element_id: to?.id ?? null,
+				from_element_type:
+					(from?.type as ConnectionMapItem["from_element_type"]) ?? null,
+				to_element_type:
+					(to?.type as ConnectionMapItem["to_element_type"]) ?? null,
+				cable_type: routeType,
+				from_equipment_id: from?.id ?? "",
+				to_equipment_id: to?.id ?? "",
+				from_equipment_type:
+					(from?.type as ConnectionMapItem["from_equipment_type"]) ?? "olt",
+				to_equipment_type:
+					(to?.type as ConnectionMapItem["to_equipment_type"]) ?? "nap",
+				geojson_coordinates: coords,
+				route_quality: "approximate",
+				installation_type: "aerial",
+				fiber_type: "g652d",
+				fiber_count: 6,
+				length_meters: Math.round(polylineLengthMeters(coords)),
+				attenuation_db_per_km: 0.35,
+				splice_loss_db: 0.1,
+				connector_loss_db: 0.3,
+				total_loss_db: null,
+				properties: {},
+				notes: null,
+				created_by: null,
+				updated_by: null,
+				created_at: new Date().toISOString(),
+				updated_at: new Date().toISOString(),
+			};
+
+			setDraftRouteCount((n) => n + 1);
+			draw.deleteAll();
+			setSelectedFeature({ kind: "draftRoute", route: draftRoute });
+			setActiveTool("select");
+			setStatusMessage(
+				from && to
+					? `${code} listo — origen y destino detectados. Guarda la ruta.`
+					: `${code} dibujado. Revisa origen/destino en el panel y guarda.`,
+			);
+		});
+
 		return () => {
 			popupRef.current?.remove();
 			popupRef.current = null;
@@ -2006,6 +2328,10 @@ export function MapView({
 			draftMarkerRef.current = null;
 			for (const { marker } of markersByEqId.current.values()) marker.remove();
 			markersByEqId.current.clear();
+			if (drawRef.current) {
+				map.removeControl(drawRef.current);
+				drawRef.current = null;
+			}
 			map.remove();
 			mapRef.current = null;
 		};
@@ -2019,9 +2345,20 @@ export function MapView({
           70%  { transform: translate(-50%,-50%) scale(2.2); opacity: 0; }
           100% { transform: translate(-50%,-50%) scale(2.2); opacity: 0; }
         }
+        @media (prefers-reduced-motion: reduce) {
+          [data-role="pulse"] { animation: none !important; opacity: 0.25 !important; }
+        }
       `}</style>
 
 			<div ref={containerRef} className="h-full w-full" />
+
+			{isEditing && (
+				<div
+					aria-hidden="true"
+					className="pointer-events-none absolute inset-0 z-30"
+					style={{ boxShadow: "inset 0 0 0 2px rgba(245,158,11,0.55)" }}
+				/>
+			)}
 
 			{canEdit && (
 				<EditorTopBar
@@ -2108,6 +2445,23 @@ export function MapView({
 			/>
 
 			{mode === "view" && <Legend />}
+
+			{contextMenu && (
+				<ContextMenu
+					menu={contextMenu}
+					canDelete={canDelete}
+					onSelect={() => {
+						setSelectedFeature(contextMenu.feature);
+						setContextMenu(null);
+					}}
+					onDelete={() => {
+						deleteFeature(contextMenu.feature);
+						setContextMenu(null);
+					}}
+					onClose={() => setContextMenu(null)}
+				/>
+			)}
+
 			<MapControls
 				mode={mode}
 				hasRightPanel={mode === "edit" || selectedFeature !== null}
@@ -2126,6 +2480,7 @@ export function MapView({
 				activeToolLabel={activeToolLabel}
 				statusMessage={statusMessage}
 				zoom={zoom}
+				mode={mode}
 			/>
 		</div>
 	);
@@ -2150,19 +2505,38 @@ function EditorTopBar({
 					<button
 						key={value}
 						type="button"
+						aria-pressed={mode === value}
 						onClick={() => onModeChange(value as EditorMode)}
 						className="rounded px-3 py-1.5 text-[11px] font-medium transition-colors"
 						style={{
 							background:
-								mode === value ? "rgba(56,189,248,0.16)" : "transparent",
-							color: mode === value ? "#bdeafe" : "#a4a4a4",
+								mode === value
+									? value === "edit"
+										? "rgba(245,158,11,0.2)"
+										: "rgba(56,189,248,0.16)"
+									: "transparent",
+							color:
+								mode === value
+									? value === "edit"
+										? "#fbbf24"
+										: "#bdeafe"
+									: "#a4a4a4",
 						}}
 					>
 						{label}
 					</button>
 				))}
 			</div>
-			<span className="rounded-md border border-[rgba(56,189,248,0.24)] bg-[rgba(56,189,248,0.1)] px-2.5 py-1.5 text-[11px] text-[#bdeafe]">
+			<span
+				className="rounded-md border px-2.5 py-1.5 text-[11px] transition-colors"
+				style={{
+					borderColor:
+						mode === "edit" ? "rgba(245,158,11,0.4)" : "rgba(56,189,248,0.24)",
+					background:
+						mode === "edit" ? "rgba(245,158,11,0.12)" : "rgba(56,189,248,0.1)",
+					color: mode === "edit" ? "#fbbf24" : "#bdeafe",
+				}}
+			>
 				{mode === "edit" ? activeToolLabel : "Capas por zoom"}
 			</span>
 		</div>
@@ -2219,26 +2593,189 @@ function EditorToolbar({
 	);
 }
 
-function ToolGlyph({ tool }: { tool: EditorTool }) {
-	const label: Record<EditorTool, string> = {
-		select: "V",
-		pan: "H",
-		olt: "OLT",
-		splitter: "SPL",
-		nap: "NAP",
-		fiber: "F",
-		crossing: "X",
-		reserve: "R",
-		splice: "E",
-		measure: "M",
-		delete: "DEL",
-	};
-
+// Wrapper so Biome's noSvgWithoutTitle rule sees aria-hidden directly, not via spread.
+function Ico({
+	viewBox,
+	fill,
+	stroke,
+	strokeWidth,
+	strokeLinecap,
+	children,
+}: {
+	viewBox: string;
+	fill?: string;
+	stroke?: string;
+	strokeWidth?: number | string;
+	strokeLinecap?: "round" | "butt" | "square";
+	children: ReactNode;
+}) {
 	return (
-		<span className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-mono">
-			{label[tool]}
-		</span>
+		<svg
+			aria-hidden="true"
+			width={15}
+			height={15}
+			viewBox={viewBox}
+			fill={fill}
+			stroke={stroke}
+			strokeWidth={strokeWidth}
+			strokeLinecap={strokeLinecap}
+		>
+			{children}
+		</svg>
 	);
+}
+
+function ToolGlyph({ tool }: { tool: EditorTool }) {
+	switch (tool) {
+		case "select":
+			return (
+				<Ico viewBox="0 0 16 16" fill="currentColor">
+					<path d="M3 2L3 13L6 10L8.2 14.5L10.3 13.5L8.1 9L12.5 9Z" />
+				</Ico>
+			);
+		case "pan":
+			return (
+				<Ico viewBox="0 0 16 16" fill="currentColor">
+					<path d="M8 1.5L6 4H7.5V7.5H4V5.5L1.5 8L4 10.5V8.5H7.5V12H6L8 14.5L10 12H8.5V8.5H12V10.5L14.5 8L12 5.5V7.5H8.5V4H10Z" />
+				</Ico>
+			);
+		case "olt":
+			return (
+				<Ico
+					viewBox="0 0 16 16"
+					fill="none"
+					stroke="currentColor"
+					strokeWidth="1.5"
+					strokeLinecap="round"
+				>
+					<rect x="2" y="2.5" width="12" height="4" rx="1" />
+					<rect x="2" y="9.5" width="12" height="4" rx="1" />
+					<circle cx="12" cy="4.5" r="0.75" fill="currentColor" />
+					<circle cx="12" cy="11.5" r="0.75" fill="currentColor" />
+					<line x1="4" y1="4.5" x2="8" y2="4.5" />
+					<line x1="4" y1="11.5" x2="8" y2="11.5" />
+				</Ico>
+			);
+		case "splitter":
+			return (
+				<Ico
+					viewBox="0 0 16 16"
+					fill="none"
+					stroke="currentColor"
+					strokeWidth="1.5"
+					strokeLinecap="round"
+				>
+					<path d="M8 2.5V7.5" />
+					<path d="M8 7.5L4 13.5" />
+					<path d="M8 7.5L12 13.5" />
+					<circle cx="8" cy="7.5" r="1.5" fill="currentColor" />
+				</Ico>
+			);
+		case "nap":
+			return (
+				<Ico
+					viewBox="0 0 16 16"
+					fill="none"
+					stroke="currentColor"
+					strokeWidth="1.5"
+					strokeLinecap="round"
+				>
+					<rect x="3" y="3" width="10" height="10" rx="1.5" />
+					<path d="M5.5 8H10.5" />
+					<path d="M8 5.5V10.5" />
+				</Ico>
+			);
+		case "fiber":
+			return (
+				<Ico
+					viewBox="0 0 16 16"
+					fill="none"
+					stroke="currentColor"
+					strokeWidth="1.5"
+					strokeLinecap="round"
+				>
+					<path d="M2 13C4 13 4 3 8 3C12 3 12 13 14 13" />
+					<circle cx="2" cy="13" r="1.5" fill="currentColor" />
+					<circle cx="14" cy="13" r="1.5" fill="currentColor" />
+				</Ico>
+			);
+		case "crossing":
+			return (
+				<Ico
+					viewBox="0 0 16 16"
+					fill="none"
+					stroke="currentColor"
+					strokeWidth="1.5"
+					strokeLinecap="round"
+				>
+					<line x1="1.5" y1="12" x2="14.5" y2="12" />
+					<path d="M4.5 12 Q8 4 11.5 12" />
+					<line x1="6" y1="6" x2="10" y2="10" />
+					<line x1="10" y1="6" x2="6" y2="10" />
+				</Ico>
+			);
+		case "reserve":
+			return (
+				<Ico
+					viewBox="0 0 16 16"
+					fill="none"
+					stroke="currentColor"
+					strokeWidth="1.5"
+					strokeLinecap="round"
+				>
+					<line x1="1" y1="12" x2="3.5" y2="12" />
+					<path d="M3.5 12 C3.5 12 3.5 4 8 4 C12.5 4 12.5 12 12.5 12" />
+					<line x1="12.5" y1="12" x2="15" y2="12" />
+				</Ico>
+			);
+		case "splice":
+			return (
+				<Ico
+					viewBox="0 0 16 16"
+					fill="none"
+					stroke="currentColor"
+					strokeWidth="1.5"
+					strokeLinecap="round"
+				>
+					<line x1="1.5" y1="8" x2="5.5" y2="8" />
+					<line x1="10.5" y1="8" x2="14.5" y2="8" />
+					<rect x="5.5" y="5.5" width="5" height="5" rx="1" />
+					<line x1="5.5" y1="8" x2="10.5" y2="8" strokeDasharray="1.5 1" />
+				</Ico>
+			);
+		case "measure":
+			return (
+				<Ico
+					viewBox="0 0 16 16"
+					fill="none"
+					stroke="currentColor"
+					strokeWidth="1.5"
+					strokeLinecap="round"
+				>
+					<line x1="2" y1="8" x2="14" y2="8" />
+					<line x1="2" y1="5.5" x2="2" y2="10.5" />
+					<line x1="14" y1="5.5" x2="14" y2="10.5" />
+					<line x1="6" y1="7" x2="6" y2="9" />
+					<line x1="10" y1="7" x2="10" y2="9" />
+				</Ico>
+			);
+		case "delete":
+			return (
+				<Ico
+					viewBox="0 0 16 16"
+					fill="none"
+					stroke="currentColor"
+					strokeWidth="1.5"
+					strokeLinecap="round"
+				>
+					<path d="M3 4.5H13" />
+					<path d="M6 4.5V3H10V4.5" />
+					<path d="M4.5 4.5L5 13.5H11L11.5 4.5" />
+					<line x1="7" y1="7" x2="7" y2="11" />
+					<line x1="9" y1="7" x2="9" y2="11" />
+				</Ico>
+			);
+	}
 }
 
 function InfrastructurePanel({
@@ -2270,10 +2807,19 @@ function InfrastructurePanel({
 	onStatusChange: (v: string) => void;
 	onSelectEquipment: (eq: EquipmentMapItem) => void;
 }) {
+	const [search, setSearch] = useState("");
 	const counts = equipment.reduce<Record<string, number>>((acc, eq) => {
 		acc[eq.type] = (acc[eq.type] ?? 0) + 1;
 		return acc;
 	}, {});
+	const q = search.trim().toLowerCase();
+	const filteredElements = q
+		? equipment.filter(
+				(eq) =>
+					eq.name?.toLowerCase().includes(q) ||
+					eq.code.toLowerCase().includes(q),
+			)
+		: equipment;
 	const warnings = [
 		...equipment
 			.filter(
@@ -2321,6 +2867,7 @@ function InfrastructurePanel({
 						<button
 							key={value}
 							type="button"
+							aria-pressed={tab === value}
 							onClick={() => onTabChange(value as LeftPanelTab)}
 							className="flex-1 rounded px-2 py-1 text-[11px] font-medium transition-colors"
 							style={{
@@ -2377,49 +2924,60 @@ function InfrastructurePanel({
 			)}
 
 			{tab === "elements" && (
-				<div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-					<div className="mb-3 flex items-center justify-between">
-						<p className="text-xs font-semibold uppercase tracking-widest text-[#777879]">
-							Listado
-						</p>
-						<p className="text-[11px] text-[#777879]">
-							{equipment.length} visibles
+				<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+					<div className="px-3 pt-3 pb-2">
+						<input
+							type="search"
+							placeholder="Buscar por nombre o código…"
+							value={search}
+							onChange={(e) => setSearch(e.target.value)}
+							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(27,28,29,0.82)] px-2.5 py-1.5 text-xs text-[#e6e6e6] outline-none transition-colors placeholder:text-[#5c5d5f] focus:border-[rgba(56,189,248,0.45)]"
+						/>
+						<p className="mt-1.5 text-right text-[10px] text-[#777879]">
+							{filteredElements.length} de {equipment.length}
 						</p>
 					</div>
-					<div className="space-y-1.5">
-						{equipment.slice(0, 12).map((eq) => (
-							<button
-								key={eq.id}
-								type="button"
-								onClick={() => onSelectEquipment(eq)}
-								className="flex w-full items-center justify-between gap-3 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.05)] px-2.5 py-2 text-left transition-colors hover:border-[rgba(164,164,164,0.24)] hover:bg-[rgba(164,164,164,0.1)]"
-							>
-								<span className="flex min-w-0 items-center gap-2">
-									<span
-										className="h-2.5 w-2.5 shrink-0 rounded-full"
-										style={{
-											backgroundColor:
-												TYPE_COLOR[eq.type] ?? TYPE_COLOR.unknown,
-										}}
-									/>
-									<span className="min-w-0">
-										<span className="block truncate text-xs font-medium text-[#d7d7d7]">
-											{eq.name}
-										</span>
-										<span className="block text-[10px] uppercase tracking-wide text-[#777879]">
-											{eq.type}
+					<div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+						<div className="space-y-1.5">
+							{filteredElements.length === 0 ? (
+								<p className="py-4 text-center text-[11px] text-[#5c5d5f]">
+									Sin resultados
+								</p>
+							) : null}
+							{filteredElements.map((eq) => (
+								<button
+									key={eq.id}
+									type="button"
+									onClick={() => onSelectEquipment(eq)}
+									className="flex w-full items-center justify-between gap-3 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.05)] px-2.5 py-2 text-left transition-colors hover:border-[rgba(164,164,164,0.24)] hover:bg-[rgba(164,164,164,0.1)]"
+								>
+									<span className="flex min-w-0 items-center gap-2">
+										<span
+											className="h-2.5 w-2.5 shrink-0 rounded-full"
+											style={{
+												backgroundColor:
+													TYPE_COLOR[eq.type] ?? TYPE_COLOR.unknown,
+											}}
+										/>
+										<span className="min-w-0">
+											<span className="block truncate text-xs font-medium text-[#d7d7d7]">
+												{eq.name}
+											</span>
+											<span className="block text-[10px] uppercase tracking-wide text-[#777879]">
+												{eq.type}
+											</span>
 										</span>
 									</span>
-								</span>
-								<span
-									className="h-2 w-2 shrink-0 rounded-full"
-									style={{
-										backgroundColor:
-											STATUS_COLOR[eq.status] ?? STATUS_COLOR.unknown,
-									}}
-								/>
-							</button>
-						))}
+									<span
+										className="h-2 w-2 shrink-0 rounded-full"
+										style={{
+											backgroundColor:
+												STATUS_COLOR[eq.status] ?? STATUS_COLOR.unknown,
+										}}
+									/>
+								</button>
+							))}
+						</div>
 					</div>
 				</div>
 			)}
@@ -2483,20 +3041,13 @@ function Metric({
 
 function LayerToggle({ label, color }: { label: string; color: string }) {
 	return (
-		<label className="flex cursor-pointer items-center justify-between rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.05)] px-2.5 py-2 text-xs text-[#d7d7d7]">
-			<span className="flex items-center gap-2">
-				<span
-					className="h-2 w-2 rounded-full"
-					style={{ backgroundColor: color }}
-				/>
-				{label}
-			</span>
-			<input
-				type="checkbox"
-				defaultChecked
-				className="h-3.5 w-3.5 accent-[#38bdf8]"
+		<div className="flex items-center gap-2 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.05)] px-2.5 py-2 text-xs text-[#d7d7d7]">
+			<span
+				className="h-2 w-2 shrink-0 rounded-full"
+				style={{ backgroundColor: color }}
 			/>
-		</label>
+			<span>{label}</span>
+		</div>
 	);
 }
 
@@ -3266,10 +3817,12 @@ function EditorStatusBar({
 	activeToolLabel,
 	statusMessage,
 	zoom,
+	mode,
 }: {
 	activeToolLabel: string;
 	statusMessage: string;
 	zoom: number;
+	mode: EditorMode;
 }) {
 	return (
 		<div className="absolute bottom-3 left-4 right-4 z-20 flex min-h-10 items-center justify-between gap-4 rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] px-3 py-2 text-xs text-[#a4a4a4] shadow-2xl backdrop-blur-md">
@@ -3281,7 +3834,72 @@ function EditorStatusBar({
 			</div>
 			<div className="hidden shrink-0 items-center gap-3 font-mono text-[11px] text-[#777879] sm:flex">
 				<span>zoom {zoom.toFixed(1)}</span>
-				<span>Esc selecciona</span>
+				{mode === "edit" && <span>Esc selecciona</span>}
+			</div>
+		</div>
+	);
+}
+
+function ContextMenu({
+	menu,
+	canDelete,
+	onSelect,
+	onDelete,
+	onClose,
+}: {
+	menu: { x: number; y: number; feature: SelectedFeature };
+	canDelete: boolean;
+	onSelect: () => void;
+	onDelete: () => void;
+	onClose: () => void;
+}) {
+	const label =
+		menu.feature.kind === "element"
+			? (menu.feature.element.name ?? menu.feature.element.code)
+			: menu.feature.kind === "route"
+				? (menu.feature.route.code ?? "Ruta")
+				: menu.feature.kind === "routePoint"
+					? (menu.feature.point.code ?? menu.feature.point.type)
+					: "Elemento";
+
+	useEffect(() => {
+		const close = () => onClose();
+		window.addEventListener("keydown", (e) => {
+			if (e.key === "Escape") close();
+		});
+		return () => window.removeEventListener("keydown", close);
+	}, [onClose]);
+
+	return (
+		<div
+			role="menu"
+			className="absolute z-50 min-w-44 overflow-hidden rounded-lg border border-[rgba(164,164,164,0.2)] bg-[rgba(27,28,29,0.97)] shadow-2xl backdrop-blur-md"
+			style={{ left: menu.x, top: menu.y }}
+			onClick={(e) => e.stopPropagation()}
+			onKeyDown={(e) => e.stopPropagation()}
+		>
+			<div className="border-b border-[rgba(164,164,164,0.12)] px-3 py-2">
+				<p className="truncate text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+					{label}
+				</p>
+			</div>
+			<div className="py-1">
+				<button
+					type="button"
+					onClick={onSelect}
+					className="flex w-full items-center gap-2 px-3 py-2 text-xs text-[#d7d7d7] transition-colors hover:bg-white/8"
+				>
+					Ver propiedades
+				</button>
+				{canDelete && (
+					<button
+						type="button"
+						onClick={onDelete}
+						className="flex w-full items-center gap-2 px-3 py-2 text-xs text-[#fb7185] transition-colors hover:bg-[rgba(251,77,109,0.12)]"
+					>
+						Eliminar
+					</button>
+				)}
 			</div>
 		</div>
 	);
