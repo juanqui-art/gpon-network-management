@@ -23,6 +23,8 @@ import {
 import type {
 	ConnectionMapItem,
 	EquipmentMapItem,
+	FiberRoute,
+	InfrastructureElement,
 	IncidentMapItem,
 	LngLat,
 	RoutePoint,
@@ -496,7 +498,7 @@ type EditorTool =
 	| "measure"
 	| "delete";
 
-type EditorMode = "view" | "edit";
+type EditorMode = "view" | "design" | "edit";
 type LeftPanelTab = "layers" | "elements" | "quality";
 type SelectedFeature =
 	| { kind: "element"; element: EquipmentMapItem }
@@ -814,6 +816,8 @@ function createDraftElement(
 		split_ratio: type === "splitter" ? "1:8" : null,
 		insertion_loss_db: type === "splitter" ? 10.5 : null,
 		total_ports: type === "nap" ? 8 : null,
+		ports_used: null,
+		ports_reserved: null,
 		properties: {},
 		notes: null,
 		created_by: null,
@@ -988,7 +992,9 @@ export function MapView({
 	const activeToolLabel =
 		EDITOR_TOOLS.find((tool) => tool.value === activeTool)?.label ??
 		"Seleccionar";
-	const isEditing = mode === "edit";
+	const isDesigning = mode === "design"; // placing new elements / drawing routes
+	const isEditing   = mode === "edit";   // modifying / deleting existing elements
+	const isActive    = mode !== "view";   // any non-read-only mode
 	const visibleEquipment = equipment.filter((eq) => {
 		const typeOk = filterType === "all" || eq.type === filterType;
 		const statusOk = filterStatus === "all" || eq.status === filterStatus;
@@ -1293,7 +1299,7 @@ export function MapView({
 	useEffect(() => {
 		const draw = drawRef.current;
 		if (!draw) return;
-		if (mode === "edit" && activeTool === "fiber") {
+		if (mode === "design" && activeTool === "fiber") {
 			draw.changeMode("draw_line_string");
 		} else {
 			try {
@@ -1365,7 +1371,7 @@ export function MapView({
 				return;
 			}
 
-			if (modeRef.current !== "edit") return;
+			if (modeRef.current === "view") return;
 			const shortcutMap: Partial<Record<string, EditorTool>> = {
 				v: "select",
 				h: "pan",
@@ -1662,9 +1668,9 @@ export function MapView({
 				splice: "splice",
 			};
 			const activeRoutePointType =
-				mode === "edit" ? routePointTools[activeTool] : undefined;
+				mode === "design" ? routePointTools[activeTool] : undefined;
 			const showRoutePoints =
-				mode === "edit"
+				mode === "design"
 					? activeTool !== "olt" && activeTool !== "nap"
 					: zoom >= 15;
 			const routePointFilter: mapboxgl.FilterSpecification = !showRoutePoints
@@ -2381,11 +2387,16 @@ export function MapView({
 
 			<div ref={containerRef} className="h-full w-full" />
 
-			{isEditing && (
+			{/* Mode indicator border — green in design, amber in edit */}
+			{isActive && (
 				<div
 					aria-hidden="true"
 					className="pointer-events-none absolute inset-0 z-30"
-					style={{ boxShadow: "inset 0 0 0 2px rgba(245,158,11,0.55)" }}
+					style={{
+						boxShadow: isEditing
+							? "inset 0 0 0 2px rgba(245,158,11,0.55)"
+							: "inset 0 0 0 2px rgba(52,211,153,0.45)",
+					}}
 				/>
 			)}
 
@@ -2395,15 +2406,16 @@ export function MapView({
 					mode={mode}
 					onModeChange={(nextMode) => {
 						setMode(nextMode);
-						if (nextMode === "view") {
-							setActiveTool("select");
-						}
+						// Reset to default tool for each mode
+						if (nextMode === "view")   setActiveTool("select");
+						if (nextMode === "design") setActiveTool("olt");
+						if (nextMode === "edit")   setActiveTool("select");
 					}}
 				/>
 			)}
 
-			{canEdit && isEditing && (
-				<EditorToolbar activeTool={activeTool} onToolChange={setActiveTool} />
+			{canEdit && isActive && (
+				<EditorToolbar activeTool={activeTool} onToolChange={setActiveTool} mode={mode} />
 			)}
 
 			<InfrastructurePanel
@@ -2493,7 +2505,7 @@ export function MapView({
 
 			<MapControls
 				mode={mode}
-				hasRightPanel={mode === "edit" || selectedFeature !== null}
+				hasRightPanel={isActive || selectedFeature !== null}
 				onZoomIn={() => mapRef.current?.zoomIn()}
 				onZoomOut={() => mapRef.current?.zoomOut()}
 				onResetNorth={() => mapRef.current?.resetNorth()}
@@ -2527,72 +2539,82 @@ function EditorTopBar({
 	return (
 		<div className="absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.9)] p-1 shadow-2xl backdrop-blur-md">
 			<div className="flex rounded-md bg-[rgba(164,164,164,0.06)] p-0.5">
-				{[
-					["view", "Visualizar"],
-					["edit", "Editar"],
-				].map(([value, label]) => (
+				{(
+					[
+						["view",   "Visualizar", "#38bdf8"],
+						["design", "Diseño",     "#34d399"],
+						["edit",   "Edición",    "#f59e0b"],
+					] as const
+				).map(([value, label, accent]) => (
 					<button
 						key={value}
 						type="button"
 						aria-pressed={mode === value}
-						onClick={() => onModeChange(value as EditorMode)}
+						onClick={() => onModeChange(value)}
 						className="rounded px-3 py-1.5 text-[11px] font-medium transition-colors"
 						style={{
-							background:
-								mode === value
-									? value === "edit"
-										? "rgba(245,158,11,0.2)"
-										: "rgba(56,189,248,0.16)"
-									: "transparent",
-							color:
-								mode === value
-									? value === "edit"
-										? "#fbbf24"
-										: "#bdeafe"
-									: "#a4a4a4",
+							background: mode === value ? `${accent}28` : "transparent",
+							color:      mode === value ? accent : "#a4a4a4",
 						}}
 					>
 						{label}
 					</button>
 				))}
 			</div>
-			<span
-				className="rounded-md border px-2.5 py-1.5 text-[11px] transition-colors"
-				style={{
-					borderColor:
-						mode === "edit" ? "rgba(245,158,11,0.4)" : "rgba(56,189,248,0.24)",
-					background:
-						mode === "edit" ? "rgba(245,158,11,0.12)" : "rgba(56,189,248,0.1)",
-					color: mode === "edit" ? "#fbbf24" : "#bdeafe",
-				}}
-			>
-				{mode === "edit" ? activeToolLabel : "Capas por zoom"}
-			</span>
+			{mode !== "view" && (
+				<span
+					className="rounded-md border px-2.5 py-1.5 text-[11px] transition-colors"
+					style={{
+						borderColor: mode === "edit" ? "rgba(245,158,11,0.4)" : "rgba(52,211,153,0.35)",
+						background:  mode === "edit" ? "rgba(245,158,11,0.12)" : "rgba(52,211,153,0.1)",
+						color:       mode === "edit" ? "#fbbf24" : "#34d399",
+					}}
+				>
+					{activeToolLabel}
+				</span>
+			)}
 		</div>
 	);
 }
 
+// Tools available per mode
+const TOOLS_BY_MODE: Record<EditorMode, EditorTool[]> = {
+	view: [],
+	design: ["olt", "splitter", "nap", "fiber", "crossing", "reserve", "splice"],
+	edit: ["select", "pan", "measure", "delete"],
+};
+
 function EditorToolbar({
 	activeTool,
 	onToolChange,
+	mode,
 }: {
 	activeTool: EditorTool;
 	onToolChange: (tool: EditorTool) => void;
+	mode: EditorMode;
 }) {
-	const groups = ["navigate", "create", "route", "inspect"] as const;
+	const allowedTools = TOOLS_BY_MODE[mode];
+	const visibleTools = EDITOR_TOOLS.filter((t) => allowedTools.includes(t.value));
+	const visibleGroups = [...new Set(visibleTools.map((t) => t.group))];
+
+	if (mode === "view" || visibleTools.length === 0) return null;
+
+	const accentColor = mode === "design" ? "#34d399" : "#f59e0b";
 
 	return (
-		<div className="absolute bottom-16 left-1/2 z-20 flex -translate-x-1/2 gap-2 rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] p-2 shadow-2xl backdrop-blur-md">
-			{groups.map((group) => (
+		<div className="absolute bottom-16 left-1/2 z-20 flex -translate-x-1/2 gap-2 rounded-lg border bg-[rgba(34,35,36,0.92)] p-2 shadow-2xl backdrop-blur-md"
+			style={{ borderColor: `${accentColor}33` }}
+		>
+			{visibleGroups.map((group) => (
 				<div
 					key={group}
 					className="flex items-center gap-1"
 					title={TOOL_GROUP_LABEL[group]}
 				>
-					{group !== "navigate" && (
+					{group !== visibleGroups[0] && (
 						<div className="mx-1 h-8 w-px bg-[rgba(164,164,164,0.14)]" />
 					)}
-					{EDITOR_TOOLS.filter((tool) => tool.group === group).map((tool) => (
+					{visibleTools.filter((tool) => tool.group === group).map((tool) => (
 						<button
 							key={tool.value}
 							type="button"
@@ -2604,13 +2626,13 @@ function EditorToolbar({
 							style={{
 								background:
 									activeTool === tool.value
-										? "rgba(56,189,248,0.18)"
+										? `${accentColor}22`
 										: "rgba(164,164,164,0.06)",
 								borderColor:
 									activeTool === tool.value
-										? "rgba(56,189,248,0.45)"
+										? `${accentColor}66`
 										: "rgba(164,164,164,0.12)",
-								color: activeTool === tool.value ? "#bdeafe" : "#a4a4a4",
+								color: activeTool === tool.value ? accentColor : "#a4a4a4",
 							}}
 						>
 							<ToolGlyph tool={tool.value} />
@@ -2867,7 +2889,7 @@ function InfrastructurePanel({
 
 	return (
 		<div
-			className={`absolute left-4 top-4 z-20 flex max-h-[calc(100%-5rem)] flex-col overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md ${mode === "edit" ? "w-80" : "w-72"}`}
+			className={`absolute left-4 top-4 z-20 flex max-h-[calc(100%-5rem)] flex-col overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md ${mode !== "view" ? "w-80" : "w-72"}`}
 		>
 			<div className="border-b border-[rgba(164,164,164,0.12)] px-3 py-2.5">
 				<div className="flex items-start justify-between gap-3">
@@ -3180,9 +3202,11 @@ function PropertiesPanel({
 				) : (
 					<div className="space-y-3 text-xs text-[#a4a4a4]">
 						<p>
-							{mode === "edit"
-								? "Selecciona o crea un elemento para editar sus datos mínimos."
-								: "Selecciona un elemento para consultar sus detalles."}
+							{mode === "design"
+								? "Usa las herramientas para crear OLT, splitter, NAP o rutas de fibra."
+								: mode === "edit"
+									? "Selecciona un elemento para editar o eliminar."
+									: "Selecciona un elemento para consultar sus detalles."}
 						</p>
 						<div className="rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)] px-3 py-2">
 							<p className="font-semibold text-[#d7d7d7]">Flujo MVP</p>
@@ -3802,7 +3826,7 @@ function MapControls({
 }) {
 	return (
 		<div
-			className={`absolute z-20 flex flex-col overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md ${mode === "edit" ? "bottom-28" : "bottom-16"} ${hasRightPanel ? "right-86" : "right-4"}`}
+			className={`absolute z-20 flex flex-col overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md ${mode !== "view" ? "bottom-28" : "bottom-16"} ${hasRightPanel ? "right-86" : "right-4"}`}
 		>
 			<MapControlButton label="Acercar" onClick={onZoomIn}>
 				+
@@ -3863,7 +3887,7 @@ function EditorStatusBar({
 			</div>
 			<div className="hidden shrink-0 items-center gap-3 font-mono text-[11px] text-[#777879] sm:flex">
 				<span>zoom {zoom.toFixed(1)}</span>
-				{mode === "edit" && <span>Esc selecciona</span>}
+				{mode !== "view" && <span>Esc cancela</span>}
 			</div>
 		</div>
 	);

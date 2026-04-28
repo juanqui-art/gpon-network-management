@@ -3,15 +3,10 @@
  * Based on GPON_FTTH_ECUADOR_RESEARCH.md findings
  */
 
-import { v4 as uuid } from "crypto";
 import type {
 	InfrastructureElement,
 	FiberRoute,
-	ElementType,
-	ElementStatus,
-	DataQuality,
-	RouteType,
-} from "@/lib/types/gpon";
+} from "@/components/map/types";
 
 export type TopologyTemplate = "star" | "tree" | "cascade" | "blank";
 
@@ -84,19 +79,26 @@ export const TOPOLOGY_CONFIGS: Record<TopologyTemplate, TopologyConfig> = {
 
 // ── Helper to generate unique operational codes ────────────────────────────
 
-function generateCode(template: string, type: ElementType, index: number): string {
-	// Convention: {PROV}-{CIUDAD}-{ZONA}-{TIPO}-{SECUENCIA}
-	// PIC = PICHINCHA, UIO = QUITO, Z05 = Zone example
-	const typeCode: Record<ElementType, string> = {
-		olt: "OLT",
-		splitter: "SPL",
-		nap: "NAP",
-		ont: "ONT",
-		amplifier: "AMP",
-		wdm: "WDM",
-		unknown: "UNK",
-	};
-	return `PIC-UIO-${template}-${typeCode[type]}-${String(index + 1).padStart(3, "0")}`;
+function uid(): string {
+	return crypto.randomUUID();
+}
+
+// Common nullable fields required by InfrastructureElement
+const BASE_ELEMENT = {
+	organization_id: null,
+	address_reference: null,
+	pon_standard: null,
+	insertion_loss_db: null,
+	ports_used: null,
+	ports_reserved: null,
+	properties: {} as Record<string, unknown>,
+	created_by: null,
+	updated_by: null,
+} as const;
+
+function generateCode(zone: string, type: "olt" | "splitter" | "nap", index: number): string {
+	const typeCode = { olt: "OLT", splitter: "SPL", nap: "NAP" } as const;
+	return `PIC-UIO-${zone}-${typeCode[type]}-${String(index + 1).padStart(3, "0")}`;
 }
 
 // ── Generate topology networks ───────────────────────────────────────────────
@@ -145,15 +147,15 @@ export function generateTopology(
 
 	const oltIndex = 0;
 	const olt: InfrastructureElement = {
-		id: uuid(),
-		network_id: "", // Set by caller
+		...BASE_ELEMENT,
+		id: uid(),
 		type: "olt",
 		code: generateCode("Z05", "olt", oltIndex),
 		name: `OLT Quito ${config.region}`,
-		status: "online",
+		status: "active",
 		location_quality: "gps_captured",
 		lng: baseLng,
-		lat: baseLat + 0.01, // Slightly offset for visual separation
+		lat: baseLat + 0.01,
 		total_pon_ports: config.splittersByOlt.length * 8,
 		split_ratio: null,
 		total_ports: null,
@@ -191,16 +193,16 @@ export function generateTopology(
 		const startLng = parentLng - (spacing * (count - 1)) / 2;
 
 		for (let i = 0; i < count; i++) {
-			const splId = uuid();
-			const splitRatio = `1:${config.splittersByOlt[level] || 16}`;
+			const splId = uid();
+			const splitRatio = `1:${config.splittersByOlt[level] || 16}` as import("@/lib/types/gpon").SplitRatio;
 
 			const spl: InfrastructureElement = {
+				...BASE_ELEMENT,
 				id: splId,
-				network_id: "",
 				type: "splitter",
 				code: generateCode("Z05", "splitter", elementIndex),
 				name: `Splitter L${level + 1}-${i + 1} (${splitRatio})`,
-				status: "online",
+				status: "active",
 				location_quality: "gps_captured",
 				lng: startLng + spacing * i,
 				lat: parentLat - (level + 1) * 0.02,
@@ -216,8 +218,7 @@ export function generateTopology(
 
 			// Route from parent
 			const route: FiberRoute = {
-				id: uuid(),
-				network_id: "",
+				id: uid(),
 				type: "feeder",
 				code: `PIC-UIO-Z05-FDR-${String(routes.length + 1).padStart(3, "0")}`,
 				from_element_id: parentId,
@@ -228,7 +229,7 @@ export function generateTopology(
 					[parentLng, parentLat],
 					[spl.lng, spl.lat],
 				],
-				fiber_type: "G.652.D",
+				fiber_type: "g652d",
 				fiber_count: 1,
 				length_meters: Math.round(
 					Math.sqrt(
@@ -236,7 +237,7 @@ export function generateTopology(
 							Math.pow((spl.lat - parentLat) * 111 * 1000, 2),
 					),
 				),
-				route_status: "active",
+				status: "active",
 				location_quality: "gps_captured",
 				notes: `Feeder L${level} → L${level + 1}`,
 				created_at: new Date().toISOString(),
@@ -308,17 +309,16 @@ export function generateTopology(
 		const napSpacing = 0.004;
 
 		for (let n = 0; n < napsPerParent && elements.length - (olt.id ? 1 : 0) < config.napsByRegion; n++) {
-			const napId = uuid();
+			const napId = uid();
 			const parentLng = parent.lng ?? baseLng;
 			const parentLat = parent.lat ?? baseLat;
 
 			const nap: InfrastructureElement = {
 				id: napId,
-				network_id: "",
 				type: "nap",
 				code: generateCode("Z05", "nap", elementIndex),
 				name: `NAP Z05-${elementIndex + 1}`,
-				status: "online",
+				status: "active",
 				location_quality: "approximate",
 				lng: parentLng + (Math.random() - 0.5) * napSpacing,
 				lat: parentLat - 0.015 + (Math.random() - 0.5) * napSpacing,
@@ -334,8 +334,7 @@ export function generateTopology(
 
 			// Distribution route from splitter/OLT to NAP
 			const route: FiberRoute = {
-				id: uuid(),
-				network_id: "",
+				id: uid(),
 				type: "distribution",
 				code: `PIC-UIO-Z05-DST-${String(routes.length + 1).padStart(3, "0")}`,
 				from_element_id: parent.id,
@@ -346,7 +345,7 @@ export function generateTopology(
 					[parentLng, parentLat],
 					[nap.lng, nap.lat],
 				],
-				fiber_type: "G.657.A1",
+				fiber_type: "g657a1",
 				fiber_count: 1,
 				length_meters: Math.round(
 					Math.sqrt(
@@ -354,7 +353,7 @@ export function generateTopology(
 							Math.pow((nap.lat - parentLat) * 111 * 1000, 2),
 					),
 				),
-				route_status: "active",
+				status: "active",
 				location_quality: "approximate",
 				notes: `Distribution a NAP. Tipo G.657.A1.`,
 				created_at: new Date().toISOString(),
