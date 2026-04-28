@@ -2,6 +2,7 @@
 
 import MapboxDraw from "@mapbox/mapbox-gl-draw";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
+import turfLength from "@turf/length";
 import mapboxgl from "mapbox-gl";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
@@ -855,10 +856,14 @@ function distanceMeters(a: LngLat, b: LngLat): number {
 }
 
 function polylineLengthMeters(coordinates: LngLat[]): number {
-	return coordinates.reduce((total, coordinate, index) => {
-		if (index === 0) return total;
-		return total + distanceMeters(coordinates[index - 1], coordinate);
-	}, 0);
+	if (coordinates.length < 2) return 0;
+	const line: GeoJSON.Feature<GeoJSON.LineString> = {
+		type: "Feature",
+		geometry: { type: "LineString", coordinates },
+		properties: {},
+	};
+	// turfLength returns km by default; convert to meters
+	return turfLength(line, { units: "kilometers" }) * 1000;
 }
 
 function buildDrawingGeoJSON(coordinates: LngLat[]): GeoJSON.FeatureCollection {
