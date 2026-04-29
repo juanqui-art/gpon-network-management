@@ -3049,21 +3049,9 @@ function InfrastructurePanel({
 			{tab === "layers" && (
 				<div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
 					<div className="mb-3 grid grid-cols-3 gap-2">
-						<Metric
-							label="OLT"
-							value={counts.olt ?? 0}
-							color={TYPE_COLOR.olt}
-						/>
-						<Metric
-							label="SPL"
-							value={counts.splitter ?? 0}
-							color={TYPE_COLOR.splitter}
-						/>
-						<Metric
-							label="NAP"
-							value={counts.nap ?? 0}
-							color={TYPE_COLOR.nap}
-						/>
+						<StatChip label="OLT" value={olts} color={TYPE_COLOR.olt} />
+						<StatChip label="SPL" value={splitters} color={TYPE_COLOR.splitter} />
+						<StatChip label="NAP" value={naps} color={TYPE_COLOR.nap} />
 					</div>
 					<FilterBar
 						filterType={filterType}
