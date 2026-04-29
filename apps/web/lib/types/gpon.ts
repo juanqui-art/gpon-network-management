@@ -150,6 +150,19 @@ export interface RoutePoint {
 	updated_at: string;
 }
 
+// ─── NETWORK ZONE ─────────────────────────────────────────────────────────────
+
+export interface NetworkZone {
+	id: string;
+	network_id: string;
+	zone_code: string; // Z01, Z05, Z10, Z20
+	zone_name: string; // "Sector norte", "Centro", "Zona sur"
+	description: string | null;
+	created_by: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
 // ─── OPTICAL REFERENCE VALUES ────────────────────────────────────────────────
 
 // Splitter insertion loss in dB (industry typical values).
@@ -185,11 +198,12 @@ export function classifySignal(
 
 // ─── PERMISSIONS ──────────────────────────────────────────────────────────────
 
-// Roles that can create/edit infrastructure (matches RLS in 002_rls_policies.sql).
+// Roles that can create/edit infrastructure directly (matches RLS).
+// outside_plant verifies/proposes field corrections, but does not write the
+// source-of-truth infrastructure tables directly in the current flow.
 export const INFRASTRUCTURE_WRITE_ROLES: ReadonlyArray<UserRole> = [
 	"admin",
 	"network_engineer",
-	"outside_plant",
 ];
 
 export function canWriteInfrastructure(

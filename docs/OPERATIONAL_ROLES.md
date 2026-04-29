@@ -154,16 +154,16 @@ Editor de infraestructura
 Puede:
 
 ```txt
-Crear y editar OLTs
-Crear y editar splitters
-Crear y editar NAPs
-Dibujar rutas de fibra
-Editar rutas feeder y distribucion
-Marcar cruces de avenida
-Marcar reservas de cable
-Marcar empalmes
-Corregir ubicaciones de infraestructura
-Agregar observaciones tecnicas de planta externa
+Ver OLTs
+Ver splitters
+Ver NAPs
+Ver rutas de fibra
+Reportar rutas feeder y distribucion diferentes a lo registrado
+Reportar cruces de avenida
+Reportar reservas de cable
+Reportar empalmes
+Proponer correcciones de ubicacion de infraestructura
+Agregar observaciones tecnicas de planta externa como verificacion
 ```
 
 No deberia poder por defecto:

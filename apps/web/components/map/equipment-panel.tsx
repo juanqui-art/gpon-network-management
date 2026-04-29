@@ -6,12 +6,10 @@ import {
 	type SignalClass,
 	STATUS_COLOR,
 	TYPE_COLOR,
-	DATA_QUALITY_COLOR,
-	DATA_QUALITY_LABEL,
 } from "@/lib/map/palette";
-import type { EquipmentMapItem, IncidentMapItem } from "./types";
 import { DataQualityBadge } from "./data-quality-badge";
 import { NapCapacity } from "./nap-capacity";
+import type { EquipmentMapItem, IncidentMapItem } from "./types";
 
 const TYPE_LABELS: Record<string, string> = {
 	olt: "OLT",

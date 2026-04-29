@@ -1,7 +1,7 @@
 -- Update RPCs for the Infrastructure Editor — mode "edit"
 -- Allows patching existing elements and routes in-place.
 -- SECURITY INVOKER keeps RLS as the enforcement layer.
--- Roles permitted to update: admin, network_engineer, outside_plant (see 002_rls_policies.sql)
+-- Roles permitted to update: admin, network_engineer (see 002_rls_policies.sql)
 
 -- ── update_infrastructure_element ────────────────────────────────────────────
 

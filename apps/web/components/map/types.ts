@@ -47,6 +47,7 @@ export interface InfrastructureElement {
 
 	pon_standard: PonStandard | null;
 	total_pon_ports: number | null;
+	optical_class: string | null; // "B+" | "C+" | "C++" | "N1" | "N2" | "E1" | "E2"
 	split_ratio: SplitRatio | null;
 	insertion_loss_db: number | null;
 	total_ports: number | null;

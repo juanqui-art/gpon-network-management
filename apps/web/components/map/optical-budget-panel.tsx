@@ -2,9 +2,9 @@
 
 import {
 	calculateOpticalBudget,
-	OPTICAL_STATUS_COLOR,
-	OPTICAL_STATUS_BG,
 	type FiberStandard,
+	OPTICAL_STATUS_BG,
+	OPTICAL_STATUS_COLOR,
 	type PonClass,
 } from "@/lib/gpon/optical-budget";
 import type { ConnectionMapItem } from "./types";
@@ -48,7 +48,9 @@ export function OpticalBudgetPanel({
 						className="w-2 h-2 rounded-full"
 						style={{ background: accentColor }}
 					/>
-					<span className="text-[10px] font-semibold">{result.statusLabel}</span>
+					<span className="text-[10px] font-semibold">
+						{result.statusLabel}
+					</span>
 				</div>
 			</div>
 
@@ -57,7 +59,11 @@ export function OpticalBudgetPanel({
 				<BudgetRow
 					label="Fibra"
 					value={`${result.fiberLoss.toFixed(2)} dB`}
-					sub={route.length_meters ? `${(route.length_meters / 1000).toFixed(2)} km` : "—"}
+					sub={
+						route.length_meters
+							? `${(route.length_meters / 1000).toFixed(2)} km`
+							: "—"
+					}
 				/>
 				<BudgetRow
 					label="Splitter"
@@ -124,7 +130,9 @@ function BudgetRow({
 }) {
 	return (
 		<div className="flex items-baseline justify-between">
-			<span className={`text-[11px] ${bold ? "font-semibold text-[#d7d7d7]" : "text-[#a4a4a4]"}`}>
+			<span
+				className={`text-[11px] ${bold ? "font-semibold text-[#d7d7d7]" : "text-[#a4a4a4]"}`}
+			>
 				{label}
 				{sub && (
 					<span className="ml-1.5 text-[10px] text-[#5c5d5f]">{sub}</span>

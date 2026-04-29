@@ -14,6 +14,19 @@ import type {
 
 export type EditorMode = "view" | "design" | "edit";
 
+export type EditorTool =
+	| "select"
+	| "pan"
+	| "olt"
+	| "splitter"
+	| "nap"
+	| "fiber"
+	| "crossing"
+	| "reserve"
+	| "splice"
+	| "measure"
+	| "delete";
+
 // ── Validation ────────────────────────────────────────────────────────────────
 
 export interface ValidationError {
@@ -32,6 +45,29 @@ export interface Selection {
 	kind: SelectionKind;
 }
 
+// ── Active draft (lightweight session state) ─────────────────────────────────
+
+export type ActiveDraft =
+	| {
+			kind: "element";
+			id: string;
+			elementType: string;
+			code: string;
+			selectedZone?: string; // Zone for code generation (Z01, Z05, etc.)
+	  }
+	| {
+			kind: "route";
+			id: string;
+			routeType: string;
+			code: string | null;
+	  }
+	| {
+			kind: "routePoint";
+			id: string;
+			pointType: string;
+			code: string | null;
+	  };
+
 // ── Temporal state (tracked by undo/redo) ────────────────────────────────────
 
 export interface TemporalState {
@@ -49,7 +85,10 @@ export interface NetworkEditorStore extends TemporalState {
 
 	// Editor session (NOT in undo history)
 	mode: EditorMode;
+	activeTool: EditorTool;
 	selection: Selection | null;
+	activeDraft: ActiveDraft | null;
+	statusMessage: string;
 	isDirty: boolean;
 	isSaving: boolean;
 	validationErrors: ValidationError[];
@@ -57,6 +96,10 @@ export interface NetworkEditorStore extends TemporalState {
 	// ── Local mutations (instant, no DB) ─────────────────────────────────────
 
 	setMode: (mode: EditorMode) => void;
+	setActiveTool: (tool: EditorTool) => void;
+	setActiveDraft: (draft: ActiveDraft | null) => void;
+	clearActiveDraft: () => void;
+	setStatusMessage: (message: string) => void;
 	select: (id: string, kind: SelectionKind) => void;
 	deselect: () => void;
 
@@ -83,6 +126,14 @@ export interface NetworkEditorStore extends TemporalState {
 
 	// ── Persistence ───────────────────────────────────────────────────────────
 
+	hydrateNetwork: (
+		id: string,
+		data: {
+			elements: InfrastructureElement[];
+			routes: FiberRoute[];
+			routePoints: RoutePoint[];
+		},
+	) => void;
 	loadNetwork: (id: string) => Promise<void>;
 	validate: () => ValidationError[];
 	save: () => Promise<void>;
@@ -101,7 +152,10 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 			networkId: null,
 			networkName: null,
 			mode: "view",
+			activeTool: "select",
 			selection: null,
+			activeDraft: null,
+			statusMessage: "Modo infraestructura listo.",
 			isDirty: false,
 			isSaving: false,
 			validationErrors: [],
@@ -109,7 +163,11 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 			// ── Session ────────────────────────────────────────────────────────
 
 			setMode: (mode) => set({ mode }),
-			select: (id, kind) => set({ selection: { id, kind } }),
+			setActiveTool: (activeTool) => set({ activeTool }),
+			setActiveDraft: (activeDraft) => set({ activeDraft }),
+			clearActiveDraft: () => set({ activeDraft: null }),
+			setStatusMessage: (statusMessage) => set({ statusMessage }),
+			select: (id, kind) => set({ selection: { id, kind }, activeDraft: null }),
 			deselect: () => set({ selection: null }),
 
 			// ── Elements ──────────────────────────────────────────────────────
@@ -252,6 +310,22 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 
 			// ── Persistence ───────────────────────────────────────────────────
 
+			hydrateNetwork: (id, data) => {
+				const toRecord = <T extends { id: string }>(arr: T[]) =>
+					Object.fromEntries(arr.map((x) => [x.id, x]));
+
+				set({
+					networkId: id,
+					elements: toRecord(data.elements),
+					routes: toRecord(data.routes),
+					routePoints: toRecord(data.routePoints),
+					isDirty: false,
+					validationErrors: [],
+				});
+
+				useNetworkEditorStore.temporal.getState().clear();
+			},
+
 			loadNetwork: async (id) => {
 				const { createClient } = await import("@/lib/supabase/client");
 				const supabase = createClient();
@@ -342,7 +416,7 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 			},
 
 			save: async () => {
-				const { elements, routes, routePoints, networkId, validate } = get();
+				const { elements, routes, networkId, validate } = get();
 				if (!networkId) return;
 
 				const errors = validate();

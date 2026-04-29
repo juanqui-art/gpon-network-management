@@ -1,12 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import {
-	TOPOLOGY_CONFIGS,
 	generateTopology,
 	listTopologyTemplates,
+	TOPOLOGY_CONFIGS,
 	type TopologyTemplate,
 } from "@/lib/gpon/topology-templates";
-import { useState } from "react";
 
 interface TopologyPickerProps {
 	onSelect?: (topologyId: TopologyTemplate) => void;
@@ -14,7 +14,8 @@ interface TopologyPickerProps {
 }
 
 export function TopologyPicker({ onSelect, onGenerate }: TopologyPickerProps) {
-	const [selectedTemplate, setSelectedTemplate] = useState<TopologyTemplate | null>(null);
+	const [selectedTemplate, setSelectedTemplate] =
+		useState<TopologyTemplate | null>(null);
 	const [isGenerating, setIsGenerating] = useState(false);
 
 	const templates = listTopologyTemplates();
@@ -112,8 +113,9 @@ export function TopologyPicker({ onSelect, onGenerate }: TopologyPickerProps) {
 						{isGenerating ? "Generando..." : "Generar Topología"}
 					</button>
 					<p className="text-xs text-[#777879]">
-						Se crearán automáticamente {TOPOLOGY_CONFIGS[selectedTemplate].napsByRegion} NAPs,
-						splitters y rutas.
+						Se crearán automáticamente{" "}
+						{TOPOLOGY_CONFIGS[selectedTemplate].napsByRegion} NAPs, splitters y
+						rutas.
 					</p>
 				</div>
 			)}
@@ -121,7 +123,8 @@ export function TopologyPicker({ onSelect, onGenerate }: TopologyPickerProps) {
 			{selectedTemplate === "blank" && (
 				<div className="p-3 bg-[#a78bfa]/10 border border-[#a78bfa]/30 rounded-lg">
 					<p className="text-xs text-[#d7d7d7]">
-						✎ Modo manual: dibuja tu topología personalizando cada elemento y ruta.
+						✎ Modo manual: dibuja tu topología personalizando cada elemento y
+						ruta.
 					</p>
 				</div>
 			)}

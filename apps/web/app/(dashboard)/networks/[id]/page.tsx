@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { Network } from "@/lib/types/network";
 import type { UserRole } from "@/lib/types/gpon";
+import type { Network } from "@/lib/types/network";
 import { NetworkEditorShell } from "./network-editor-shell";
 
 interface Props {

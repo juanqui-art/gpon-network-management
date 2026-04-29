@@ -3,8 +3,8 @@
 --   admin, network_engineer, outside_plant, installer, support
 -- Policy matrix:
 --   read       — any authenticated
---   insert     — admin, network_engineer, outside_plant
---   update     — admin, network_engineer, outside_plant
+--   insert     — admin, network_engineer
+--   update     — admin, network_engineer
 --   delete     — admin only
 
 -- ─── HELPER: get_user_role() ──────────────────────────────────────────────────
@@ -29,12 +29,12 @@ CREATE POLICY "read infra"
 
 CREATE POLICY "field write infra"
   ON infrastructure_elements FOR INSERT
-  WITH CHECK (get_user_role() IN ('admin', 'network_engineer', 'outside_plant'));
+  WITH CHECK (get_user_role() IN ('admin', 'network_engineer'));
 
 CREATE POLICY "field update infra"
   ON infrastructure_elements FOR UPDATE
-  USING (get_user_role() IN ('admin', 'network_engineer', 'outside_plant'))
-  WITH CHECK (get_user_role() IN ('admin', 'network_engineer', 'outside_plant'));
+  USING (get_user_role() IN ('admin', 'network_engineer'))
+  WITH CHECK (get_user_role() IN ('admin', 'network_engineer'));
 
 CREATE POLICY "admin delete infra"
   ON infrastructure_elements FOR DELETE
@@ -48,12 +48,12 @@ CREATE POLICY "read fiber"
 
 CREATE POLICY "field write fiber"
   ON fiber_routes FOR INSERT
-  WITH CHECK (get_user_role() IN ('admin', 'network_engineer', 'outside_plant'));
+  WITH CHECK (get_user_role() IN ('admin', 'network_engineer'));
 
 CREATE POLICY "field update fiber"
   ON fiber_routes FOR UPDATE
-  USING (get_user_role() IN ('admin', 'network_engineer', 'outside_plant'))
-  WITH CHECK (get_user_role() IN ('admin', 'network_engineer', 'outside_plant'));
+  USING (get_user_role() IN ('admin', 'network_engineer'))
+  WITH CHECK (get_user_role() IN ('admin', 'network_engineer'));
 
 CREATE POLICY "admin delete fiber"
   ON fiber_routes FOR DELETE
@@ -67,12 +67,12 @@ CREATE POLICY "read route_points"
 
 CREATE POLICY "field write route_points"
   ON route_points FOR INSERT
-  WITH CHECK (get_user_role() IN ('admin', 'network_engineer', 'outside_plant'));
+  WITH CHECK (get_user_role() IN ('admin', 'network_engineer'));
 
 CREATE POLICY "field update route_points"
   ON route_points FOR UPDATE
-  USING (get_user_role() IN ('admin', 'network_engineer', 'outside_plant'))
-  WITH CHECK (get_user_role() IN ('admin', 'network_engineer', 'outside_plant'));
+  USING (get_user_role() IN ('admin', 'network_engineer'))
+  WITH CHECK (get_user_role() IN ('admin', 'network_engineer'));
 
 CREATE POLICY "admin delete route_points"
   ON route_points FOR DELETE

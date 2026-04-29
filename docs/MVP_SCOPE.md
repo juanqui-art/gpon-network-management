@@ -58,7 +58,7 @@ La diferencia central es:
 
 ```txt
 network_engineer diseña, valida y gobierna la red.
-outside_plant documenta, corrige y reporta lo construido en campo.
+outside_plant consulta la red y reporta/verifica lo construido en campo.
 admin administra el sistema y puede intervenir todo.
 ```
 
@@ -435,14 +435,15 @@ Rol operativo de campo para planta externa.
 Puede:
 
 ```txt
-Crear y editar infraestructura fisica.
-Corregir ubicaciones de OLT, splitter, NAP y rutas.
-Dibujar o ajustar rutas feeder y distribution segun campo.
-Marcar cruces.
-Marcar reservas.
-Marcar empalmes.
-Registrar observaciones as-built.
-Crear incidentes tecnicos.
+Consultar infraestructura fisica.
+Buscar OLT, splitter, NAP y rutas.
+Reportar ubicaciones reales de campo.
+Reportar rutas feeder y distribution diferentes a lo registrado.
+Reportar cruces.
+Reportar reservas.
+Reportar empalmes.
+Registrar observaciones as-built como propuesta/verificacion.
+Crear incidentes tecnicos si el flujo operativo lo habilita.
 ```
 
 No debe poder por defecto:
@@ -597,8 +598,8 @@ Eliminar si el rol lo permite.
 
 ## Criterio de cierre MVP
 
-El MVP esta cerrado cuando `network_engineer` y `outside_plant`, con sus
-permisos respectivos, pueden:
+El MVP esta cerrado cuando `network_engineer`, con permisos de escritura directa,
+puede:
 
 ```txt
 1. Entrar al mapa.

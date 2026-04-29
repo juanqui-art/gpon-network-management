@@ -2,12 +2,19 @@
 
 import MapboxDraw from "@mapbox/mapbox-gl-draw";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
+import { useQueryClient } from "@tanstack/react-query";
 import turfLength from "@turf/length";
 import mapboxgl from "mapbox-gl";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
+import {
+	formatMapLabel,
+	generateDraftCode,
+	nextSequence,
+	operativeCodeMatches,
+} from "@/lib/gpon/operative-code";
 import {
 	CABLE_COLOR,
 	DATA_QUALITY_COLOR,
@@ -16,20 +23,38 @@ import {
 	TYPE_COLOR,
 } from "@/lib/map/palette";
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_STYLE } from "@/lib/mapbox/config";
-import type { UserRole } from "@/lib/types/gpon";
+import {
+	createFiberRoute,
+	createInfrastructureElement,
+	createRoutePoint,
+	deleteMapFeature,
+	networkEditorKeys,
+	updateFiberRoute,
+	updateInfrastructureElement,
+} from "@/lib/queries/network-editor";
+import type {
+	ActiveDraft,
+	EditorTool,
+	Selection,
+} from "@/lib/store/network-editor";
+import type {
+	ElementStatus,
+	ElementType,
+	NetworkZone,
+	UserRole,
+} from "@/lib/types/gpon";
 import {
 	canDeleteInfrastructure,
 	canWriteInfrastructure,
 } from "@/lib/types/gpon";
 import { NapCapacity } from "./nap-capacity";
 import { OpticalBudgetPanel } from "./optical-budget-panel";
-import { generateDraftCode } from "@/lib/gpon/operative-code";
 import type {
 	ConnectionMapItem,
 	EquipmentMapItem,
 	FiberRoute,
-	InfrastructureElement,
 	IncidentMapItem,
+	InfrastructureElement,
 	LngLat,
 	RoutePoint,
 } from "./types";
@@ -40,7 +65,17 @@ interface Props {
 	connections: ConnectionMapItem[];
 	routePoints?: RoutePoint[];
 	incidents: IncidentMapItem[];
+	zones?: NetworkZone[]; // Available zones for the network
 	userRole?: UserRole | null;
+	editorMode?: EditorMode;
+	onEditorModeChange?: (mode: EditorMode) => void;
+	editorTool?: EditorTool;
+	onEditorToolChange?: (tool: EditorTool) => void;
+	editorSelection?: Selection | null;
+	onEditorSelectionChange?: (selection: Selection | null) => void;
+	onEditorDraftChange?: (draft: ActiveDraft | null) => void;
+	editorStatusMessage?: string;
+	onEditorStatusMessageChange?: (message: string) => void;
 	// v2 network editor integration
 	networkId?: string | null;
 	externalTool?: EditorTool;
@@ -289,6 +324,27 @@ function setMarkerZoomScale(outerEl: HTMLElement, type: string, zoom: number) {
 
 	wrapper.dataset.zoomScale = markerScaleForZoom(type, zoom).toFixed(3);
 	updateMarkerTransform(wrapper);
+	updateMarkerLabel(outerEl, zoom);
+}
+
+function updateMarkerLabel(outerEl: HTMLElement, zoom: number) {
+	const label = outerEl.querySelector(
+		'[data-role="marker-label"]',
+	) as HTMLElement | null;
+	if (!label) return;
+
+	const code = outerEl.dataset.code ?? "";
+	const type = outerEl.dataset.type ?? "";
+	const shouldShow =
+		(type === "olt" && zoom >= 10) ||
+		(type === "splitter" && zoom >= 12) ||
+		(type === "nap" && zoom >= 14);
+
+	label.textContent = formatMapLabel(code, zoom);
+	label.style.opacity = shouldShow ? "1" : "0";
+	label.style.transform = shouldShow
+		? "translate(-50%, 0)"
+		: "translate(-50%, -2px)";
 }
 
 function createMarkerEl(
@@ -309,6 +365,8 @@ function createMarkerEl(
 	// inner   → SVG icon + drop-shadow + pulse.
 
 	const outer = document.createElement("div");
+	outer.dataset.code = eq.code;
+	outer.dataset.type = eq.type;
 	outer.style.cssText = `
     width: ${size}px;
     height: ${size}px;
@@ -345,7 +403,8 @@ function createMarkerEl(
 	wrapper.appendChild(statusRing);
 
 	// Quality ring — shows data trustworthiness (outer, dotted)
-	const qualityColor = DATA_QUALITY_COLOR[eq.location_quality] ?? DATA_QUALITY_COLOR.unknown;
+	const qualityColor =
+		DATA_QUALITY_COLOR[eq.location_quality] ?? DATA_QUALITY_COLOR.unknown;
 	const qualityRingSize = ringSize + 6;
 	const qualityRing = document.createElement("div");
 	qualityRing.dataset.role = "quality-ring";
@@ -465,6 +524,35 @@ function createMarkerEl(
 
 	wrapper.appendChild(inner);
 	outer.appendChild(wrapper);
+
+	const label = document.createElement("div");
+	label.dataset.role = "marker-label";
+	label.textContent = formatMapLabel(eq.code, 14);
+	label.style.cssText = `
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 8px);
+    max-width: 150px;
+    transform: translate(-50%, -2px);
+    border: 1px solid rgba(164,164,164,0.18);
+    border-radius: 5px;
+    background: rgba(27,28,29,0.88);
+    padding: 2px 5px;
+    color: #e6e6e6;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.28);
+  `;
+	outer.appendChild(label);
 	return outer;
 }
 
@@ -489,26 +577,13 @@ type MarkerEntry = {
 	status: string;
 };
 
-type EditorTool =
-	| "select"
-	| "pan"
-	| "olt"
-	| "splitter"
-	| "nap"
-	| "fiber"
-	| "crossing"
-	| "reserve"
-	| "splice"
-	| "measure"
-	| "delete";
-
 type EditorMode = "view" | "design" | "edit";
 type LeftPanelTab = "layers" | "elements" | "tree" | "quality";
 type SelectedFeature =
 	| { kind: "element"; element: EquipmentMapItem }
 	| { kind: "route"; route: ConnectionMapItem }
 	| { kind: "routePoint"; point: RoutePoint };
-type DraftElement = EquipmentMapItem & { isDraft: true };
+type DraftElement = EquipmentMapItem & { isDraft: true; selectedZone?: string };
 type DraftRoute = ConnectionMapItem & { isDraft: true };
 type DraftRoutePoint = RoutePoint & { isDraft: true };
 type SelectedDraftFeature = { kind: "draftElement"; element: DraftElement };
@@ -537,6 +612,7 @@ type DraftElementPatch = Partial<
 		| "insertion_loss_db"
 		| "total_ports"
 		| "address_reference"
+		| "selectedZone"
 		| "notes"
 	>
 >;
@@ -799,8 +875,10 @@ function createDraftElement(
 	type: "olt" | "splitter" | "nap",
 	lngLat: mapboxgl.LngLat,
 	index: number,
+	zone?: string,
 ): DraftElement {
-	const code = generateDraftCode(type, index);
+	const codeZone = zone ?? "Z05";
+	const code = generateDraftCode(type, index, codeZone);
 
 	return {
 		id: `draft-${type}-${Date.now()}-${index}`,
@@ -815,6 +893,7 @@ function createDraftElement(
 		address_reference: null,
 		pon_standard: type === "olt" ? "gpon" : null,
 		total_pon_ports: type === "olt" ? 8 : null,
+		optical_class: null,
 		split_ratio: type === "splitter" ? "1:8" : null,
 		insertion_loss_db: type === "splitter" ? 10.5 : null,
 		total_ports: type === "nap" ? 8 : null,
@@ -839,7 +918,8 @@ function createDraftElement(
 		tx_power_dbm: null,
 		signal_recorded_at: null,
 		isDraft: true,
-	};
+		selectedZone: codeZone, // Track selected zone for regenerating codes
+	} as DraftElement & { selectedZone: string };
 }
 
 function distanceMeters(a: LngLat, b: LngLat): number {
@@ -942,6 +1022,35 @@ function createDraftRoute(
 	};
 }
 
+function nextElementSequence(
+	equipment: EquipmentMapItem[],
+	type: "olt" | "splitter" | "nap",
+	offset: number,
+	zone?: string,
+) {
+	const codes = equipment
+		.filter((element) => {
+			if (element.type !== type) return false;
+			// If zone is specified, only count elements in that zone
+			if (zone && !element.code?.includes(zone)) return false;
+			return true;
+		})
+		.map((element) => element.code);
+	return nextSequence(codes) + offset - 1;
+}
+
+function nextRouteSequence(
+	connections: ConnectionMapItem[],
+	type: "feeder" | "distribution",
+	offset: number,
+) {
+	const codes = connections
+		.filter((connection) => connection.type === type)
+		.map((connection) => connection.code)
+		.filter((code): code is string => Boolean(code));
+	return nextSequence(codes) + offset - 1;
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 export function MapView({
@@ -950,11 +1059,22 @@ export function MapView({
 	connections,
 	routePoints = [],
 	incidents,
+	zones = [],
 	userRole = null,
+	editorMode,
+	onEditorModeChange,
+	editorTool,
+	onEditorToolChange,
+	onEditorSelectionChange,
+	onEditorDraftChange,
+	editorStatusMessage,
+	onEditorStatusMessageChange,
+	networkId = null,
 }: Props) {
 	const canEdit = canWriteInfrastructure(userRole);
 	const canDelete = canDeleteInfrastructure(userRole);
 	const router = useRouter();
+	const queryClient = useQueryClient();
 	const containerRef = useRef<HTMLDivElement>(null);
 	const mapRef = useRef<mapboxgl.Map | null>(null);
 	// Keyed by equipment_id for O(1) updates and lookups
@@ -974,7 +1094,9 @@ export function MapView({
 	const drawRef = useRef<MapboxDraw | null>(null);
 	const draftRouteCountRef = useRef(1);
 	// Stable ref so dragend listeners always call the latest save fn
-	const saveExistingElementRef = useRef<(el: EquipmentMapItem, patch: Partial<EquipmentMapItem>) => void>(() => {});
+	const saveExistingElementRef = useRef<
+		(el: EquipmentMapItem, patch: Partial<EquipmentMapItem>) => void
+	>(() => {});
 	const [selectedFeature, setSelectedFeature] =
 		useState<AnySelectedFeature | null>(null);
 	const [draftCount, setDraftCount] = useState(1);
@@ -982,28 +1104,116 @@ export function MapView({
 	const [filterType, setFilterType] = useState("all");
 	const [filterStatus, setFilterStatus] = useState("all");
 	const [zoom, setZoom] = useState(DEFAULT_ZOOM); // matches map constructor zoom
-	const [activeTool, setActiveTool] = useState<EditorTool>("select");
-	const [mode, setMode] = useState<EditorMode>("view");
+	const [internalActiveTool, setInternalActiveTool] =
+		useState<EditorTool>("select");
+	const [internalMode, setInternalMode] = useState<EditorMode>("view");
 	const [leftTab, setLeftTab] = useState<LeftPanelTab>("layers");
 	const [contextMenu, setContextMenu] = useState<{
 		x: number;
 		y: number;
 		feature: SelectedFeature;
 	} | null>(null);
-	const [statusMessage, setStatusMessage] = useState(
+	const [internalStatusMessage, setInternalStatusMessage] = useState(
 		"Modo infraestructura listo.",
 	);
 
 	const incidentByEquipment = Object.fromEntries(
 		incidents.map((i) => [i.equipment_id, i]),
 	);
+	const mode = editorMode ?? internalMode;
+	const activeTool = editorTool ?? internalActiveTool;
+	const setMode = useCallback(
+		(nextMode: EditorMode) => {
+			setInternalMode(nextMode);
+			onEditorModeChange?.(nextMode);
+		},
+		[onEditorModeChange],
+	);
+	const setActiveTool = useCallback(
+		(nextTool: EditorTool) => {
+			setInternalActiveTool(nextTool);
+			onEditorToolChange?.(nextTool);
+		},
+		[onEditorToolChange],
+	);
+	const setSelected = useCallback(
+		(nextFeature: AnySelectedFeature | null) => {
+			setSelectedFeature(nextFeature);
+			if (
+				nextFeature?.kind === "element" ||
+				nextFeature?.kind === "route" ||
+				nextFeature?.kind === "routePoint"
+			) {
+				onEditorSelectionChange?.({
+					id:
+						nextFeature.kind === "element"
+							? nextFeature.element.id
+							: nextFeature.kind === "route"
+								? nextFeature.route.id
+								: nextFeature.point.id,
+					kind: nextFeature.kind,
+				});
+				onEditorDraftChange?.(null);
+				return;
+			}
+			if (nextFeature?.kind === "draftElement") {
+				onEditorSelectionChange?.(null);
+				onEditorDraftChange?.({
+					kind: "element",
+					id: nextFeature.element.id,
+					elementType: nextFeature.element.type,
+					code: nextFeature.element.code,
+				});
+				return;
+			}
+			if (nextFeature?.kind === "draftRoute") {
+				onEditorSelectionChange?.(null);
+				onEditorDraftChange?.({
+					kind: "route",
+					id: nextFeature.route.id,
+					routeType: nextFeature.route.type,
+					code: nextFeature.route.code,
+				});
+				return;
+			}
+			if (nextFeature?.kind === "draftRoutePoint") {
+				onEditorSelectionChange?.(null);
+				onEditorDraftChange?.({
+					kind: "routePoint",
+					id: nextFeature.point.id,
+					pointType: nextFeature.point.type,
+					code: nextFeature.point.code,
+				});
+				return;
+			}
+			onEditorSelectionChange?.(null);
+			onEditorDraftChange?.(null);
+		},
+		[onEditorDraftChange, onEditorSelectionChange],
+	);
+	const statusMessage = editorStatusMessage ?? internalStatusMessage;
+	const setStatusMessage = useCallback(
+		(nextMessage: string) => {
+			setInternalStatusMessage(nextMessage);
+			onEditorStatusMessageChange?.(nextMessage);
+		},
+		[onEditorStatusMessageChange],
+	);
+	const refreshEditorData = useCallback(() => {
+		if (networkId) {
+			void queryClient.invalidateQueries({
+				queryKey: networkEditorKeys.detail(networkId),
+			});
+			return;
+		}
+		router.refresh();
+	}, [networkId, queryClient, router]);
 	const routePointCount = routePoints.length;
 	const activeToolLabel =
 		EDITOR_TOOLS.find((tool) => tool.value === activeTool)?.label ??
 		"Seleccionar";
-	const isDesigning = mode === "design"; // placing new elements / drawing routes
-	const isEditing   = mode === "edit";   // modifying / deleting existing elements
-	const isActive    = mode !== "view";   // any non-read-only mode
+	const isEditing = mode === "edit"; // modifying / deleting existing elements
+	const isActive = mode !== "view"; // any non-read-only mode
 
 	// Real-time non-blocking warnings derived from current map data
 	const mapWarnings = (() => {
@@ -1015,7 +1225,8 @@ export function MapView({
 			if (eq.type === "nap" && eq.total_ports) {
 				const used = eq.ports_used ?? 0;
 				if (used >= eq.total_ports) warnings.push(`${eq.code}: NAP saturada`);
-				else if (used / eq.total_ports >= 0.8) warnings.push(`${eq.code}: NAP casi llena`);
+				else if (used / eq.total_ports >= 0.8)
+					warnings.push(`${eq.code}: NAP casi llena`);
 			}
 		}
 		for (const conn of connections) {
@@ -1038,17 +1249,32 @@ export function MapView({
 			"fiber-draft",
 		) as mapboxgl.GeoJSONSource | null;
 		drawingSource?.setData(buildDrawingGeoJSON([]));
-		setSelectedFeature((current) =>
-			current?.kind === "draftElement" || current?.kind === "draftRoute"
-				? null
-				: current,
-		);
-	}, []);
+		setSelectedFeature((current) => {
+			if (current?.kind === "draftElement" || current?.kind === "draftRoute") {
+				onEditorSelectionChange?.(null);
+				onEditorDraftChange?.(null);
+				return null;
+			}
+			return current;
+		});
+	}, [onEditorDraftChange, onEditorSelectionChange]);
 	const createElementDraftAt = useCallback(
 		(type: "olt" | "splitter" | "nap", lngLat: mapboxgl.LngLat) => {
 			const map = mapRef.current;
 			if (!map) return;
-			const draft = createDraftElement(type, lngLat, draftCount);
+			const defaultZone = zones.length > 0 ? zones[0]?.zone_code : "Z05";
+			const draftSequence = nextElementSequence(
+				equipmentRef.current,
+				type,
+				draftCount,
+				defaultZone,
+			);
+			const draft = createDraftElement(
+				type,
+				lngLat,
+				draftSequence,
+				defaultZone,
+			);
 			setDraftCount((current) => current + 1);
 			draftMarkerRef.current?.remove();
 			const markerEl = createMarkerEl(draft, null);
@@ -1061,38 +1287,35 @@ export function MapView({
 				.setLngLat([draft.lng, draft.lat])
 				.addTo(map);
 			setMarkerZoomScale(markerEl, draft.type, map.getZoom());
-			setSelectedFeature({ kind: "draftElement", element: draft });
+			setSelected({ kind: "draftElement", element: draft });
 			setStatusMessage(`${draft.code} provisional. Completa datos y guarda.`);
 		},
-		[draftCount],
+		[draftCount, setSelected, setStatusMessage, zones],
 	);
 	const saveDraftElement = useCallback(
 		async (draft: DraftElement) => {
 			setStatusMessage(`Guardando ${draft.code}...`);
-			const { createClient } = await import("@/lib/supabase/client");
-			const supabase = createClient();
-			const { error } = await supabase.rpc(
-				"create_infrastructure_element_draft",
-				{
-					p_type: draft.type,
-					p_code: draft.code,
-					p_name: draft.name,
-					p_lng: draft.lng,
-					p_lat: draft.lat,
-					p_status: draft.status,
-					p_location_quality: draft.location_quality,
-					p_pon_standard: draft.pon_standard,
-					p_total_pon_ports: draft.total_pon_ports,
-					p_split_ratio: draft.split_ratio,
-					p_insertion_loss_db: draft.insertion_loss_db,
-					p_total_ports: draft.total_ports,
-					p_address_reference: draft.address_reference,
-					p_notes: draft.notes,
-				},
-			);
-
-			if (error) {
-				setStatusMessage(`No se pudo guardar ${draft.code}: ${error.message}`);
+			try {
+				await createInfrastructureElement({
+					type: draft.type as ElementType,
+					code: draft.code,
+					name: draft.name,
+					lng: draft.lng,
+					lat: draft.lat,
+					status: draft.status as ElementStatus,
+					location_quality: draft.location_quality,
+					pon_standard: draft.pon_standard,
+					total_pon_ports: draft.total_pon_ports,
+					split_ratio: draft.split_ratio,
+					insertion_loss_db: draft.insertion_loss_db,
+					total_ports: draft.total_ports,
+					address_reference: draft.address_reference,
+					notes: draft.notes,
+				});
+			} catch (error) {
+				const message =
+					error instanceof Error ? error.message : "Error desconocido";
+				setStatusMessage(`No se pudo guardar ${draft.code}: ${message}`);
 				return;
 			}
 
@@ -1106,9 +1329,9 @@ export function MapView({
 			clearDraft();
 			setActiveTool("select");
 			setStatusMessage(`${draft.code} guardado — marcador visible en el mapa.`);
-			router.refresh();
+			refreshEditorData();
 		},
-		[clearDraft, router],
+		[clearDraft, refreshEditorData, setActiveTool, setStatusMessage],
 	);
 	const updateFiberDraftSource = useCallback((coordinates: LngLat[]) => {
 		const source = mapRef.current?.getSource(
@@ -1136,7 +1359,7 @@ export function MapView({
 				`Vértice agregado. Longitud parcial ${polylineLengthMeters(nextCoordinates).toFixed(0)} m.`,
 			);
 		},
-		[updateFiberDraftSource],
+		[updateFiberDraftSource, setStatusMessage],
 	);
 	const handleFiberElementClick = useCallback(
 		(element: EquipmentMapItem) => {
@@ -1145,7 +1368,7 @@ export function MapView({
 				const coordinates: LngLat[] = [[element.lng, element.lat]];
 				fiberDrawingRef.current = { fromElement: element, coordinates };
 				updateFiberDraftSource(coordinates);
-				setSelectedFeature({ kind: "element", element });
+				setSelected({ kind: "element", element });
 				setStatusMessage(
 					`Origen seleccionado: ${element.name ?? element.code}. Agrega vértices o selecciona destino.`,
 				);
@@ -1165,43 +1388,31 @@ export function MapView({
 				drawing.fromElement,
 				element,
 				coordinates,
-				draftRouteCount,
+				nextRouteSequence(
+					connectionsRef.current,
+					drawing.fromElement.type === "olt" ? "feeder" : "distribution",
+					draftRouteCount,
+				),
 			);
 			setDraftRouteCount((current) => current + 1);
 			updateFiberDraftSource(coordinates);
 			fiberDrawingRef.current = null;
-			setSelectedFeature({ kind: "draftRoute", route: draftRoute });
+			setSelected({ kind: "draftRoute", route: draftRoute });
 			setStatusMessage(
 				`${draftRoute.code} provisional. Revisa datos y guarda la ruta.`,
 			);
 		},
-		[draftRouteCount, updateFiberDraftSource],
+		[draftRouteCount, updateFiberDraftSource, setSelected, setStatusMessage],
 	);
 	const saveDraftRoute = useCallback(
 		async (draft: DraftRoute) => {
 			setStatusMessage(`Guardando ${draft.code ?? "ruta"}...`);
-			const { createClient } = await import("@/lib/supabase/client");
-			const supabase = createClient();
-			const { error } = await supabase.rpc("create_fiber_route_draft", {
-				p_code: draft.code,
-				p_type: draft.type,
-				p_status: draft.status,
-				p_from_element_id: draft.from_element_id,
-				p_to_element_id: draft.to_element_id,
-				p_geojson_coordinates: draft.geojson_coordinates,
-				p_route_quality: draft.route_quality,
-				p_installation_type: draft.installation_type,
-				p_fiber_type: draft.fiber_type,
-				p_fiber_count: draft.fiber_count,
-				p_length_meters: draft.length_meters,
-				p_attenuation_db_per_km: draft.attenuation_db_per_km,
-				p_splice_loss_db: draft.splice_loss_db,
-				p_connector_loss_db: draft.connector_loss_db,
-				p_notes: draft.notes,
-			});
-
-			if (error) {
-				setStatusMessage(`No se pudo guardar la ruta: ${error.message}`);
+			try {
+				await createFiberRoute(draft);
+			} catch (error) {
+				const message =
+					error instanceof Error ? error.message : "Error desconocido";
+				setStatusMessage(`No se pudo guardar la ruta: ${message}`);
 				return;
 			}
 
@@ -1221,131 +1432,96 @@ export function MapView({
 			setStatusMessage(
 				`${draft.code ?? "Ruta"} guardada — visible en el mapa.`,
 			);
-			router.refresh();
+			refreshEditorData();
 		},
-		[clearDraft, router],
+		[clearDraft, refreshEditorData, setActiveTool, setStatusMessage],
 	);
 
 	const saveRoutePointDraft = useCallback(
 		async (draft: DraftRoutePoint) => {
 			setStatusMessage("Guardando punto...");
-			const { createClient } = await import("@/lib/supabase/client");
-			const supabase = createClient();
-			const { error } = await supabase.rpc("create_route_point_draft", {
-				p_fiber_route_id: draft.fiber_route_id,
-				p_type: draft.type,
-				p_lng: draft.lng,
-				p_lat: draft.lat,
-				p_code: draft.code,
-				p_location_quality: draft.location_quality,
-				p_crossing_type: draft.crossing_type,
-				p_risk_level: draft.risk_level,
-				p_reserve_length_m: draft.reserve_length_m,
-				p_splice_loss_db: draft.splice_loss_db,
-				p_reference_text: draft.reference_text,
-				p_notes: draft.notes,
-			});
-			if (error) {
-				setStatusMessage(`No se pudo guardar el punto: ${error.message}`);
+			try {
+				await createRoutePoint(draft);
+			} catch (error) {
+				const message =
+					error instanceof Error ? error.message : "Error desconocido";
+				setStatusMessage(`No se pudo guardar el punto: ${message}`);
 				return;
 			}
-			setSelectedFeature(null);
+			setSelected(null);
 			setActiveTool("select");
 			setStatusMessage("Punto guardado.");
-			router.refresh();
+			refreshEditorData();
 		},
-		[router],
+		[refreshEditorData, setActiveTool, setSelected, setStatusMessage],
 	);
 
 	const deleteFeature = useCallback(
 		async (feature: SelectedFeature) => {
-			const { createClient } = await import("@/lib/supabase/client");
-			const supabase = createClient();
-			let error: { message: string } | null = null;
+			const deleteInput =
+				feature.kind === "element"
+					? ({ kind: "element", id: feature.element.id } as const)
+					: feature.kind === "route"
+						? ({ kind: "route", id: feature.route.id } as const)
+						: ({ kind: "routePoint", id: feature.point.id } as const);
 
-			if (feature.kind === "element") {
-				setStatusMessage(`Eliminando ${feature.element.code}...`);
-				({ error } = await supabase.rpc("delete_infrastructure_element", {
-					p_id: feature.element.id,
-				}));
-			} else if (feature.kind === "route") {
-				setStatusMessage("Eliminando ruta...");
-				({ error } = await supabase.rpc("delete_fiber_route", {
-					p_id: feature.route.id,
-				}));
-			} else if (feature.kind === "routePoint") {
-				setStatusMessage("Eliminando punto...");
-				({ error } = await supabase.rpc("delete_route_point", {
-					p_id: feature.point.id,
-				}));
-			}
+			setStatusMessage(
+				feature.kind === "element"
+					? `Eliminando ${feature.element.code}...`
+					: "Eliminando elemento...",
+			);
 
-			if (error) {
-				setStatusMessage(`No se pudo eliminar: ${error.message}`);
+			try {
+				await deleteMapFeature(deleteInput);
+			} catch (error) {
+				const message =
+					error instanceof Error ? error.message : "Error desconocido";
+				setStatusMessage(`No se pudo eliminar: ${message}`);
 				return;
 			}
-			setSelectedFeature(null);
+			setSelected(null);
 			setActiveTool("select");
 			setStatusMessage("Elemento eliminado.");
-			router.refresh();
+			refreshEditorData();
 		},
-		[router],
+		[refreshEditorData, setActiveTool, setSelected, setStatusMessage],
 	);
 
 	const saveExistingElement = useCallback(
 		async (element: EquipmentMapItem, patch: Partial<EquipmentMapItem>) => {
-			const { createClient } = await import("@/lib/supabase/client");
-			const supabase = createClient();
 			setStatusMessage(`Guardando ${element.code}…`);
 
-			const { error } = await supabase.rpc("update_infrastructure_element", {
-				p_id: element.id,
-				p_code: patch.code ?? element.code,
-				p_name: patch.name ?? element.name,
-				p_status: patch.status ?? element.status,
-				p_location_quality: patch.location_quality ?? element.location_quality,
-				p_total_pon_ports: patch.total_pon_ports ?? element.total_pon_ports,
-				p_split_ratio: patch.split_ratio ?? element.split_ratio,
-				p_insertion_loss_db: patch.insertion_loss_db ?? element.insertion_loss_db,
-				p_total_ports: patch.total_ports ?? element.total_ports,
-				p_address_reference: patch.address_reference ?? element.address_reference,
-				p_notes: patch.notes ?? element.notes,
-			});
-
-			if (error) {
-				setStatusMessage(`Error al guardar: ${error.message}`);
+			try {
+				await updateInfrastructureElement({ element, patch });
+			} catch (error) {
+				const message =
+					error instanceof Error ? error.message : "Error desconocido";
+				setStatusMessage(`Error al guardar: ${message}`);
 				return;
 			}
 			setStatusMessage(`${element.code} actualizado.`);
 			setActiveTool("select");
-			router.refresh();
+			refreshEditorData();
 		},
-		[router],
+		[refreshEditorData, setActiveTool, setStatusMessage],
 	);
 
 	const saveExistingRoute = useCallback(
 		async (route: ConnectionMapItem, patch: Partial<ConnectionMapItem>) => {
-			const { createClient } = await import("@/lib/supabase/client");
-			const supabase = createClient();
 			setStatusMessage("Guardando ruta…");
 
-			const { error } = await supabase.rpc("update_fiber_route", {
-				p_id: route.id,
-				p_code: patch.code ?? route.code,
-				p_type: patch.type ?? route.type,
-				p_fiber_type: patch.fiber_type ?? route.fiber_type,
-				p_fiber_count: patch.fiber_count ?? route.fiber_count,
-				p_notes: patch.notes ?? route.notes,
-			});
-
-			if (error) {
-				setStatusMessage(`Error al guardar: ${error.message}`);
+			try {
+				await updateFiberRoute({ route, patch });
+			} catch (error) {
+				const message =
+					error instanceof Error ? error.message : "Error desconocido";
+				setStatusMessage(`Error al guardar: ${message}`);
 				return;
 			}
 			setStatusMessage("Ruta actualizada.");
-			router.refresh();
+			refreshEditorData();
 		},
-		[router],
+		[refreshEditorData, setStatusMessage],
 	);
 
 	// Keep refs in sync so Mapbox effects can access latest props without deps
@@ -1380,7 +1556,7 @@ export function MapView({
 				? "Explora la red. La visibilidad se adapta al zoom."
 				: TOOL_HELP[activeTool],
 		);
-	}, [activeTool, mode]);
+	}, [activeTool, mode, setStatusMessage]);
 
 	// Enable / disable marker drag when mode changes
 	useEffect(() => {
@@ -1496,7 +1672,7 @@ export function MapView({
 
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [clearDraft]);
+	}, [clearDraft, setActiveTool, setStatusMessage]);
 
 	// ── Sync connections source when equipment status changes (realtime) ───────
 	useEffect(() => {
@@ -1532,17 +1708,17 @@ export function MapView({
 							schema: "public",
 							table: "infrastructure_elements",
 						},
-						() => router.refresh(),
+						refreshEditorData,
 					)
 					.on(
 						"postgres_changes",
 						{ event: "*", schema: "public", table: "fiber_routes" },
-						() => router.refresh(),
+						refreshEditorData,
 					)
 					.on(
 						"postgres_changes",
 						{ event: "*", schema: "public", table: "route_points" },
-						() => router.refresh(),
+						refreshEditorData,
 					)
 					.subscribe();
 				removeChannel = () => supabase.removeChannel(channel);
@@ -1553,7 +1729,7 @@ export function MapView({
 			unmounted = true;
 			removeChannel?.();
 		};
-	}, [router]);
+	}, [refreshEditorData]);
 
 	// ── Sync marker DOM when props update (after router.refresh) ──────────────
 	useEffect(() => {
@@ -1565,12 +1741,17 @@ export function MapView({
 			const entry = markersByEqId.current.get(eq.id);
 			if (!entry) continue;
 
+			entry.outerEl.dataset.code = eq.code;
+			entry.outerEl.dataset.type = eq.type;
+			updateMarkerLabel(entry.outerEl, mapRef.current?.getZoom() ?? zoom);
+
 			// Update quality ring
 			const qualityRing = entry.outerEl.querySelector(
 				'[data-role="quality-ring"]',
 			) as HTMLElement | null;
 			if (qualityRing) {
-				const qualityColor = DATA_QUALITY_COLOR[eq.location_quality] ?? DATA_QUALITY_COLOR.unknown;
+				const qualityColor =
+					DATA_QUALITY_COLOR[eq.location_quality] ?? DATA_QUALITY_COLOR.unknown;
 				qualityRing.style.borderColor = qualityColor;
 			}
 
@@ -1665,6 +1846,7 @@ export function MapView({
 			})
 				.setLngLat([eq.lng, eq.lat])
 				.addTo(map);
+			setMarkerZoomScale(el, eq.type, map.getZoom());
 
 			marker.on("dragstart", () => {
 				// Visual feedback during drag
@@ -1688,7 +1870,7 @@ export function MapView({
 					}
 					return;
 				}
-				setSelectedFeature({ kind: "element", element: eq });
+				setSelected({ kind: "element", element: eq });
 			});
 			el.addEventListener("contextmenu", (e) => {
 				e.preventDefault();
@@ -1698,11 +1880,11 @@ export function MapView({
 					y: e.clientY,
 					feature: { kind: "element", element: eq },
 				});
-				setSelectedFeature({ kind: "element", element: eq });
+				setSelected({ kind: "element", element: eq });
 			});
 			el.addEventListener("dblclick", (e) => {
 				e.stopPropagation();
-				setSelectedFeature({ kind: "element", element: eq });
+				setSelected({ kind: "element", element: eq });
 				setMode("edit");
 			});
 			markersByEqId.current.set(eq.id, {
@@ -1712,7 +1894,14 @@ export function MapView({
 				status: eq.status,
 			});
 		}
-	}, [equipment, incidents, handleFiberElementClick]);
+	}, [
+		equipment,
+		incidents,
+		handleFiberElementClick,
+		setMode,
+		setSelected,
+		zoom,
+	]);
 
 	// ── Unified visibility: user filters + zoom hierarchy ────────────────────
 	useEffect(() => {
@@ -1736,7 +1925,10 @@ export function MapView({
 			const statusOk =
 				filterStatus === "all" || prev.element.status === filterStatus;
 			const zoomOk = zoomT === null || zoomT.has(prev.element.type);
-			return typeOk && statusOk && zoomOk ? prev : null;
+			if (typeOk && statusOk && zoomOk) return prev;
+			onEditorSelectionChange?.(null);
+			onEditorDraftChange?.(null);
+			return null;
 		});
 
 		// Cable layers
@@ -1795,7 +1987,15 @@ export function MapView({
 			map.setFilter("route-points-circle", routePointFilter);
 			map.setFilter("route-points-label", routePointFilter);
 		}
-	}, [filterType, filterStatus, zoom, mode, activeTool]);
+	}, [
+		filterType,
+		filterStatus,
+		zoom,
+		mode,
+		activeTool,
+		onEditorDraftChange,
+		onEditorSelectionChange,
+	]);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: Mapbox map initializes once at mount; props are static server data
 	useEffect(() => {
@@ -2111,7 +2311,7 @@ export function MapView({
 
 				const route = routesByIdRef.current.get(props.connection_id);
 				if (route) {
-					setSelectedFeature({ kind: "route", route });
+					setSelected({ kind: "route", route });
 					setStatusMessage(`Ruta seleccionada: ${route.code ?? route.id}.`);
 					return;
 				}
@@ -2169,7 +2369,7 @@ export function MapView({
 					.setHTML(html)
 					.addTo(map);
 
-				setSelectedFeature(null);
+				setSelected(null);
 			});
 
 			map.on("mouseenter", "route-points-circle", () => {
@@ -2190,7 +2390,7 @@ export function MapView({
 
 				const point = routePointsByIdRef.current.get(props.route_point_id);
 				if (point) {
-					setSelectedFeature({ kind: "routePoint", point });
+					setSelected({ kind: "routePoint", point });
 					setStatusMessage(
 						`Punto de ruta seleccionado: ${point.code ?? point.type}.`,
 					);
@@ -2258,7 +2458,7 @@ export function MapView({
 					.setHTML(html)
 					.addTo(map);
 
-				setSelectedFeature(null);
+				setSelected(null);
 			});
 
 			// ── Equipment HTML markers ─────────────────────────────────────────
@@ -2295,7 +2495,7 @@ export function MapView({
 							`${TOOL_HELP[activeToolRef.current]} Elemento elegido: ${eq.name}.`,
 						);
 					}
-					setSelectedFeature({ kind: "element", element: eq });
+					setSelected({ kind: "element", element: eq });
 				});
 
 				outerEl.addEventListener("contextmenu", (e) => {
@@ -2306,12 +2506,12 @@ export function MapView({
 						y: e.clientY,
 						feature: { kind: "element", element: eq },
 					});
-					setSelectedFeature({ kind: "element", element: eq });
+					setSelected({ kind: "element", element: eq });
 				});
 
 				outerEl.addEventListener("dblclick", (e) => {
 					e.stopPropagation();
-					setSelectedFeature({ kind: "element", element: eq });
+					setSelected({ kind: "element", element: eq });
 					setMode("edit");
 				});
 			}
@@ -2335,7 +2535,7 @@ export function MapView({
 					y: e.originalEvent.clientY,
 					feature: { kind: "route", route },
 				});
-				setSelectedFeature({ kind: "route", route });
+				setSelected({ kind: "route", route });
 			});
 
 			// Click on empty map area → deselect + close cable popup + close context menu
@@ -2343,7 +2543,7 @@ export function MapView({
 				setContextMenu(null);
 				const tool = activeToolRef.current;
 				if (tool === "select" || tool === "pan") {
-					setSelectedFeature(null);
+					setSelected(null);
 				} else if (tool === "olt" || tool === "splitter" || tool === "nap") {
 					createElementDraftAt(tool, event.lngLat);
 				} else if (tool === "fiber") {
@@ -2386,7 +2586,7 @@ export function MapView({
 							created_at: new Date().toISOString(),
 							updated_at: new Date().toISOString(),
 						};
-						setSelectedFeature({ kind: "draftRoutePoint", point: draft });
+						setSelected({ kind: "draftRoutePoint", point: draft });
 						setStatusMessage(
 							`Punto de ${tool} provisional. Completa datos y guarda.`,
 						);
@@ -2416,9 +2616,13 @@ export function MapView({
 			const allEq = equipmentRef.current;
 			const from = nearestElementTo(coords[0], allEq);
 			const to = nearestElementTo(coords[coords.length - 1], allEq);
-			const idx = draftRouteCountRef.current;
-			const code = `R-DRAFT-${String(idx).padStart(3, "0")}`;
 			const routeType = from?.type === "olt" ? "feeder" : "distribution";
+			const idx = nextRouteSequence(
+				connectionsRef.current,
+				routeType,
+				draftRouteCountRef.current,
+			);
+			const code = generateDraftCode(routeType, idx);
 
 			const draftRoute: DraftRoute = {
 				isDraft: true,
@@ -2460,7 +2664,7 @@ export function MapView({
 
 			setDraftRouteCount((n) => n + 1);
 			draw.deleteAll();
-			setSelectedFeature({ kind: "draftRoute", route: draftRoute });
+			setSelected({ kind: "draftRoute", route: draftRoute });
 			setActiveTool("select");
 			setStatusMessage(
 				from && to
@@ -2520,15 +2724,19 @@ export function MapView({
 					onModeChange={(nextMode) => {
 						setMode(nextMode);
 						// Reset to default tool for each mode
-						if (nextMode === "view")   setActiveTool("select");
+						if (nextMode === "view") setActiveTool("select");
 						if (nextMode === "design") setActiveTool("olt");
-						if (nextMode === "edit")   setActiveTool("select");
+						if (nextMode === "edit") setActiveTool("select");
 					}}
 				/>
 			)}
 
 			{canEdit && isActive && (
-				<EditorToolbar activeTool={activeTool} onToolChange={setActiveTool} mode={mode} />
+				<EditorToolbar
+					activeTool={activeTool}
+					onToolChange={setActiveTool}
+					mode={mode}
+				/>
 			)}
 
 			<InfrastructurePanel
@@ -2537,7 +2745,6 @@ export function MapView({
 				mode={mode}
 				equipment={visibleEquipment}
 				allEquipment={equipment}
-				totalEquipment={equipment.length}
 				connections={connections}
 				routePointCount={routePointCount}
 				incidents={incidents}
@@ -2547,7 +2754,7 @@ export function MapView({
 				onTypeChange={setFilterType}
 				onStatusChange={setFilterStatus}
 				onSelectEquipment={(eq) => {
-					setSelectedFeature({ kind: "element", element: eq });
+					setSelected({ kind: "element", element: eq });
 					mapRef.current?.flyTo({
 						center: [eq.lng, eq.lat],
 						zoom: Math.max(mapRef.current.getZoom(), 16),
@@ -2564,7 +2771,7 @@ export function MapView({
 						: null
 				}
 				mode={mode}
-				onClose={() => setSelectedFeature(null)}
+				onClose={() => setSelected(null)}
 				onCancelDraft={clearDraft}
 				onDraftChange={(patch) => {
 					setSelectedFeature((current) => {
@@ -2609,7 +2816,7 @@ export function MapView({
 					menu={contextMenu}
 					canDelete={canDelete}
 					onSelect={() => {
-						setSelectedFeature(contextMenu.feature);
+						setSelected(contextMenu.feature);
 						setContextMenu(null);
 					}}
 					onDelete={() => {
@@ -2659,9 +2866,9 @@ function EditorTopBar({
 			<div className="flex rounded-md bg-[rgba(164,164,164,0.06)] p-0.5">
 				{(
 					[
-						["view",   "Visualizar", "#38bdf8"],
-						["design", "Diseño",     "#34d399"],
-						["edit",   "Edición",    "#f59e0b"],
+						["view", "Vista", "#38bdf8"],
+						["design", "Crear", "#34d399"],
+						["edit", "Editar", "#f59e0b"],
 					] as const
 				).map(([value, label, accent]) => (
 					<button
@@ -2672,7 +2879,7 @@ function EditorTopBar({
 						className="rounded px-3 py-1.5 text-[11px] font-medium transition-colors"
 						style={{
 							background: mode === value ? `${accent}28` : "transparent",
-							color:      mode === value ? accent : "#a4a4a4",
+							color: mode === value ? accent : "#a4a4a4",
 						}}
 					>
 						{label}
@@ -2683,9 +2890,15 @@ function EditorTopBar({
 				<span
 					className="rounded-md border px-2.5 py-1.5 text-[11px] transition-colors"
 					style={{
-						borderColor: mode === "edit" ? "rgba(245,158,11,0.4)" : "rgba(52,211,153,0.35)",
-						background:  mode === "edit" ? "rgba(245,158,11,0.12)" : "rgba(52,211,153,0.1)",
-						color:       mode === "edit" ? "#fbbf24" : "#34d399",
+						borderColor:
+							mode === "edit"
+								? "rgba(245,158,11,0.4)"
+								: "rgba(52,211,153,0.35)",
+						background:
+							mode === "edit"
+								? "rgba(245,158,11,0.12)"
+								: "rgba(52,211,153,0.1)",
+						color: mode === "edit" ? "#fbbf24" : "#34d399",
 					}}
 				>
 					{activeToolLabel}
@@ -2712,7 +2925,9 @@ function EditorToolbar({
 	mode: EditorMode;
 }) {
 	const allowedTools = TOOLS_BY_MODE[mode];
-	const visibleTools = EDITOR_TOOLS.filter((t) => allowedTools.includes(t.value));
+	const visibleTools = EDITOR_TOOLS.filter((t) =>
+		allowedTools.includes(t.value),
+	);
 	const visibleGroups = [...new Set(visibleTools.map((t) => t.group))];
 
 	if (mode === "view" || visibleTools.length === 0) return null;
@@ -2720,7 +2935,8 @@ function EditorToolbar({
 	const accentColor = mode === "design" ? "#34d399" : "#f59e0b";
 
 	return (
-		<div className="absolute bottom-16 left-1/2 z-20 flex -translate-x-1/2 gap-2 rounded-lg border bg-[rgba(34,35,36,0.92)] p-2 shadow-2xl backdrop-blur-md"
+		<div
+			className="absolute bottom-16 left-1/2 z-20 flex -translate-x-1/2 gap-2 rounded-lg border bg-[rgba(34,35,36,0.92)] p-2 shadow-2xl backdrop-blur-md"
 			style={{ borderColor: `${accentColor}33` }}
 		>
 			{visibleGroups.map((group) => (
@@ -2732,30 +2948,32 @@ function EditorToolbar({
 					{group !== visibleGroups[0] && (
 						<div className="mx-1 h-8 w-px bg-[rgba(164,164,164,0.14)]" />
 					)}
-					{visibleTools.filter((tool) => tool.group === group).map((tool) => (
-						<button
-							key={tool.value}
-							type="button"
-							onClick={() => onToolChange(tool.value)}
-							title={`${tool.label} (${tool.shortcut})`}
-							aria-label={tool.label}
-							aria-pressed={activeTool === tool.value}
-							className="flex h-9 min-w-9 items-center justify-center rounded-md border px-2 text-[11px] font-semibold transition-colors"
-							style={{
-								background:
-									activeTool === tool.value
-										? `${accentColor}22`
-										: "rgba(164,164,164,0.06)",
-								borderColor:
-									activeTool === tool.value
-										? `${accentColor}66`
-										: "rgba(164,164,164,0.12)",
-								color: activeTool === tool.value ? accentColor : "#a4a4a4",
-							}}
-						>
-							<ToolGlyph tool={tool.value} />
-						</button>
-					))}
+					{visibleTools
+						.filter((tool) => tool.group === group)
+						.map((tool) => (
+							<button
+								key={tool.value}
+								type="button"
+								onClick={() => onToolChange(tool.value)}
+								title={`${tool.label} (${tool.shortcut})`}
+								aria-label={tool.label}
+								aria-pressed={activeTool === tool.value}
+								className="flex h-9 min-w-9 items-center justify-center rounded-md border px-2 text-[11px] font-semibold transition-colors"
+								style={{
+									background:
+										activeTool === tool.value
+											? `${accentColor}22`
+											: "rgba(164,164,164,0.06)",
+									borderColor:
+										activeTool === tool.value
+											? `${accentColor}66`
+											: "rgba(164,164,164,0.12)",
+									color: activeTool === tool.value ? accentColor : "#a4a4a4",
+								}}
+							>
+								<ToolGlyph tool={tool.value} />
+							</button>
+						))}
 				</div>
 			))}
 		</div>
@@ -2953,7 +3171,6 @@ function InfrastructurePanel({
 	mode,
 	equipment,
 	allEquipment,
-	totalEquipment,
 	connections,
 	routePointCount,
 	incidents,
@@ -2969,7 +3186,6 @@ function InfrastructurePanel({
 	mode: EditorMode;
 	equipment: EquipmentMapItem[];
 	allEquipment: EquipmentMapItem[];
-	totalEquipment: number;
 	connections: ConnectionMapItem[];
 	routePointCount: number;
 	incidents: IncidentMapItem[];
@@ -2986,17 +3202,19 @@ function InfrastructurePanel({
 		? equipment.filter(
 				(eq) =>
 					eq.name?.toLowerCase().includes(q) ||
-					eq.code.toLowerCase().includes(q),
+					operativeCodeMatches(eq.code, q),
 			)
 		: equipment;
 
 	// Network stats for header
-	const olts = allEquipment.filter(e => e.type === "olt").length;
-	const splitters = allEquipment.filter(e => e.type === "splitter").length;
-	const naps = allEquipment.filter(e => e.type === "nap").length;
-	const totalKm = connections.reduce((sum, c) => sum + (c.length_meters ?? 0), 0) / 1000;
+	const olts = allEquipment.filter((e) => e.type === "olt").length;
+	const splitters = allEquipment.filter((e) => e.type === "splitter").length;
+	const naps = allEquipment.filter((e) => e.type === "nap").length;
+	const totalKm =
+		connections.reduce((sum, c) => sum + (c.length_meters ?? 0), 0) / 1000;
 	const saturatedNaps = allEquipment.filter(
-		e => e.type === "nap" && e.total_ports && (e.ports_used ?? 0) >= e.total_ports
+		(e) =>
+			e.type === "nap" && e.total_ports && (e.ports_used ?? 0) >= e.total_ports,
 	).length;
 
 	return (
@@ -3013,17 +3231,20 @@ function InfrastructurePanel({
 				</div>
 				{saturatedNaps > 0 && (
 					<p className="mb-2 rounded-md border border-[rgba(251,77,109,0.28)] bg-[rgba(251,77,109,0.08)] px-2 py-1 text-[10px] text-[#fb7185]">
-						⚠ {saturatedNaps} NAP{saturatedNaps > 1 ? "s" : ""} saturada{saturatedNaps > 1 ? "s" : ""}
+						⚠ {saturatedNaps} NAP{saturatedNaps > 1 ? "s" : ""} saturada
+						{saturatedNaps > 1 ? "s" : ""}
 					</p>
 				)}
 
 				<div className="flex rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)] p-0.5">
-					{([
-						["layers", "Capas"],
-						["elements", "Lista"],
-						["tree", "Árbol"],
-						["quality", "Alertas"],
-					] as const).map(([value, label]) => (
+					{(
+						[
+							["layers", "Capas"],
+							["elements", "Lista"],
+							["tree", "Árbol"],
+							["quality", "Alertas"],
+						] as const
+					).map(([value, label]) => (
 						<button
 							key={value}
 							type="button"
@@ -3031,7 +3252,8 @@ function InfrastructurePanel({
 							onClick={() => onTabChange(value)}
 							className="flex-1 rounded px-1.5 py-1 text-[10px] font-medium transition-colors"
 							style={{
-								background: tab === value ? "rgba(164,164,164,0.16)" : "transparent",
+								background:
+									tab === value ? "rgba(164,164,164,0.16)" : "transparent",
 								color: tab === value ? "#e6e6e6" : "#858585",
 							}}
 						>
@@ -3050,7 +3272,11 @@ function InfrastructurePanel({
 				<div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
 					<div className="mb-3 grid grid-cols-3 gap-2">
 						<StatChip label="OLT" value={olts} color={TYPE_COLOR.olt} />
-						<StatChip label="SPL" value={splitters} color={TYPE_COLOR.splitter} />
+						<StatChip
+							label="SPL"
+							value={splitters}
+							color={TYPE_COLOR.splitter}
+						/>
 						<StatChip label="NAP" value={naps} color={TYPE_COLOR.nap} />
 					</div>
 					<FilterBar
@@ -3139,77 +3365,137 @@ function InfrastructurePanel({
 					<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879] mb-2">
 						Topología OLT → Splitter → NAP
 					</p>
-					{allEquipment.filter(e => e.type === "olt").length === 0 ? (
+					{allEquipment.filter((e) => e.type === "olt").length === 0 ? (
 						<p className="text-[11px] text-[#5c5d5f] text-center py-4">
 							Sin elementos en la red
 						</p>
-					) : allEquipment.filter(e => e.type === "olt").map(olt => {
-						const feederRoutes = connections.filter(c => c.from_element_id === olt.id || c.to_element_id === olt.id);
-						const connectedSplitters = allEquipment.filter(e =>
-							e.type === "splitter" &&
-							feederRoutes.some(r => r.from_element_id === e.id || r.to_element_id === e.id)
-						);
-						return (
-							<div key={olt.id} className="rounded-md border border-[rgba(56,189,248,0.2)] bg-[rgba(56,189,248,0.05)] p-2">
-								<button
-									type="button"
-									onClick={() => onSelectEquipment(olt)}
-									className="flex w-full items-center gap-2 text-left hover:opacity-80"
-								>
-									<span className="h-2.5 w-2.5 rounded-full bg-[#38bdf8] shrink-0" />
-									<span className="text-xs font-semibold text-[#e6e6e6] truncate">{olt.name ?? olt.code}</span>
-									{olt.total_pon_ports && <span className="ml-auto text-[10px] text-[#777879] shrink-0">{olt.total_pon_ports}P</span>}
-								</button>
-								{connectedSplitters.map(spl => {
-									const distRoutes = connections.filter(c => c.from_element_id === spl.id || c.to_element_id === spl.id);
-									const connectedNaps = allEquipment.filter(e =>
-										e.type === "nap" &&
-										distRoutes.some(r => r.from_element_id === e.id || r.to_element_id === e.id)
-									);
-									return (
-										<div key={spl.id} className="ml-3 mt-1.5 border-l border-[rgba(167,139,250,0.3)] pl-2.5">
-											<button
-												type="button"
-												onClick={() => onSelectEquipment(spl)}
-												className="flex w-full items-center gap-2 text-left hover:opacity-80"
-											>
-												<span className="h-2 w-2 rounded-full bg-[#a78bfa] shrink-0" />
-												<span className="text-[11px] text-[#d7d7d7] truncate">{spl.name ?? spl.code}</span>
-												{spl.split_ratio && <span className="ml-auto text-[10px] text-[#777879] shrink-0">{spl.split_ratio}</span>}
-											</button>
-											{connectedNaps.map(nap => {
-												const pct = nap.total_ports ? (nap.ports_used ?? 0) / nap.total_ports : 0;
-												const napColor = pct >= 0.9 ? "#fb4d6d" : pct >= 0.7 ? "#f59e0b" : "#34d399";
-												return (
-													<div key={nap.id} className="ml-3 mt-1 border-l border-[rgba(245,158,11,0.2)] pl-2.5">
-														<button
-															type="button"
-															onClick={() => onSelectEquipment(nap)}
-															className="flex w-full items-center gap-1.5 text-left hover:opacity-80"
-														>
-															<span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: napColor }} />
-															<span className="text-[10px] text-[#a4a4a4] truncate">{nap.name ?? nap.code}</span>
-															{nap.total_ports && (
-																<span className="ml-auto text-[9px] shrink-0" style={{ color: napColor }}>
-																	{nap.ports_used ?? 0}/{nap.total_ports}
-																</span>
-															)}
-														</button>
-													</div>
-												);
-											})}
-											{connectedNaps.length === 0 && (
-												<p className="ml-3 text-[10px] text-[#5c5d5f] mt-0.5">Sin NAPs conectadas</p>
+					) : (
+						allEquipment
+							.filter((e) => e.type === "olt")
+							.map((olt) => {
+								const feederRoutes = connections.filter(
+									(c) =>
+										c.from_element_id === olt.id || c.to_element_id === olt.id,
+								);
+								const connectedSplitters = allEquipment.filter(
+									(e) =>
+										e.type === "splitter" &&
+										feederRoutes.some(
+											(r) =>
+												r.from_element_id === e.id || r.to_element_id === e.id,
+										),
+								);
+								return (
+									<div
+										key={olt.id}
+										className="rounded-md border border-[rgba(56,189,248,0.2)] bg-[rgba(56,189,248,0.05)] p-2"
+									>
+										<button
+											type="button"
+											onClick={() => onSelectEquipment(olt)}
+											className="flex w-full items-center gap-2 text-left hover:opacity-80"
+										>
+											<span className="h-2.5 w-2.5 rounded-full bg-[#38bdf8] shrink-0" />
+											<span className="text-xs font-semibold text-[#e6e6e6] truncate">
+												{olt.name ?? olt.code}
+											</span>
+											{olt.total_pon_ports && (
+												<span className="ml-auto text-[10px] text-[#777879] shrink-0">
+													{olt.total_pon_ports}P
+												</span>
 											)}
-										</div>
-									);
-								})}
-								{connectedSplitters.length === 0 && (
-									<p className="ml-3 mt-1 text-[10px] text-[#5c5d5f]">Sin splitters conectados</p>
-								)}
-							</div>
-						);
-					})}
+										</button>
+										{connectedSplitters.map((spl) => {
+											const distRoutes = connections.filter(
+												(c) =>
+													c.from_element_id === spl.id ||
+													c.to_element_id === spl.id,
+											);
+											const connectedNaps = allEquipment.filter(
+												(e) =>
+													e.type === "nap" &&
+													distRoutes.some(
+														(r) =>
+															r.from_element_id === e.id ||
+															r.to_element_id === e.id,
+													),
+											);
+											return (
+												<div
+													key={spl.id}
+													className="ml-3 mt-1.5 border-l border-[rgba(167,139,250,0.3)] pl-2.5"
+												>
+													<button
+														type="button"
+														onClick={() => onSelectEquipment(spl)}
+														className="flex w-full items-center gap-2 text-left hover:opacity-80"
+													>
+														<span className="h-2 w-2 rounded-full bg-[#a78bfa] shrink-0" />
+														<span className="text-[11px] text-[#d7d7d7] truncate">
+															{spl.name ?? spl.code}
+														</span>
+														{spl.split_ratio && (
+															<span className="ml-auto text-[10px] text-[#777879] shrink-0">
+																{spl.split_ratio}
+															</span>
+														)}
+													</button>
+													{connectedNaps.map((nap) => {
+														const pct = nap.total_ports
+															? (nap.ports_used ?? 0) / nap.total_ports
+															: 0;
+														const napColor =
+															pct >= 0.9
+																? "#fb4d6d"
+																: pct >= 0.7
+																	? "#f59e0b"
+																	: "#34d399";
+														return (
+															<div
+																key={nap.id}
+																className="ml-3 mt-1 border-l border-[rgba(245,158,11,0.2)] pl-2.5"
+															>
+																<button
+																	type="button"
+																	onClick={() => onSelectEquipment(nap)}
+																	className="flex w-full items-center gap-1.5 text-left hover:opacity-80"
+																>
+																	<span
+																		className="h-1.5 w-1.5 rounded-full shrink-0"
+																		style={{ background: napColor }}
+																	/>
+																	<span className="text-[10px] text-[#a4a4a4] truncate">
+																		{nap.name ?? nap.code}
+																	</span>
+																	{nap.total_ports && (
+																		<span
+																			className="ml-auto text-[9px] shrink-0"
+																			style={{ color: napColor }}
+																		>
+																			{nap.ports_used ?? 0}/{nap.total_ports}
+																		</span>
+																	)}
+																</button>
+															</div>
+														);
+													})}
+													{connectedNaps.length === 0 && (
+														<p className="ml-3 text-[10px] text-[#5c5d5f] mt-0.5">
+															Sin NAPs conectadas
+														</p>
+													)}
+												</div>
+											);
+										})}
+										{connectedSplitters.length === 0 && (
+											<p className="ml-3 mt-1 text-[10px] text-[#5c5d5f]">
+												Sin splitters conectados
+											</p>
+										)}
+									</div>
+								);
+							})
+					)}
 				</div>
 			)}
 
@@ -3220,7 +3506,9 @@ function InfrastructurePanel({
 					</p>
 					{mapWarnings.length === 0 ? (
 						<div className="rounded-md border border-[rgba(52,211,153,0.2)] bg-[rgba(52,211,153,0.08)] px-3 py-2.5">
-							<p className="text-[11px] font-semibold text-[#34d399]">✓ Red sin alertas</p>
+							<p className="text-[11px] font-semibold text-[#34d399]">
+								✓ Red sin alertas
+							</p>
 							<p className="mt-0.5 text-[10px] text-[#9ee8c9]">
 								Todos los elementos tienen datos técnicos válidos.
 							</p>
@@ -3241,7 +3529,7 @@ function InfrastructurePanel({
 							<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879] mt-3 mb-1">
 								Incidentes activos — {incidents.length}
 							</p>
-							{incidents.map(inc => (
+							{incidents.map((inc) => (
 								<div
 									key={inc.id}
 									className="rounded-md border border-[rgba(251,77,109,0.22)] bg-[rgba(251,77,109,0.08)] px-2.5 py-1.5"
@@ -3268,33 +3556,12 @@ function StatChip({
 }) {
 	return (
 		<div className="rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)] px-2 py-1.5 text-center">
-			<p className="font-mono text-xs font-bold" style={{ color }}>{value}</p>
-			<p className="text-[9px] font-semibold uppercase text-[#777879]">{label}</p>
-		</div>
-	);
-}
-
-function Metric({
-	label,
-	value,
-	color,
-}: {
-	label: string;
-	value: number;
-	color: string;
-}) {
-	return (
-		<div className="rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)] px-2 py-1.5">
-			<div className="flex items-center gap-1.5">
-				<span
-					className="h-1.5 w-1.5 rounded-full"
-					style={{ backgroundColor: color }}
-				/>
-				<span className="text-[10px] font-semibold text-[#777879]">
-					{label}
-				</span>
-			</div>
-			<p className="mt-1 font-mono text-sm text-[#e6e6e6]">{value}</p>
+			<p className="font-mono text-xs font-bold" style={{ color }}>
+				{value}
+			</p>
+			<p className="text-[9px] font-semibold uppercase text-[#777879]">
+				{label}
+			</p>
 		</div>
 	);
 }
@@ -3341,8 +3608,14 @@ function PropertiesPanel({
 	onSaveDraft: (draft: DraftElement) => void | Promise<void>;
 	onSaveDraftRoute: (draft: DraftRoute) => void | Promise<void>;
 	onSaveRoutePointDraft: (draft: DraftRoutePoint) => void | Promise<void>;
-	onSaveElement: (element: EquipmentMapItem, patch: Partial<EquipmentMapItem>) => void | Promise<void>;
-	onSaveRoute: (route: ConnectionMapItem, patch: Partial<ConnectionMapItem>) => void | Promise<void>;
+	onSaveElement: (
+		element: EquipmentMapItem,
+		patch: Partial<EquipmentMapItem>,
+	) => void | Promise<void>;
+	onSaveRoute: (
+		route: ConnectionMapItem,
+		patch: Partial<ConnectionMapItem>,
+	) => void | Promise<void>;
 }) {
 	const title =
 		selectedFeature?.kind === "draftElement"
@@ -3466,16 +3739,51 @@ function SelectedFeatureProperties({
 	onSaveDraft: (draft: DraftElement) => void | Promise<void>;
 	onSaveDraftRoute: (draft: DraftRoute) => void | Promise<void>;
 	onSaveRoutePointDraft: (draft: DraftRoutePoint) => void | Promise<void>;
-	onSaveElement: (element: EquipmentMapItem, patch: Partial<EquipmentMapItem>) => void | Promise<void>;
-	onSaveRoute: (route: ConnectionMapItem, patch: Partial<ConnectionMapItem>) => void | Promise<void>;
+	onSaveElement: (
+		element: EquipmentMapItem,
+		patch: Partial<EquipmentMapItem>,
+	) => void | Promise<void>;
+	onSaveRoute: (
+		route: ConnectionMapItem,
+		patch: Partial<ConnectionMapItem>,
+	) => void | Promise<void>;
 }) {
 	if (selectedFeature.kind === "draftElement") {
 		const draft = selectedFeature.element;
+		const selectedZone = draft.selectedZone ?? "Z05";
+		const zoneOptions =
+			zones.length > 0
+				? zones.map(
+						(z) => [z.zone_code, `${z.zone_code} — ${z.zone_name}`] as const,
+					)
+				: [["Z05", "Z05"]];
+
+		// Calculate next sequence for this type + zone
+		const codesByTypeAndZone = equipment
+			.filter((e) => e.type === draft.type && e.code?.includes(selectedZone))
+			.map((e) => e.code);
+		const nextSeq = nextSequence(codesByTypeAndZone);
+
 		return (
 			<div className="space-y-3">
 				<PropertyRow label="Entidad" value="Elemento provisional" />
 				<PropertyRow label="Tipo" value={draft.type.toUpperCase()} />
 				<PropertyRow label="Estado" value={draft.status} />
+
+				{/* Zone selector */}
+				<DraftSelectField
+					label="Zona"
+					value={selectedZone}
+					options={zoneOptions}
+					onChange={(zone) => {
+						const newCode = generateDraftCode(draft.type, nextSeq, zone);
+						onDraftChange({
+							code: newCode,
+							selectedZone: zone,
+						} as DraftElementPatch);
+					}}
+				/>
+
 				<DraftTextField
 					label="Código"
 					value={draft.code}
@@ -3665,13 +3973,15 @@ function SelectedFeatureProperties({
 
 	if (selectedFeature.kind === "route") {
 		const route = selectedFeature.route;
-		return <ExistingRoutePanel
-			route={route}
-			mode={mode}
-			isDeleting={isDeleting}
-			onDelete={() => onDelete(selectedFeature)}
-			onSave={(patch) => onSaveRoute(route, patch)}
-		/>;
+		return (
+			<ExistingRoutePanel
+				route={route}
+				mode={mode}
+				isDeleting={isDeleting}
+				onDelete={() => onDelete(selectedFeature)}
+				onSave={(patch) => onSaveRoute(route, patch)}
+			/>
+		);
 	}
 
 	if (selectedFeature.kind === "routePoint") {
@@ -3849,14 +4159,16 @@ function SelectedFeatureProperties({
 	}
 
 	const element = selectedFeature.element;
-	return <ExistingElementPanel
-		element={element}
-		incident={incident}
-		mode={mode}
-		isDeleting={isDeleting}
-		onDelete={() => onDelete(selectedFeature)}
-		onSave={(patch) => onSaveElement(element, patch)}
-	/>;
+	return (
+		<ExistingElementPanel
+			element={element}
+			incident={incident}
+			mode={mode}
+			isDeleting={isDeleting}
+			onDelete={() => onDelete(selectedFeature)}
+			onSave={(patch) => onSaveElement(element, patch)}
+		/>
+	);
 }
 
 function ExistingElementPanel({
@@ -3877,11 +4189,17 @@ function ExistingElementPanel({
 	const [patch, setPatch] = useState<Partial<EquipmentMapItem>>({});
 	const isDirty = Object.keys(patch).length > 0;
 
-	const field = <K extends keyof EquipmentMapItem>(key: K, val: EquipmentMapItem[K]) =>
-		setPatch((p) => ({ ...p, [key]: val }));
+	const field = <K extends keyof EquipmentMapItem>(
+		key: K,
+		val: EquipmentMapItem[K],
+	) => setPatch((p) => ({ ...p, [key]: val }));
 
-	const currentValue = <K extends keyof EquipmentMapItem>(key: K): EquipmentMapItem[K] =>
-		(patch[key] !== undefined ? patch[key] : element[key]) as EquipmentMapItem[K];
+	const currentValue = <K extends keyof EquipmentMapItem>(
+		key: K,
+	): EquipmentMapItem[K] =>
+		(patch[key] !== undefined
+			? patch[key]
+			: element[key]) as EquipmentMapItem[K];
 
 	if (mode !== "edit") {
 		// View / design → read-only
@@ -3892,7 +4210,21 @@ function ExistingElementPanel({
 				<PropertyRow label="Estado" value={element.status} />
 				<PropertyRow label="Calidad" value={element.location_quality} />
 				{element.type === "olt" && (
-					<PropertyRow label="Puertos PON" value={element.total_pon_ports?.toString() ?? "—"} />
+					<>
+						<PropertyRow
+							label="Puertos PON"
+							value={element.total_pon_ports?.toString() ?? "—"}
+						/>
+						<div className="flex justify-between text-xs py-0.5">
+							<span className="text-[#777879]">Clase óptica</span>
+							<span
+								className="font-semibold"
+								style={{ color: element.optical_class ? "#34d399" : "#777879" }}
+							>
+								{element.optical_class ?? "Sin definir"}
+							</span>
+						</div>
+					</>
 				)}
 				{element.type === "splitter" && (
 					<PropertyRow label="Ratio" value={element.split_ratio ?? "—"} />
@@ -3900,10 +4232,15 @@ function ExistingElementPanel({
 				{element.type === "nap" && element.total_ports != null && (
 					<NapCapacity element={element} size="sm" />
 				)}
-				<PropertyRow label="Coordenadas" value={`${element.lat.toFixed(5)}, ${element.lng.toFixed(5)}`} />
+				<PropertyRow
+					label="Coordenadas"
+					value={`${element.lat.toFixed(5)}, ${element.lng.toFixed(5)}`}
+				/>
 				{incident && (
 					<div className="rounded-md border border-[rgba(251,77,109,0.22)] bg-[rgba(251,77,109,0.09)] px-3 py-2">
-						<p className="text-[10px] font-semibold uppercase tracking-widest text-[#fb7185]">Incidente activo</p>
+						<p className="text-[10px] font-semibold uppercase tracking-widest text-[#fb7185]">
+							Incidente activo
+						</p>
 						<p className="mt-1 text-xs text-[#f0b2bf]">{incident.title}</p>
 					</div>
 				)}
@@ -3947,44 +4284,91 @@ function ExistingElementPanel({
 					["gps_captured", "GPS"],
 					["verified", "Verificada"],
 				]}
-				onChange={(v) => field("location_quality", v as EquipmentMapItem["location_quality"])}
+				onChange={(v) =>
+					field("location_quality", v as EquipmentMapItem["location_quality"])
+				}
 			/>
 			{element.type === "olt" && (
-				<DraftNumberField
-					label="Puertos PON"
-					value={currentValue("total_pon_ports") as number | null}
-					onChange={(v) => field("total_pon_ports", v as EquipmentMapItem["total_pon_ports"])}
-				/>
+				<>
+					<DraftNumberField
+						label="Puertos PON"
+						value={currentValue("total_pon_ports") as number | null}
+						onChange={(v) =>
+							field("total_pon_ports", v as EquipmentMapItem["total_pon_ports"])
+						}
+					/>
+					<DraftSelectField
+						label="Clase óptica"
+						value={(currentValue("optical_class") as string | null) ?? ""}
+						options={[
+							["", "Sin definir"],
+							["B+", "B+ (13-28 dB) — Urbano común"],
+							["C+", "C+ (17-32 dB) — Mayor distancia"],
+							["C++", "C++ (20-35 dB) — Rural exigente"],
+							["N1", "N1 (14-29 dB) — XGS-PON"],
+							["N2", "N2 (16-31 dB) — XGS-PON"],
+							["E1", "E1 (18-33 dB) — XGS-PON alto"],
+							["E2", "E2 (20-35 dB) — XGS-PON máximo"],
+						]}
+						onChange={(v) =>
+							field(
+								"optical_class",
+								(v || null) as EquipmentMapItem["optical_class"],
+							)
+						}
+					/>
+				</>
 			)}
 			{element.type === "splitter" && (
 				<DraftSelectField
 					label="Ratio"
 					value={(currentValue("split_ratio") as string | null) ?? "1:8"}
-					options={[["1:2","1:2"],["1:4","1:4"],["1:8","1:8"],["1:16","1:16"],["1:32","1:32"],["1:64","1:64"]]}
-					onChange={(v) => field("split_ratio", v as EquipmentMapItem["split_ratio"])}
+					options={[
+						["1:2", "1:2"],
+						["1:4", "1:4"],
+						["1:8", "1:8"],
+						["1:16", "1:16"],
+						["1:32", "1:32"],
+						["1:64", "1:64"],
+					]}
+					onChange={(v) =>
+						field("split_ratio", v as EquipmentMapItem["split_ratio"])
+					}
 				/>
 			)}
 			{element.type === "nap" && (
 				<DraftNumberField
 					label="Puertos totales"
 					value={currentValue("total_ports") as number | null}
-					onChange={(v) => field("total_ports", v as EquipmentMapItem["total_ports"])}
+					onChange={(v) =>
+						field("total_ports", v as EquipmentMapItem["total_ports"])
+					}
 				/>
 			)}
 			<DraftTextField
 				label="Referencia"
 				value={(currentValue("address_reference") as string | null) ?? ""}
-				onChange={(v) => field("address_reference", (v || null) as EquipmentMapItem["address_reference"])}
+				onChange={(v) =>
+					field(
+						"address_reference",
+						(v || null) as EquipmentMapItem["address_reference"],
+					)
+				}
 			/>
 			<DraftTextField
 				label="Notas"
 				value={(currentValue("notes") as string | null) ?? ""}
-				onChange={(v) => field("notes", (v || null) as EquipmentMapItem["notes"])}
+				onChange={(v) =>
+					field("notes", (v || null) as EquipmentMapItem["notes"])
+				}
 			/>
 			{isDirty && (
 				<button
 					type="button"
-					onClick={() => { onSave(patch); setPatch({}); }}
+					onClick={() => {
+						onSave(patch);
+						setPatch({});
+					}}
 					className="w-full rounded-md border border-[rgba(245,158,11,0.4)] bg-[rgba(245,158,11,0.14)] px-3 py-2 text-xs font-medium text-[#fbbf24] transition-colors hover:bg-[rgba(245,158,11,0.24)]"
 				>
 					Guardar cambios
@@ -4010,14 +4394,21 @@ function ExistingRoutePanel({
 }) {
 	const [patch, setPatch] = useState<Partial<ConnectionMapItem>>({});
 	const isDirty = Object.keys(patch).length > 0;
-	const field = <K extends keyof ConnectionMapItem>(key: K, val: ConnectionMapItem[K]) =>
-		setPatch((p) => ({ ...p, [key]: val }));
-	const cur = <K extends keyof ConnectionMapItem>(key: K): ConnectionMapItem[K] =>
-		(patch[key] !== undefined ? patch[key] : route[key]) as ConnectionMapItem[K];
+	const field = <K extends keyof ConnectionMapItem>(
+		key: K,
+		val: ConnectionMapItem[K],
+	) => setPatch((p) => ({ ...p, [key]: val }));
+	const cur = <K extends keyof ConnectionMapItem>(
+		key: K,
+	): ConnectionMapItem[K] =>
+		(patch[key] !== undefined
+			? patch[key]
+			: route[key]) as ConnectionMapItem[K];
 
-	const lengthLabel = route.length_meters != null
-		? `${route.length_meters.toFixed(0)} m`
-		: "Sin calcular";
+	const lengthLabel =
+		route.length_meters != null
+			? `${route.length_meters.toFixed(0)} m`
+			: "Sin calcular";
 
 	if (mode !== "edit") {
 		return (
@@ -4029,7 +4420,10 @@ function ExistingRoutePanel({
 				<PropertyRow label="Longitud" value={lengthLabel} />
 				<PropertyRow label="Fibra" value={route.fiber_type ?? "—"} />
 				{route.total_loss_db != null && (
-					<PropertyRow label="Pérdida medida" value={`${route.total_loss_db.toFixed(2)} dB`} />
+					<PropertyRow
+						label="Pérdida medida"
+						value={`${route.total_loss_db.toFixed(2)} dB`}
+					/>
 				)}
 				<div className="h-px bg-[rgba(164,164,164,0.1)]" />
 				<OpticalBudgetPanel route={route} />
@@ -4043,7 +4437,9 @@ function ExistingRoutePanel({
 			<DraftTextField
 				label="Código"
 				value={(cur("code") as string | null) ?? ""}
-				onChange={(v) => field("code", (v || null) as ConnectionMapItem["code"])}
+				onChange={(v) =>
+					field("code", (v || null) as ConnectionMapItem["code"])
+				}
 			/>
 			<DraftSelectField
 				label="Tipo de ruta"
@@ -4075,23 +4471,32 @@ function ExistingRoutePanel({
 					["g657a1", "G.657A1 — Distribution"],
 					["g657a2", "G.657A2 — Drop"],
 				]}
-				onChange={(v) => field("fiber_type", v as ConnectionMapItem["fiber_type"])}
+				onChange={(v) =>
+					field("fiber_type", v as ConnectionMapItem["fiber_type"])
+				}
 			/>
 			<DraftNumberField
 				label="Hilos"
 				value={cur("fiber_count") as number | null}
-				onChange={(v) => field("fiber_count", v as ConnectionMapItem["fiber_count"])}
+				onChange={(v) =>
+					field("fiber_count", v as ConnectionMapItem["fiber_count"])
+				}
 			/>
 			<PropertyRow label="Longitud" value={lengthLabel} />
 			<DraftTextField
 				label="Notas"
 				value={(cur("notes") as string | null) ?? ""}
-				onChange={(v) => field("notes", (v || null) as ConnectionMapItem["notes"])}
+				onChange={(v) =>
+					field("notes", (v || null) as ConnectionMapItem["notes"])
+				}
 			/>
 			{isDirty && (
 				<button
 					type="button"
-					onClick={() => { onSave(patch); setPatch({}); }}
+					onClick={() => {
+						onSave(patch);
+						setPatch({});
+					}}
 					className="w-full rounded-md border border-[rgba(245,158,11,0.4)] bg-[rgba(245,158,11,0.14)] px-3 py-2 text-xs font-medium text-[#fbbf24] transition-colors hover:bg-[rgba(245,158,11,0.24)]"
 				>
 					Guardar cambios
@@ -4300,7 +4705,10 @@ function EditorStatusBar({
 			{showWarnings && hasWarnings && (
 				<div className="border-b border-[rgba(164,164,164,0.14)] px-3 py-2 space-y-1">
 					{warnings.map((w) => (
-						<p key={w} className="text-[10px] text-[#f59e0b] flex items-start gap-1.5">
+						<p
+							key={w}
+							className="text-[10px] text-[#f59e0b] flex items-start gap-1.5"
+						>
 							<span className="shrink-0">⚠</span>
 							{w}
 						</p>

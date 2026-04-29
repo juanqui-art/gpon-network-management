@@ -22,8 +22,10 @@ export function NapCapacity({ element, size = "md" }: NapCapacityProps) {
 
 	// Color logic
 	const statusColor = (() => {
-		if (percentUsed >= 90) return { bg: "#fb4d6d", label: "Saturada", key: "critical" };
-		if (percentUsed >= 70) return { bg: "#f59e0b", label: "Capacidad limitada", key: "warning" };
+		if (percentUsed >= 90)
+			return { bg: "#fb4d6d", label: "Saturada", key: "critical" };
+		if (percentUsed >= 70)
+			return { bg: "#f59e0b", label: "Capacidad limitada", key: "warning" };
 		return { bg: "#34d399", label: "Disponible", key: "good" };
 	})();
 
@@ -34,14 +36,18 @@ export function NapCapacity({ element, size = "md" }: NapCapacityProps) {
 		<div className="space-y-2">
 			{/* Header */}
 			<div className="flex items-center justify-between">
-				<span className={`${sizeClass} font-semibold text-[#e6e6e6]`}>Capacidad</span>
+				<span className={`${sizeClass} font-semibold text-[#e6e6e6]`}>
+					Capacidad
+				</span>
 				<span className={`${sizeClass} text-[#a4a4a4]`}>
 					{used}/{total} puertos
 				</span>
 			</div>
 
 			{/* Bar */}
-			<div className={`${barHeight} w-full bg-[rgba(164,164,164,0.2)] rounded-full overflow-hidden`}>
+			<div
+				className={`${barHeight} w-full bg-[rgba(164,164,164,0.2)] rounded-full overflow-hidden`}
+			>
 				<div className="flex h-full">
 					{/* Used */}
 					{used > 0 && (
@@ -80,7 +86,10 @@ export function NapCapacity({ element, size = "md" }: NapCapacityProps) {
 					</div>
 					{reserved > 0 && (
 						<div className="flex items-center gap-1">
-							<span className="w-2 h-2 rounded-full" style={{ backgroundColor: "#a78bfa", opacity: 0.6 }} />
+							<span
+								className="w-2 h-2 rounded-full"
+								style={{ backgroundColor: "#a78bfa", opacity: 0.6 }}
+							/>
 							Reservados: {reserved}
 						</div>
 					)}

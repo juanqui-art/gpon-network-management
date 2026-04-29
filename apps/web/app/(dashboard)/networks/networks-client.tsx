@@ -3,10 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
-	TOPOLOGY_DESCRIPTIONS,
-	TOPOLOGY_LABELS,
 	type NetworkSummary,
 	type NetworkTopology,
+	TOPOLOGY_DESCRIPTIONS,
+	TOPOLOGY_LABELS,
 } from "@/lib/types/network";
 
 const TOPOLOGIES: NetworkTopology[] = ["blank", "star", "tree", "cascade"];
@@ -56,7 +56,8 @@ export function NetworksClient({ networks }: { networks: NetworkSummary[] }) {
 				<div>
 					<h1 className="text-xl font-semibold text-[#e6e6e6]">Redes GPON</h1>
 					<p className="mt-1 text-sm text-[#777879]">
-						{networks.length} {networks.length === 1 ? "red" : "redes"} configuradas
+						{networks.length} {networks.length === 1 ? "red" : "redes"}{" "}
+						configuradas
 					</p>
 				</div>
 				{networks.length > 0 && (

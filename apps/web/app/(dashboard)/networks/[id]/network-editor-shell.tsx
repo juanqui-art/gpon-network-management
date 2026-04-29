@@ -1,20 +1,26 @@
 "use client";
 
-import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import type { Network } from "@/lib/types/network";
-import type { UserRole } from "@/lib/types/gpon";
-import {
-	useNetworkEditorStore,
-	type EditorMode,
-} from "@/lib/store/network-editor";
-import { canWriteInfrastructure } from "@/lib/types/gpon";
+import { useEffect } from "react";
 import { MapView } from "@/components/map/map-view";
 import { MAPBOX_TOKEN } from "@/lib/mapbox/config";
+import {
+	fetchNetworkEditorData,
+	fetchNetworkZones,
+	networkEditorKeys,
+} from "@/lib/queries/network-editor";
+import {
+	type EditorMode,
+	useNetworkEditorStore,
+} from "@/lib/store/network-editor";
+import type { UserRole } from "@/lib/types/gpon";
+import { canWriteInfrastructure } from "@/lib/types/gpon";
+import type { Network } from "@/lib/types/network";
 
 const MODE_LABELS: Record<EditorMode, string> = {
-	view: "Visualizar",
-	design: "Diseñar",
+	view: "Vista",
+	design: "Crear",
 	edit: "Editar",
 };
 
@@ -28,10 +34,19 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 	const {
 		mode,
 		setMode,
+		activeTool,
+		setActiveTool,
+		selection,
+		select,
+		deselect,
+		setActiveDraft,
+		clearActiveDraft,
+		statusMessage,
+		setStatusMessage,
 		isDirty,
 		isSaving,
 		validationErrors,
-		loadNetwork,
+		hydrateNetwork,
 		save,
 		discard,
 		getElementsArray,
@@ -40,10 +55,21 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 	} = useNetworkEditorStore();
 
 	const canEdit = canWriteInfrastructure(userRole);
+	const networkQuery = useQuery({
+		queryKey: networkEditorKeys.detail(networkId),
+		queryFn: () => fetchNetworkEditorData(networkId),
+	});
+
+	const zonesQuery = useQuery({
+		queryKey: networkEditorKeys.zones(networkId),
+		queryFn: () => fetchNetworkZones(networkId),
+	});
 
 	useEffect(() => {
-		loadNetwork(networkId);
-	}, [networkId, loadNetwork]);
+		if (networkQuery.data) {
+			hydrateNetwork(networkId, networkQuery.data);
+		}
+	}, [networkId, networkQuery.data, hydrateNetwork]);
 
 	const modes: EditorMode[] = canEdit ? ["view", "design", "edit"] : ["view"];
 
@@ -128,21 +154,41 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 							</button>
 						</>
 					)}
-					{!isDirty && (
-						<span className="text-xs text-[#5c5d5f]">Guardado</span>
-					)}
+					{!isDirty && <span className="text-xs text-[#5c5d5f]">Guardado</span>}
 				</div>
 			</div>
 
 			{/* Map editor — full remaining height */}
 			<div className="flex-1 overflow-hidden">
+				{networkQuery.isError && (
+					<div className="absolute left-1/2 top-16 z-30 -translate-x-1/2 rounded-md border border-[rgba(251,77,109,0.35)] bg-[rgba(34,35,36,0.94)] px-3 py-2 text-xs text-[#fb7185] shadow-xl">
+						No se pudo cargar la red.
+					</div>
+				)}
 				<MapView
 					token={MAPBOX_TOKEN}
 					equipment={getElementsArray()}
 					connections={getRoutesArray()}
 					routePoints={getRoutePointsArray()}
 					incidents={[]}
+					zones={zonesQuery.data ?? []}
 					userRole={userRole}
+					editorMode={mode}
+					onEditorModeChange={setMode}
+					editorTool={activeTool}
+					onEditorToolChange={setActiveTool}
+					editorSelection={selection}
+					onEditorSelectionChange={(nextSelection) => {
+						if (nextSelection) select(nextSelection.id, nextSelection.kind);
+						else deselect();
+					}}
+					onEditorDraftChange={(nextDraft) => {
+						if (nextDraft) setActiveDraft(nextDraft);
+						else clearActiveDraft();
+					}}
+					editorStatusMessage={statusMessage}
+					onEditorStatusMessageChange={setStatusMessage}
+					networkId={networkId}
 				/>
 			</div>
 		</div>
