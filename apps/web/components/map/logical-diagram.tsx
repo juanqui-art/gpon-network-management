@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type {
 	FiberRoute,
 	InfrastructureElement,
@@ -299,11 +299,25 @@ function LogicalDiagram({
 	onSelectElement,
 	selectedId,
 }: LogicalDiagramProps) {
+	const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
 	const { elements, routes, routePoints } = useNetworkEditorStore((s) => ({
 		elements: s.elements,
 		routes: s.routes,
 		routePoints: s.routePoints,
 	}));
+
+	const toggleGroupExpanded = (splitterId: string) => {
+		setExpandedGroups((prev) => {
+			const next = new Set(prev);
+			if (next.has(splitterId)) {
+				next.delete(splitterId);
+			} else {
+				next.add(splitterId);
+			}
+			return next;
+		});
+	};
 
 	const { roots, layoutNodes } = useMemo(() => {
 		const tree = buildNetworkTree(elements, routes, routePoints);
@@ -388,108 +402,187 @@ function LogicalDiagram({
 			})}
 
 			{/* Render nodes */}
-			{layoutNodes.map((node) => {
-				const isSelected = selectedId === node.tree.element.id;
-				const nodeX = node.x;
-				const nodeY = node.y;
-				const el = node.tree.element;
+			{layoutNodes
+				.filter((node) => {
+					// Hide NAPs if their splitter parent is collapsed
+					if (node.tree.element.type === "nap" && node.tree.routeFromParent) {
+						const parentId = node.tree.routeFromParent.from_element_id;
+						if (parentId && !expandedGroups.has(parentId)) {
+							return false;
+						}
+					}
+					return true;
+				})
+				.map((node) => {
+					const isSelected = selectedId === node.tree.element.id;
+					const nodeX = node.x;
+					const nodeY = node.y;
+					const el = node.tree.element;
+					const napChildren = node.tree.children;
+					const hasCollapsibleNaps =
+						el.type === "splitter" && napChildren.length > 0;
+					const isGroupCollapsed =
+						hasCollapsibleNaps && !expandedGroups.has(el.id);
 
-				let color = "#38bdf8";
-				let label = "OLT";
+					let color = "#38bdf8";
+					let label = "OLT";
 
-				if (el.type === "splitter") {
-					color = "#4ade80";
-					label = `${el.split_ratio ?? "−"}\n${node.budget.splitterLoss}dB`;
-				} else if (el.type === "nap") {
-					color = "#f59e0b";
-					label = `${el.total_ports ?? 0}p`;
-				}
+					if (el.type === "splitter") {
+						color = "#4ade80";
+						label = `${el.split_ratio ?? "−"}\n${node.budget.splitterLoss}dB`;
+					} else if (el.type === "nap") {
+						color = "#f59e0b";
+						label = `${el.total_ports ?? 0}p`;
+					}
 
-				return (
-					// biome-ignore lint/a11y/useSemanticElements: SVG groups cannot be replaced with HTML buttons inside an SVG tree.
-					<g
-						key={node.tree.element.id}
-						onClick={() => {
-							onSelectElement?.(node.tree.element.id);
-							useNetworkEditorStore
-								.getState()
-								.select(node.tree.element.id, "element");
-						}}
-						onKeyDown={(event) => {
-							if (event.key === "Enter" || event.key === " ") {
-								event.preventDefault();
-								onSelectElement?.(node.tree.element.id);
-								useNetworkEditorStore
-									.getState()
-									.select(node.tree.element.id, "element");
-							}
-						}}
-						role="button"
-						tabIndex={0}
-						style={{ cursor: "pointer" }}
-					>
-						{/* Node box */}
-						<rect
-							x={nodeX}
-							y={nodeY}
-							width="150"
-							height="56"
-							rx="4"
-							fill={color}
-							opacity="0.15"
-							stroke={color}
-							strokeWidth="1.5"
-						/>
+					return (
+						<g key={node.tree.element.id}>
+							{/* Collapsed NAP group box */}
+							{isGroupCollapsed && (
+								// biome-ignore lint/a11y/useSemanticElements: SVG groups cannot be replaced with HTML buttons inside an SVG tree.
+								<g
+									onClick={() => toggleGroupExpanded(el.id)}
+									role="button"
+									tabIndex={0}
+									style={{ cursor: "pointer" }}
+								>
+									<rect
+										x={nodeX}
+										y={nodeY}
+										width="150"
+										height="56"
+										rx="4"
+										fill={color}
+										opacity="0.1"
+										stroke={color}
+										strokeWidth="1.5"
+										strokeDasharray="4,2"
+									/>
+									<text
+										x={nodeX + 8}
+										y={nodeY + 16}
+										fontSize="9"
+										fill="#a4a4a4"
+									>
+										{napChildren.length} NAPs
+									</text>
+									<text
+										x={nodeX + 8}
+										y={nodeY + 32}
+										fontSize="8"
+										fill="#777879"
+									>
+										[+] Ver lista
+									</text>
+								</g>
+							)}
 
-						{/* Selection ring */}
-						{isSelected && (
-							<rect
-								x={nodeX - 2}
-								y={nodeY - 2}
-								width="154"
-								height="60"
-								rx="4"
-								fill="none"
-								stroke="#ffffff"
-								strokeWidth="2"
-							/>
-						)}
+							{/* Regular node */}
+							{!isGroupCollapsed && (
+								// biome-ignore lint/a11y/useSemanticElements: SVG groups cannot be replaced with HTML buttons inside an SVG tree.
+								<g
+									onClick={() => {
+										if (hasCollapsibleNaps) {
+											toggleGroupExpanded(el.id);
+										} else {
+											onSelectElement?.(el.id);
+											useNetworkEditorStore.getState().select(el.id, "element");
+										}
+									}}
+									onKeyDown={(event) => {
+										if (event.key === "Enter" || event.key === " ") {
+											event.preventDefault();
+											if (hasCollapsibleNaps) {
+												toggleGroupExpanded(el.id);
+											} else {
+												onSelectElement?.(el.id);
+												useNetworkEditorStore
+													.getState()
+													.select(el.id, "element");
+											}
+										}
+									}}
+									role="button"
+									tabIndex={0}
+									style={{ cursor: "pointer" }}
+								>
+									{/* Node box */}
+									<rect
+										x={nodeX}
+										y={nodeY}
+										width="150"
+										height="56"
+										rx="4"
+										fill={color}
+										opacity="0.15"
+										stroke={color}
+										strokeWidth="1.5"
+									/>
 
-						{/* Code */}
-						<text
-							x={nodeX + 75}
-							y={nodeY + 14}
-							textAnchor="middle"
-							fontSize="10"
-							fontWeight="600"
-							fill="#e6e6e6"
-						>
-							{el.code}
-						</text>
+									{/* Selection ring */}
+									{isSelected && (
+										<rect
+											x={nodeX - 2}
+											y={nodeY - 2}
+											width="154"
+											height="60"
+											rx="4"
+											fill="none"
+											stroke="#ffffff"
+											strokeWidth="2"
+										/>
+									)}
 
-						{/* Label */}
-						<text
-							x={nodeX + 75}
-							y={nodeY + 32}
-							textAnchor="middle"
-							fontSize="9"
-							fill="#a4a4a4"
-						>
-							{label}
-						</text>
+									{/* Code */}
+									<text
+										x={nodeX + 75}
+										y={nodeY + 14}
+										textAnchor="middle"
+										fontSize="10"
+										fontWeight="600"
+										fill="#e6e6e6"
+									>
+										{el.code}
+									</text>
 
-						{/* Status badge */}
-						{node.budget.margin !== null && (
-							<circle
-								cx={nodeX + 140}
-								cy={nodeY + 8}
-								r="6"
-								fill={OPTICAL_STATUS_COLOR[node.budget.status]}
-							/>
-						)}
-					</g>
-				);
-			})}
+									{/* Label */}
+									<text
+										x={nodeX + 75}
+										y={nodeY + 32}
+										textAnchor="middle"
+										fontSize="9"
+										fill="#a4a4a4"
+									>
+										{label}
+									</text>
+
+									{/* Toggle indicator for splitters with NAPs */}
+									{hasCollapsibleNaps && (
+										<text
+											x={nodeX + 140}
+											y={nodeY + 36}
+											textAnchor="middle"
+											fontSize="8"
+											fill="#a4a4a4"
+										>
+											−
+										</text>
+									)}
+
+									{/* Status badge */}
+									{node.budget.margin !== null && (
+										<circle
+											cx={nodeX + 140}
+											cy={nodeY + 8}
+											r="6"
+											fill={OPTICAL_STATUS_COLOR[node.budget.status]}
+										/>
+									)}
+								</g>
+							)}
+						</g>
+					);
+				})}
 		</svg>
 	);
 }
