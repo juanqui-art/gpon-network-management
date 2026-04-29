@@ -3735,6 +3735,7 @@ function SelectedFeatureProperties({
 	onSaveElement,
 	onSaveRoute,
 	zones,
+	equipment,
 }: {
 	selectedFeature: AnySelectedFeature;
 	incident: IncidentMapItem | null;
