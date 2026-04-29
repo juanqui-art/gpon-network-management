@@ -5,7 +5,6 @@ import type {
 	EquipmentMapItem,
 	FiberRoute,
 	InfrastructureElement,
-	NetworkZone,
 	RoutePoint,
 } from "@/components/map/types";
 import { createClient } from "@/lib/supabase/client";
@@ -15,6 +14,7 @@ import type {
 	ElementType,
 	FiberType,
 	InstallationType,
+	NetworkZone,
 	PonStandard,
 	RiskLevel,
 	RoutePointType,

@@ -4,11 +4,50 @@ import MapboxDraw from "@mapbox/mapbox-gl-draw";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import { useQueryClient } from "@tanstack/react-query";
 import turfLength from "@turf/length";
+import {
+	AlertTriangle,
+	CheckCircle2,
+	Layers,
+	List,
+	MapPin,
+	Network,
+	Route,
+	Save,
+	Search,
+	Siren,
+	Trash2,
+	X,
+} from "lucide-react";
 import mapboxgl from "mapbox-gl";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
+import { OltModelSelector } from "@/components/map/olt-model-selector";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+	Toast,
+	ToastDescription,
+	ToastProvider,
+	ToastTitle,
+	ToastViewport,
+} from "@/components/ui/toast";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
 	formatMapLabel,
 	generateDraftCode,
@@ -1098,6 +1137,7 @@ export function MapView({
 	const modeRef = useRef<EditorMode>("view");
 	const drawRef = useRef<MapboxDraw | null>(null);
 	const draftRouteCountRef = useRef(1);
+	const lastToastMessageRef = useRef("");
 	// Stable ref so dragend listeners always call the latest save fn
 	const saveExistingElementRef = useRef<
 		(el: EquipmentMapItem, patch: Partial<EquipmentMapItem>) => void
@@ -1113,6 +1153,11 @@ export function MapView({
 		useState<EditorTool>("select");
 	const [internalMode, setInternalMode] = useState<EditorMode>("view");
 	const [leftTab, setLeftTab] = useState<LeftPanelTab>("layers");
+	const [commandOpen, setCommandOpen] = useState(false);
+	const [toastOpen, setToastOpen] = useState(false);
+	const [toastMessage, setToastMessage] = useState(
+		"Modo infraestructura listo.",
+	);
 	const [contextMenu, setContextMenu] = useState<{
 		x: number;
 		y: number;
@@ -1204,6 +1249,33 @@ export function MapView({
 		},
 		[onEditorStatusMessageChange],
 	);
+	useEffect(() => {
+		function onKeyDown(event: KeyboardEvent) {
+			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+				event.preventDefault();
+				setCommandOpen((open) => !open);
+			}
+		}
+
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, []);
+	useEffect(() => {
+		if (!statusMessage || lastToastMessageRef.current === statusMessage) return;
+		lastToastMessageRef.current = statusMessage;
+		if (
+			statusMessage.includes("listo") ||
+			statusMessage.includes("guardad") ||
+			statusMessage.includes("actualizad") ||
+			statusMessage.includes("eliminad") ||
+			statusMessage.includes("Error") ||
+			statusMessage.includes("No se pudo")
+		) {
+			setToastMessage(statusMessage);
+			setToastOpen(false);
+			window.setTimeout(() => setToastOpen(true), 0);
+		}
+	}, [statusMessage]);
 	const refreshEditorData = useCallback(() => {
 		if (networkId) {
 			void queryClient.invalidateQueries({
@@ -1246,6 +1318,19 @@ export function MapView({
 		const statusOk = filterStatus === "all" || eq.status === filterStatus;
 		return typeOk && statusOk;
 	});
+	const focusEquipment = useCallback(
+		(eq: EquipmentMapItem) => {
+			setSelected({ kind: "element", element: eq });
+			setLeftTab("elements");
+			mapRef.current?.flyTo({
+				center: [eq.lng, eq.lat],
+				zoom: Math.max(mapRef.current.getZoom(), 16),
+				duration: 650,
+			});
+			setStatusMessage(`Elemento seleccionado: ${eq.name ?? eq.code}.`);
+		},
+		[setSelected, setStatusMessage],
+	);
 	const clearDraft = useCallback(() => {
 		draftMarkerRef.current?.remove();
 		draftMarkerRef.current = null;
@@ -2718,8 +2803,10 @@ export function MapView({
 	}, []);
 
 	return (
-		<div className="relative h-full w-full">
-			<style>{`
+		<ToastProvider>
+			<TooltipProvider>
+				<div className="relative h-full w-full">
+					<style>{`
         @keyframes gpon-pulse {
           0%   { transform: translate(-50%,-50%) scale(1);   opacity: 0.35; }
           70%  { transform: translate(-50%,-50%) scale(2.2); opacity: 0; }
@@ -2730,156 +2817,169 @@ export function MapView({
         }
       `}</style>
 
-			<div ref={containerRef} className="h-full w-full" />
+					<div ref={containerRef} className="h-full w-full" />
 
-			{/* Mode indicator border — green in design, amber in edit */}
-			{isActive && (
-				<div
-					aria-hidden="true"
-					className="pointer-events-none absolute inset-0 z-30"
-					style={{
-						boxShadow: isEditing
-							? "inset 0 0 0 2px rgba(245,158,11,0.55)"
-							: "inset 0 0 0 2px rgba(52,211,153,0.45)",
-					}}
-				/>
-			)}
+					{/* Mode indicator border — green in design, amber in edit */}
+					{isActive && (
+						<div
+							aria-hidden="true"
+							className="pointer-events-none absolute inset-0 z-30"
+							style={{
+								boxShadow: isEditing
+									? "inset 0 0 0 2px rgba(245,158,11,0.55)"
+									: "inset 0 0 0 2px rgba(52,211,153,0.45)",
+							}}
+						/>
+					)}
 
-			{canEdit && (
-				<EditorTopBar
-					activeToolLabel={activeToolLabel}
-					mode={mode}
-					onModeChange={(nextMode) => {
-						setMode(nextMode);
-						// Reset to default tool for each mode
-						if (nextMode === "view") setActiveTool("select");
-						if (nextMode === "design") setActiveTool("olt");
-						if (nextMode === "edit") setActiveTool("select");
-					}}
-				/>
-			)}
+					{canEdit && (
+						<EditorTopBar
+							activeToolLabel={activeToolLabel}
+							mode={mode}
+							onModeChange={(nextMode) => {
+								setMode(nextMode);
+								// Reset to default tool for each mode
+								if (nextMode === "view") setActiveTool("select");
+								if (nextMode === "design") setActiveTool("olt");
+								if (nextMode === "edit") setActiveTool("select");
+							}}
+						/>
+					)}
 
-			{canEdit && isActive && (
-				<EditorToolbar
-					activeTool={activeTool}
-					onToolChange={setActiveTool}
-					mode={mode}
-				/>
-			)}
+					{canEdit && isActive && (
+						<EditorToolbar
+							activeTool={activeTool}
+							onToolChange={setActiveTool}
+							mode={mode}
+						/>
+					)}
 
-			<InfrastructurePanel
-				tab={leftTab}
-				onTabChange={setLeftTab}
-				mode={mode}
-				equipment={visibleEquipment}
-				allEquipment={equipment}
-				connections={connections}
-				routePointCount={routePointCount}
-				incidents={incidents}
-				mapWarnings={mapWarnings}
-				filterType={filterType}
-				filterStatus={filterStatus}
-				onTypeChange={setFilterType}
-				onStatusChange={setFilterStatus}
-				onSelectEquipment={(eq) => {
-					setSelected({ kind: "element", element: eq });
-					mapRef.current?.flyTo({
-						center: [eq.lng, eq.lat],
-						zoom: Math.max(mapRef.current.getZoom(), 16),
-						duration: 650,
-					});
-				}}
-			/>
+					<InfrastructurePanel
+						tab={leftTab}
+						onTabChange={setLeftTab}
+						mode={mode}
+						equipment={visibleEquipment}
+						allEquipment={equipment}
+						connections={connections}
+						routePointCount={routePointCount}
+						incidents={incidents}
+						mapWarnings={mapWarnings}
+						filterType={filterType}
+						filterStatus={filterStatus}
+						onTypeChange={setFilterType}
+						onStatusChange={setFilterStatus}
+						onSelectEquipment={focusEquipment}
+						onOpenCommand={() => setCommandOpen(true)}
+					/>
 
-			<PropertiesPanel
-				selectedFeature={selectedFeature}
-				incident={
-					selectedFeature?.kind === "element"
-						? (incidentByEquipment[selectedFeature.element.id] ?? null)
-						: null
-				}
-				mode={mode}
-				validationErrors={validationErrors}
-				onClose={() => setSelected(null)}
-				onCancelDraft={clearDraft}
-				onDraftChange={(patch) => {
-					setSelectedFeature((current) => {
-						if (current?.kind !== "draftElement") return current;
-						const nextElement = { ...current.element, ...patch };
-						return { kind: "draftElement", element: nextElement };
-					});
-				}}
-				onDraftRouteChange={(patch) => {
-					setSelectedFeature((current) => {
-						if (current?.kind !== "draftRoute") return current;
-						const nextRoute = {
-							...current.route,
-							...patch,
-							cable_type: patch.type ?? current.route.type,
-						};
-						return { kind: "draftRoute", route: nextRoute };
-					});
-				}}
-				onDraftRoutePointChange={(patch) => {
-					setSelectedFeature((current) => {
-						if (current?.kind !== "draftRoutePoint") return current;
-						return {
-							kind: "draftRoutePoint",
-							point: { ...current.point, ...patch },
-						};
-					});
-				}}
-				isDeleting={activeTool === "delete"}
-				onDelete={deleteFeature}
-				onSaveDraft={saveDraftElement}
-				onSaveDraftRoute={saveDraftRoute}
-				onSaveRoutePointDraft={saveRoutePointDraft}
-				onSaveElement={saveExistingElement}
-				onSaveRoute={saveExistingRoute}
-				zones={zones}
-				equipment={equipment}
-			/>
+					<SearchCommandPalette
+						open={commandOpen}
+						onOpenChange={setCommandOpen}
+						equipment={equipment}
+						incidents={incidents}
+						onSelectEquipment={focusEquipment}
+					/>
 
-			{mode === "view" && <Legend />}
+					<PropertiesPanel
+						selectedFeature={selectedFeature}
+						incident={
+							selectedFeature?.kind === "element"
+								? (incidentByEquipment[selectedFeature.element.id] ?? null)
+								: null
+						}
+						mode={mode}
+						validationErrors={validationErrors}
+						onClose={() => setSelected(null)}
+						onCancelDraft={clearDraft}
+						onDraftChange={(patch) => {
+							setSelectedFeature((current) => {
+								if (current?.kind !== "draftElement") return current;
+								const nextElement = { ...current.element, ...patch };
+								return { kind: "draftElement", element: nextElement };
+							});
+						}}
+						onDraftRouteChange={(patch) => {
+							setSelectedFeature((current) => {
+								if (current?.kind !== "draftRoute") return current;
+								const nextRoute = {
+									...current.route,
+									...patch,
+									cable_type: patch.type ?? current.route.type,
+								};
+								return { kind: "draftRoute", route: nextRoute };
+							});
+						}}
+						onDraftRoutePointChange={(patch) => {
+							setSelectedFeature((current) => {
+								if (current?.kind !== "draftRoutePoint") return current;
+								return {
+									kind: "draftRoutePoint",
+									point: { ...current.point, ...patch },
+								};
+							});
+						}}
+						isDeleting={activeTool === "delete"}
+						onDelete={deleteFeature}
+						onSaveDraft={saveDraftElement}
+						onSaveDraftRoute={saveDraftRoute}
+						onSaveRoutePointDraft={saveRoutePointDraft}
+						onSaveElement={saveExistingElement}
+						onSaveRoute={saveExistingRoute}
+						zones={zones}
+						equipment={equipment}
+					/>
 
-			{contextMenu && (
-				<ContextMenu
-					menu={contextMenu}
-					canDelete={canDelete}
-					onSelect={() => {
-						setSelected(contextMenu.feature);
-						setContextMenu(null);
-					}}
-					onDelete={() => {
-						deleteFeature(contextMenu.feature);
-						setContextMenu(null);
-					}}
-					onClose={() => setContextMenu(null)}
-				/>
-			)}
+					{mode === "view" && <Legend />}
 
-			<MapControls
-				mode={mode}
-				hasRightPanel={isActive || selectedFeature !== null}
-				onZoomIn={() => mapRef.current?.zoomIn()}
-				onZoomOut={() => mapRef.current?.zoomOut()}
-				onResetNorth={() => mapRef.current?.resetNorth()}
-				onFit={() => {
-					const map = mapRef.current;
-					if (!map || equipment.length === 0) return;
-					const bounds = new mapboxgl.LngLatBounds();
-					for (const eq of equipment) bounds.extend([eq.lng, eq.lat]);
-					map.fitBounds(bounds, { padding: 120, maxZoom: 15, duration: 650 });
-				}}
-			/>
-			<EditorStatusBar
-				activeToolLabel={activeToolLabel}
-				statusMessage={statusMessage}
-				zoom={zoom}
-				mode={mode}
-				warnings={mapWarnings}
-			/>
-		</div>
+					{contextMenu && (
+						<ContextMenu
+							menu={contextMenu}
+							canDelete={canDelete}
+							onSelect={() => {
+								setSelected(contextMenu.feature);
+								setContextMenu(null);
+							}}
+							onDelete={() => {
+								deleteFeature(contextMenu.feature);
+								setContextMenu(null);
+							}}
+							onClose={() => setContextMenu(null)}
+						/>
+					)}
+
+					<MapControls
+						mode={mode}
+						hasRightPanel={isActive || selectedFeature !== null}
+						onZoomIn={() => mapRef.current?.zoomIn()}
+						onZoomOut={() => mapRef.current?.zoomOut()}
+						onResetNorth={() => mapRef.current?.resetNorth()}
+						onFit={() => {
+							const map = mapRef.current;
+							if (!map || equipment.length === 0) return;
+							const bounds = new mapboxgl.LngLatBounds();
+							for (const eq of equipment) bounds.extend([eq.lng, eq.lat]);
+							map.fitBounds(bounds, {
+								padding: 120,
+								maxZoom: 15,
+								duration: 650,
+							});
+						}}
+					/>
+					<EditorStatusBar
+						activeToolLabel={activeToolLabel}
+						statusMessage={statusMessage}
+						zoom={zoom}
+						mode={mode}
+						warnings={mapWarnings}
+					/>
+					<Toast open={toastOpen} onOpenChange={setToastOpen}>
+						<ToastTitle>GPON</ToastTitle>
+						<ToastDescription>{toastMessage}</ToastDescription>
+					</Toast>
+					<ToastViewport />
+				</div>
+			</TooltipProvider>
+		</ToastProvider>
 	);
 }
 
@@ -2982,28 +3082,34 @@ function EditorToolbar({
 					{visibleTools
 						.filter((tool) => tool.group === group)
 						.map((tool) => (
-							<button
-								key={tool.value}
-								type="button"
-								onClick={() => onToolChange(tool.value)}
-								title={`${tool.label} (${tool.shortcut})`}
-								aria-label={tool.label}
-								aria-pressed={activeTool === tool.value}
-								className="flex h-9 min-w-9 items-center justify-center rounded-md border px-2 text-[11px] font-semibold transition-colors"
-								style={{
-									background:
-										activeTool === tool.value
-											? `${accentColor}22`
-											: "rgba(164,164,164,0.06)",
-									borderColor:
-										activeTool === tool.value
-											? `${accentColor}66`
-											: "rgba(164,164,164,0.12)",
-									color: activeTool === tool.value ? accentColor : "#a4a4a4",
-								}}
-							>
-								<ToolGlyph tool={tool.value} />
-							</button>
+							<Tooltip key={tool.value}>
+								<TooltipTrigger asChild>
+									<button
+										type="button"
+										onClick={() => onToolChange(tool.value)}
+										aria-label={tool.label}
+										aria-pressed={activeTool === tool.value}
+										className="flex h-9 min-w-9 items-center justify-center rounded-md border px-2 text-[11px] font-semibold transition-colors"
+										style={{
+											background:
+												activeTool === tool.value
+													? `${accentColor}22`
+													: "rgba(164,164,164,0.06)",
+											borderColor:
+												activeTool === tool.value
+													? `${accentColor}66`
+													: "rgba(164,164,164,0.12)",
+											color:
+												activeTool === tool.value ? accentColor : "#a4a4a4",
+										}}
+									>
+										<ToolGlyph tool={tool.value} />
+									</button>
+								</TooltipTrigger>
+								<TooltipContent>
+									{tool.label} ({tool.shortcut})
+								</TooltipContent>
+							</Tooltip>
 						))}
 				</div>
 			))}
@@ -3211,6 +3317,7 @@ function InfrastructurePanel({
 	onTypeChange,
 	onStatusChange,
 	onSelectEquipment,
+	onOpenCommand,
 }: {
 	tab: LeftPanelTab;
 	onTabChange: (tab: LeftPanelTab) => void;
@@ -3226,6 +3333,7 @@ function InfrastructurePanel({
 	onTypeChange: (v: string) => void;
 	onStatusChange: (v: string) => void;
 	onSelectEquipment: (eq: EquipmentMapItem) => void;
+	onOpenCommand: () => void;
 }) {
 	const [search, setSearch] = useState("");
 	const q = search.trim().toLowerCase();
@@ -3247,61 +3355,25 @@ function InfrastructurePanel({
 		(e) =>
 			e.type === "nap" && e.total_ports && (e.ports_used ?? 0) >= e.total_ports,
 	).length;
+	const tabs = [
+		{ value: "layers", label: "Capas", icon: Layers },
+		{ value: "elements", label: "Equipos", icon: List },
+		{ value: "tree", label: "Árbol", icon: Network },
+		{ value: "quality", label: "Alertas", icon: Siren },
+	] as const;
 
 	return (
 		<div
 			className={`absolute left-4 top-4 z-20 flex max-h-[calc(100%-5rem)] flex-col overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md ${mode !== "view" ? "w-80" : "w-72"}`}
 		>
-			<div className="border-b border-[rgba(164,164,164,0.12)] px-3 py-2.5">
-				{/* Network stats header */}
-				<div className="grid grid-cols-4 gap-1.5 mb-2.5">
-					<StatChip label="OLT" value={olts} color={TYPE_COLOR.olt} />
-					<StatChip label="SPL" value={splitters} color={TYPE_COLOR.splitter} />
-					<StatChip label="NAP" value={naps} color={TYPE_COLOR.nap} />
-					<StatChip label="km" value={totalKm.toFixed(1)} color="#a4a4a4" />
-				</div>
-				{saturatedNaps > 0 && (
-					<p className="mb-2 rounded-md border border-[rgba(251,77,109,0.28)] bg-[rgba(251,77,109,0.08)] px-2 py-1 text-[10px] text-[#fb7185]">
-						⚠ {saturatedNaps} NAP{saturatedNaps > 1 ? "s" : ""} saturada
-						{saturatedNaps > 1 ? "s" : ""}
-					</p>
-				)}
-
-				<div className="flex rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)] p-0.5">
-					{(
-						[
-							["layers", "Capas"],
-							["elements", "Lista"],
-							["tree", "Árbol"],
-							["quality", "Alertas"],
-						] as const
-					).map(([value, label]) => (
-						<button
-							key={value}
-							type="button"
-							aria-pressed={tab === value}
-							onClick={() => onTabChange(value)}
-							className="flex-1 rounded px-1.5 py-1 text-[10px] font-medium transition-colors"
-							style={{
-								background:
-									tab === value ? "rgba(164,164,164,0.16)" : "transparent",
-								color: tab === value ? "#e6e6e6" : "#858585",
-							}}
-						>
-							{label}
-							{value === "quality" && mapWarnings.length > 0 && (
-								<span className="ml-1 rounded-full bg-[#f59e0b] px-1 text-[9px] font-bold text-[#1b1c1d]">
-									{mapWarnings.length}
-								</span>
-							)}
-						</button>
-					))}
-				</div>
-			</div>
-
-			{tab === "layers" && (
-				<div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-					<div className="mb-3 grid grid-cols-3 gap-2">
+			<Tabs
+				value={tab}
+				onValueChange={(value) => onTabChange(value as LeftPanelTab)}
+				className="min-h-0 flex-1 gap-0"
+			>
+				<div className="border-b border-[rgba(164,164,164,0.12)] px-3 py-2.5">
+					{/* Network stats header */}
+					<div className="grid grid-cols-4 gap-1.5 mb-2.5">
 						<StatChip label="OLT" value={olts} color={TYPE_COLOR.olt} />
 						<StatChip
 							label="SPL"
@@ -3309,270 +3381,497 @@ function InfrastructurePanel({
 							color={TYPE_COLOR.splitter}
 						/>
 						<StatChip label="NAP" value={naps} color={TYPE_COLOR.nap} />
+						<StatChip label="km" value={totalKm.toFixed(1)} color="#a4a4a4" />
 					</div>
-					<FilterBar
-						filterType={filterType}
-						filterStatus={filterStatus}
-						onTypeChange={onTypeChange}
-						onStatusChange={onStatusChange}
-					/>
-					<div className="mt-4 space-y-2">
-						<LayerToggle label="Rutas feeder" color={CABLE_COLOR.feeder} />
-						<LayerToggle
-							label="Rutas distribución"
-							color={CABLE_COLOR.distribution}
-						/>
-						<LayerToggle label="Cruces" color="#d7d7d7" />
-						<LayerToggle label="Reservas" color="#f6c768" />
-						<LayerToggle label="Empalmes" color="#fb7185" />
-					</div>
-					<p className="mt-3 text-[11px] text-[#777879]">
-						{routePointCount} puntos relevantes cargados
-					</p>
-				</div>
-			)}
+					{saturatedNaps > 0 && (
+						<div className="mb-2 flex items-center gap-2 rounded-md border border-[rgba(251,77,109,0.28)] bg-[rgba(251,77,109,0.08)] px-2 py-1 text-[10px] text-[#fb7185]">
+							<AlertTriangle className="size-3" aria-hidden="true" />
+							<span>
+								{saturatedNaps} NAP{saturatedNaps > 1 ? "s" : ""} saturada
+								{saturatedNaps > 1 ? "s" : ""}
+							</span>
+						</div>
+					)}
 
-			{tab === "elements" && (
-				<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-					<div className="px-3 pt-3 pb-2">
-						<input
-							type="search"
-							placeholder="Buscar por nombre o código…"
-							value={search}
-							onChange={(e) => setSearch(e.target.value)}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(27,28,29,0.82)] px-2.5 py-1.5 text-xs text-[#e6e6e6] outline-none transition-colors placeholder:text-[#5c5d5f] focus:border-[rgba(56,189,248,0.45)]"
-						/>
-						<p className="mt-1.5 text-right text-[10px] text-[#777879]">
-							{filteredElements.length} de {equipment.length}
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={onOpenCommand}
+						className="mb-2 h-8 w-full justify-between border-[rgba(164,164,164,0.16)] bg-[rgba(27,28,29,0.62)] text-xs text-[#d7d7d7] hover:bg-[rgba(164,164,164,0.1)]"
+					>
+						<span className="flex items-center gap-2">
+							<Search className="size-3.5" aria-hidden="true" />
+							Buscar red
+						</span>
+						<kbd className="rounded border border-[rgba(164,164,164,0.18)] bg-[rgba(164,164,164,0.08)] px-1.5 py-0.5 font-mono text-[10px] text-[#858585]">
+							⌘K
+						</kbd>
+					</Button>
+
+					<TabsList className="grid w-full grid-cols-4 bg-[rgba(164,164,164,0.05)]">
+						{tabs.map(({ value, label, icon: Icon }) => (
+							<TabsTrigger
+								key={value}
+								value={value}
+								className="relative px-1 text-[10px]"
+							>
+								<Icon className="size-3" aria-hidden="true" />
+								<span className="hidden sm:inline">{label}</span>
+								{value === "quality" && mapWarnings.length > 0 && (
+									<Badge className="absolute -right-1 -top-1 h-4 min-w-4 rounded-full bg-[#f59e0b] px-1 text-[9px] text-[#1b1c1d]">
+										{mapWarnings.length}
+									</Badge>
+								)}
+							</TabsTrigger>
+						))}
+					</TabsList>
+				</div>
+
+				<TabsContent value="layers" className="overflow-hidden">
+					<ScrollArea className="h-full px-3 py-3">
+						<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+							Filtros de visibilidad
 						</p>
+						<FilterBar
+							filterType={filterType}
+							filterStatus={filterStatus}
+							onTypeChange={onTypeChange}
+							onStatusChange={onStatusChange}
+						/>
+						<p className="mb-2 mt-4 text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+							Capas de red
+						</p>
+						<div className="space-y-2">
+							<LayerToggle label="Rutas feeder" color={CABLE_COLOR.feeder} />
+							<LayerToggle
+								label="Rutas distribución"
+								color={CABLE_COLOR.distribution}
+							/>
+							<LayerToggle label="Cruces" color="#d7d7d7" />
+							<LayerToggle label="Reservas" color="#f6c768" />
+							<LayerToggle label="Empalmes" color="#fb7185" />
+						</div>
+						<p className="mt-3 text-[11px] text-[#777879]">
+							{routePointCount} puntos relevantes cargados
+						</p>
+					</ScrollArea>
+				</TabsContent>
+
+				<TabsContent value="elements" className="overflow-hidden">
+					<div className="flex h-full min-h-0 flex-col overflow-hidden">
+						<div className="px-3 pt-3 pb-2">
+							<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+								Equipos visibles
+							</p>
+							<div className="relative">
+								<Search
+									className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+									aria-hidden="true"
+								/>
+								<Input
+									type="search"
+									placeholder="Filtrar equipos visibles…"
+									value={search}
+									onChange={(e) => setSearch(e.target.value)}
+									className="h-8 bg-[rgba(27,28,29,0.82)] pl-8 text-xs"
+								/>
+							</div>
+							<p className="mt-1.5 text-right text-[10px] text-[#777879]">
+								{filteredElements.length} de {equipment.length}
+							</p>
+						</div>
+						<ScrollArea className="min-h-0 flex-1 px-3 pb-3">
+							<div className="space-y-1.5">
+								{filteredElements.length === 0 ? (
+									<p className="py-4 text-center text-[11px] text-[#5c5d5f]">
+										Sin resultados
+									</p>
+								) : null}
+								{filteredElements.map((eq) => (
+									<button
+										key={eq.id}
+										type="button"
+										onClick={() => onSelectEquipment(eq)}
+										className="flex w-full items-center justify-between gap-3 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.05)] px-2.5 py-2 text-left transition-colors hover:border-[rgba(164,164,164,0.24)] hover:bg-[rgba(164,164,164,0.1)]"
+									>
+										<span className="flex min-w-0 items-center gap-2">
+											<span
+												className="h-2.5 w-2.5 shrink-0 rounded-full"
+												style={{
+													backgroundColor:
+														TYPE_COLOR[eq.type] ?? TYPE_COLOR.unknown,
+												}}
+											/>
+											<span className="min-w-0">
+												<span className="block truncate text-xs font-medium text-[#d7d7d7]">
+													{eq.name}
+												</span>
+												<span className="block text-[10px] uppercase tracking-wide text-[#777879]">
+													{eq.type}
+												</span>
+											</span>
+										</span>
+										<span
+											className="h-2 w-2 shrink-0 rounded-full"
+											style={{
+												backgroundColor:
+													STATUS_COLOR[eq.status] ?? STATUS_COLOR.unknown,
+											}}
+										/>
+									</button>
+								))}
+							</div>
+						</ScrollArea>
 					</div>
-					<div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+				</TabsContent>
+
+				<TabsContent value="tree" className="overflow-hidden">
+					<ScrollArea className="h-full px-3 py-3">
+						<div className="space-y-2">
+							<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879] mb-2">
+								Topología OLT → Splitter → NAP
+							</p>
+							{allEquipment.filter((e) => e.type === "olt").length === 0 ? (
+								<p className="text-[11px] text-[#5c5d5f] text-center py-4">
+									Sin elementos en la red
+								</p>
+							) : (
+								allEquipment
+									.filter((e) => e.type === "olt")
+									.map((olt) => {
+										const feederRoutes = connections.filter(
+											(c) =>
+												c.from_element_id === olt.id ||
+												c.to_element_id === olt.id,
+										);
+										const connectedSplitters = allEquipment.filter(
+											(e) =>
+												e.type === "splitter" &&
+												feederRoutes.some(
+													(r) =>
+														r.from_element_id === e.id ||
+														r.to_element_id === e.id,
+												),
+										);
+										return (
+											<div
+												key={olt.id}
+												className="rounded-md border border-[rgba(56,189,248,0.2)] bg-[rgba(56,189,248,0.05)] p-2"
+											>
+												<button
+													type="button"
+													onClick={() => onSelectEquipment(olt)}
+													className="flex w-full items-center gap-2 text-left hover:opacity-80"
+												>
+													<span className="h-2.5 w-2.5 rounded-full bg-[#38bdf8] shrink-0" />
+													<span className="text-xs font-semibold text-[#e6e6e6] truncate">
+														{olt.name ?? olt.code}
+													</span>
+													{olt.total_pon_ports && (
+														<span className="ml-auto text-[10px] text-[#777879] shrink-0">
+															{olt.total_pon_ports}P
+														</span>
+													)}
+												</button>
+												{connectedSplitters.map((spl) => {
+													const distRoutes = connections.filter(
+														(c) =>
+															c.from_element_id === spl.id ||
+															c.to_element_id === spl.id,
+													);
+													const connectedNaps = allEquipment.filter(
+														(e) =>
+															e.type === "nap" &&
+															distRoutes.some(
+																(r) =>
+																	r.from_element_id === e.id ||
+																	r.to_element_id === e.id,
+															),
+													);
+													return (
+														<div
+															key={spl.id}
+															className="ml-3 mt-1.5 border-l border-[rgba(167,139,250,0.3)] pl-2.5"
+														>
+															<button
+																type="button"
+																onClick={() => onSelectEquipment(spl)}
+																className="flex w-full items-center gap-2 text-left hover:opacity-80"
+															>
+																<span className="h-2 w-2 rounded-full bg-[#a78bfa] shrink-0" />
+																<span className="text-[11px] text-[#d7d7d7] truncate">
+																	{spl.name ?? spl.code}
+																</span>
+																{spl.split_ratio && (
+																	<span className="ml-auto text-[10px] text-[#777879] shrink-0">
+																		{spl.split_ratio}
+																	</span>
+																)}
+															</button>
+															{connectedNaps.map((nap) => {
+																const pct = nap.total_ports
+																	? (nap.ports_used ?? 0) / nap.total_ports
+																	: 0;
+																const napColor =
+																	pct >= 0.9
+																		? "#fb4d6d"
+																		: pct >= 0.7
+																			? "#f59e0b"
+																			: "#34d399";
+																return (
+																	<div
+																		key={nap.id}
+																		className="ml-3 mt-1 border-l border-[rgba(245,158,11,0.2)] pl-2.5"
+																	>
+																		<button
+																			type="button"
+																			onClick={() => onSelectEquipment(nap)}
+																			className="flex w-full items-center gap-1.5 text-left hover:opacity-80"
+																		>
+																			<span
+																				className="h-1.5 w-1.5 rounded-full shrink-0"
+																				style={{ background: napColor }}
+																			/>
+																			<span className="text-[10px] text-[#a4a4a4] truncate">
+																				{nap.name ?? nap.code}
+																			</span>
+																			{nap.total_ports && (
+																				<span
+																					className="ml-auto text-[9px] shrink-0"
+																					style={{ color: napColor }}
+																				>
+																					{nap.ports_used ?? 0}/
+																					{nap.total_ports}
+																				</span>
+																			)}
+																		</button>
+																	</div>
+																);
+															})}
+															{connectedNaps.length === 0 && (
+																<p className="ml-3 text-[10px] text-[#5c5d5f] mt-0.5">
+																	Sin NAPs conectadas
+																</p>
+															)}
+														</div>
+													);
+												})}
+												{connectedSplitters.length === 0 && (
+													<p className="ml-3 mt-1 text-[10px] text-[#5c5d5f]">
+														Sin splitters conectados
+													</p>
+												)}
+											</div>
+										);
+									})
+							)}
+						</div>
+					</ScrollArea>
+				</TabsContent>
+
+				<TabsContent value="quality" className="overflow-hidden">
+					<ScrollArea className="h-full px-3 py-3">
 						<div className="space-y-1.5">
-							{filteredElements.length === 0 ? (
-								<p className="py-4 text-center text-[11px] text-[#5c5d5f]">
+							<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879] mb-2">
+								Alertas de red — {mapWarnings.length} activas
+							</p>
+							{mapWarnings.length === 0 ? (
+								<div className="rounded-md border border-[rgba(52,211,153,0.2)] bg-[rgba(52,211,153,0.08)] px-3 py-2.5">
+									<p className="flex items-center gap-1.5 text-[11px] font-semibold text-[#34d399]">
+										<CheckCircle2 className="size-3" aria-hidden="true" />
+										Red sin alertas
+									</p>
+									<p className="mt-0.5 text-[10px] text-[#9ee8c9]">
+										Todos los elementos tienen datos técnicos válidos.
+									</p>
+								</div>
+							) : (
+								mapWarnings.map((w) => (
+									<div
+										key={w}
+										className="flex items-start gap-2 rounded-md border border-[rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.08)] px-2.5 py-2"
+									>
+										<AlertTriangle
+											className="mt-0.5 size-3 shrink-0 text-[#f59e0b]"
+											aria-hidden="true"
+										/>
+										<p className="text-[11px] text-[#f6c768] leading-snug">
+											{w}
+										</p>
+									</div>
+								))
+							)}
+							{incidents.length > 0 && (
+								<>
+									<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879] mt-3 mb-1">
+										Incidentes activos — {incidents.length}
+									</p>
+									{incidents.map((inc) => (
+										<div
+											key={inc.id}
+											className="rounded-md border border-[rgba(251,77,109,0.22)] bg-[rgba(251,77,109,0.08)] px-2.5 py-1.5"
+										>
+											<p className="text-[11px] text-[#fb7185]">{inc.title}</p>
+										</div>
+									))}
+								</>
+							)}
+						</div>
+					</ScrollArea>
+				</TabsContent>
+			</Tabs>
+		</div>
+	);
+}
+
+function SearchCommandPalette({
+	open,
+	onOpenChange,
+	equipment,
+	incidents,
+	onSelectEquipment,
+}: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	equipment: EquipmentMapItem[];
+	incidents: IncidentMapItem[];
+	onSelectEquipment: (eq: EquipmentMapItem) => void;
+}) {
+	const [query, setQuery] = useState("");
+	const normalizedQuery = query.trim().toLowerCase();
+	const incidentEquipmentIds = new Set(
+		incidents.map((incident) => incident.equipment_id),
+	);
+	const results = normalizedQuery
+		? equipment.filter((eq) => {
+				const searchable = [
+					eq.name,
+					eq.code,
+					eq.type,
+					eq.status,
+					eq.customer_name,
+					eq.address,
+				]
+					.filter(Boolean)
+					.join(" ")
+					.toLowerCase();
+				return (
+					searchable.includes(normalizedQuery) ||
+					operativeCodeMatches(eq.code, normalizedQuery)
+				);
+			})
+		: equipment.slice(0, 12);
+	const limitedResults = results.slice(0, 24);
+
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className="overflow-hidden border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.97)] shadow-2xl backdrop-blur-xl">
+				<div className="flex items-start justify-between gap-4 border-b border-[rgba(164,164,164,0.12)] px-4 py-3">
+					<div>
+						<DialogTitle className="text-sm text-[#e6e6e6]">
+							Búsqueda GPON
+						</DialogTitle>
+						<DialogDescription className="mt-1 text-xs">
+							Busca OLT, splitter, NAP, ONT, cliente o código operativo.
+						</DialogDescription>
+					</div>
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon-sm"
+						onClick={() => onOpenChange(false)}
+						aria-label="Cerrar búsqueda"
+					>
+						<X className="size-4" aria-hidden="true" />
+					</Button>
+				</div>
+				<div className="px-4 pt-3">
+					<div className="relative">
+						<Search
+							className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+							aria-hidden="true"
+						/>
+						<Input
+							autoFocus
+							type="search"
+							value={query}
+							onChange={(event) => setQuery(event.target.value)}
+							placeholder="Ej. NAP-Z05-012, ONT, cliente..."
+							className="h-10 bg-[rgba(27,28,29,0.82)] pl-9"
+						/>
+					</div>
+				</div>
+				<ScrollArea className="max-h-[22rem] px-2 py-3">
+					<div className="space-y-1 px-2">
+						{limitedResults.length === 0 ? (
+							<div className="rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)] px-3 py-8 text-center">
+								<p className="text-sm font-medium text-[#d7d7d7]">
 									Sin resultados
 								</p>
-							) : null}
-							{filteredElements.map((eq) => (
-								<button
-									key={eq.id}
-									type="button"
-									onClick={() => onSelectEquipment(eq)}
-									className="flex w-full items-center justify-between gap-3 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.05)] px-2.5 py-2 text-left transition-colors hover:border-[rgba(164,164,164,0.24)] hover:bg-[rgba(164,164,164,0.1)]"
-								>
-									<span className="flex min-w-0 items-center gap-2">
+								<p className="mt-1 text-xs text-[#777879]">
+									Prueba con código, nombre, estado o cliente.
+								</p>
+							</div>
+						) : (
+							limitedResults.map((eq) => {
+								const hasIncident = incidentEquipmentIds.has(eq.id);
+								return (
+									<button
+										key={eq.id}
+										type="button"
+										onClick={() => {
+											onSelectEquipment(eq);
+											onOpenChange(false);
+											setQuery("");
+										}}
+										className="flex w-full items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-left transition-colors hover:border-[rgba(164,164,164,0.18)] hover:bg-[rgba(164,164,164,0.08)]"
+									>
 										<span
-											className="h-2.5 w-2.5 shrink-0 rounded-full"
+											className="h-3 w-3 shrink-0 rounded-full"
 											style={{
 												backgroundColor:
 													TYPE_COLOR[eq.type] ?? TYPE_COLOR.unknown,
 											}}
 										/>
-										<span className="min-w-0">
-											<span className="block truncate text-xs font-medium text-[#d7d7d7]">
-												{eq.name}
+										<span className="min-w-0 flex-1">
+											<span className="flex items-center gap-2">
+												<span className="truncate text-sm font-medium text-[#e6e6e6]">
+													{eq.name ?? eq.code}
+												</span>
+												{hasIncident && (
+													<Badge
+														variant="destructive"
+														className="h-4 px-1.5 text-[9px]"
+													>
+														Incidente
+													</Badge>
+												)}
 											</span>
-											<span className="block text-[10px] uppercase tracking-wide text-[#777879]">
-												{eq.type}
+											<span className="mt-0.5 flex items-center gap-2 text-[11px] text-[#777879]">
+												<span className="font-mono">{eq.code}</span>
+												<span>{eq.type.toUpperCase()}</span>
+												{eq.customer_name && <span>{eq.customer_name}</span>}
 											</span>
 										</span>
-									</span>
-									<span
-										className="h-2 w-2 shrink-0 rounded-full"
-										style={{
-											backgroundColor:
-												STATUS_COLOR[eq.status] ?? STATUS_COLOR.unknown,
-										}}
-									/>
-								</button>
-							))}
-						</div>
-					</div>
-				</div>
-			)}
-
-			{tab === "tree" && (
-				<div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 space-y-2">
-					<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879] mb-2">
-						Topología OLT → Splitter → NAP
-					</p>
-					{allEquipment.filter((e) => e.type === "olt").length === 0 ? (
-						<p className="text-[11px] text-[#5c5d5f] text-center py-4">
-							Sin elementos en la red
-						</p>
-					) : (
-						allEquipment
-							.filter((e) => e.type === "olt")
-							.map((olt) => {
-								const feederRoutes = connections.filter(
-									(c) =>
-										c.from_element_id === olt.id || c.to_element_id === olt.id,
-								);
-								const connectedSplitters = allEquipment.filter(
-									(e) =>
-										e.type === "splitter" &&
-										feederRoutes.some(
-											(r) =>
-												r.from_element_id === e.id || r.to_element_id === e.id,
-										),
-								);
-								return (
-									<div
-										key={olt.id}
-										className="rounded-md border border-[rgba(56,189,248,0.2)] bg-[rgba(56,189,248,0.05)] p-2"
-									>
-										<button
-											type="button"
-											onClick={() => onSelectEquipment(olt)}
-											className="flex w-full items-center gap-2 text-left hover:opacity-80"
-										>
-											<span className="h-2.5 w-2.5 rounded-full bg-[#38bdf8] shrink-0" />
-											<span className="text-xs font-semibold text-[#e6e6e6] truncate">
-												{olt.name ?? olt.code}
-											</span>
-											{olt.total_pon_ports && (
-												<span className="ml-auto text-[10px] text-[#777879] shrink-0">
-													{olt.total_pon_ports}P
-												</span>
-											)}
-										</button>
-										{connectedSplitters.map((spl) => {
-											const distRoutes = connections.filter(
-												(c) =>
-													c.from_element_id === spl.id ||
-													c.to_element_id === spl.id,
-											);
-											const connectedNaps = allEquipment.filter(
-												(e) =>
-													e.type === "nap" &&
-													distRoutes.some(
-														(r) =>
-															r.from_element_id === e.id ||
-															r.to_element_id === e.id,
-													),
-											);
-											return (
-												<div
-													key={spl.id}
-													className="ml-3 mt-1.5 border-l border-[rgba(167,139,250,0.3)] pl-2.5"
-												>
-													<button
-														type="button"
-														onClick={() => onSelectEquipment(spl)}
-														className="flex w-full items-center gap-2 text-left hover:opacity-80"
-													>
-														<span className="h-2 w-2 rounded-full bg-[#a78bfa] shrink-0" />
-														<span className="text-[11px] text-[#d7d7d7] truncate">
-															{spl.name ?? spl.code}
-														</span>
-														{spl.split_ratio && (
-															<span className="ml-auto text-[10px] text-[#777879] shrink-0">
-																{spl.split_ratio}
-															</span>
-														)}
-													</button>
-													{connectedNaps.map((nap) => {
-														const pct = nap.total_ports
-															? (nap.ports_used ?? 0) / nap.total_ports
-															: 0;
-														const napColor =
-															pct >= 0.9
-																? "#fb4d6d"
-																: pct >= 0.7
-																	? "#f59e0b"
-																	: "#34d399";
-														return (
-															<div
-																key={nap.id}
-																className="ml-3 mt-1 border-l border-[rgba(245,158,11,0.2)] pl-2.5"
-															>
-																<button
-																	type="button"
-																	onClick={() => onSelectEquipment(nap)}
-																	className="flex w-full items-center gap-1.5 text-left hover:opacity-80"
-																>
-																	<span
-																		className="h-1.5 w-1.5 rounded-full shrink-0"
-																		style={{ background: napColor }}
-																	/>
-																	<span className="text-[10px] text-[#a4a4a4] truncate">
-																		{nap.name ?? nap.code}
-																	</span>
-																	{nap.total_ports && (
-																		<span
-																			className="ml-auto text-[9px] shrink-0"
-																			style={{ color: napColor }}
-																		>
-																			{nap.ports_used ?? 0}/{nap.total_ports}
-																		</span>
-																	)}
-																</button>
-															</div>
-														);
-													})}
-													{connectedNaps.length === 0 && (
-														<p className="ml-3 text-[10px] text-[#5c5d5f] mt-0.5">
-															Sin NAPs conectadas
-														</p>
-													)}
-												</div>
-											);
-										})}
-										{connectedSplitters.length === 0 && (
-											<p className="ml-3 mt-1 text-[10px] text-[#5c5d5f]">
-												Sin splitters conectados
-											</p>
-										)}
-									</div>
+										<span className="flex shrink-0 items-center gap-1.5 text-[11px] text-[#858585]">
+											<span
+												className="h-2 w-2 rounded-full"
+												style={{
+													backgroundColor:
+														STATUS_COLOR[eq.status] ?? STATUS_COLOR.unknown,
+												}}
+											/>
+											{eq.status}
+										</span>
+									</button>
 								);
 							})
-					)}
-				</div>
-			)}
-
-			{tab === "quality" && (
-				<div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 space-y-1.5">
-					<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879] mb-2">
-						Alertas de red — {mapWarnings.length} activas
-					</p>
-					{mapWarnings.length === 0 ? (
-						<div className="rounded-md border border-[rgba(52,211,153,0.2)] bg-[rgba(52,211,153,0.08)] px-3 py-2.5">
-							<p className="text-[11px] font-semibold text-[#34d399]">
-								✓ Red sin alertas
-							</p>
-							<p className="mt-0.5 text-[10px] text-[#9ee8c9]">
-								Todos los elementos tienen datos técnicos válidos.
-							</p>
-						</div>
-					) : (
-						mapWarnings.map((w) => (
-							<div
-								key={w}
-								className="flex items-start gap-2 rounded-md border border-[rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.08)] px-2.5 py-2"
-							>
-								<span className="shrink-0 text-[#f59e0b]">⚠</span>
-								<p className="text-[11px] text-[#f6c768] leading-snug">{w}</p>
-							</div>
-						))
-					)}
-					{incidents.length > 0 && (
-						<>
-							<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879] mt-3 mb-1">
-								Incidentes activos — {incidents.length}
-							</p>
-							{incidents.map((inc) => (
-								<div
-									key={inc.id}
-									className="rounded-md border border-[rgba(251,77,109,0.22)] bg-[rgba(251,77,109,0.08)] px-2.5 py-1.5"
-								>
-									<p className="text-[11px] text-[#fb7185]">{inc.title}</p>
-								</div>
-							))}
-						</>
-					)}
-				</div>
-			)}
-		</div>
+						)}
+					</div>
+				</ScrollArea>
+			</DialogContent>
+		</Dialog>
 	);
 }
 
@@ -3679,6 +3978,7 @@ function PropertiesPanel({
 							? (ROUTE_POINT_COLOR[selectedFeature.point.type] ??
 								TYPE_COLOR.unknown)
 							: "transparent";
+	const selectionMeta = getSelectionMeta(selectedFeature);
 
 	if (mode === "view" && !selectedFeature) return null;
 
@@ -3687,27 +3987,47 @@ function PropertiesPanel({
 			<div className="h-1 w-full" style={{ backgroundColor: accentColor }} />
 			<div className="border-b border-[rgba(164,164,164,0.12)] px-4 py-3">
 				<div className="flex items-start justify-between gap-3">
-					<div>
-						<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-							Propiedades
-						</p>
-						<h2 className="mt-1 text-sm font-semibold text-[#e6e6e6]">
+					<div className="min-w-0">
+						<div className="flex items-center gap-1.5">
+							<Badge
+								variant="outline"
+								className="h-5 border-[rgba(164,164,164,0.18)] px-1.5 text-[10px] text-[#a4a4a4]"
+							>
+								{selectionMeta.kindLabel}
+							</Badge>
+							{selectionMeta.statusLabel && (
+								<Badge
+									variant="secondary"
+									className="h-5 px-1.5 text-[10px]"
+									style={{
+										color: selectionMeta.statusColor,
+										backgroundColor: `${selectionMeta.statusColor}18`,
+									}}
+								>
+									{selectionMeta.statusLabel}
+								</Badge>
+							)}
+						</div>
+						<h2 className="mt-2 truncate text-sm font-semibold text-[#e6e6e6]">
 							{title}
 						</h2>
 					</div>
 					{selectedFeature && (
-						<button
+						<Button
 							type="button"
+							variant="ghost"
+							size="icon-sm"
 							onClick={onClose}
-							className="rounded-md border border-[rgba(164,164,164,0.14)] px-2 py-1 text-xs text-[#a4a4a4] transition-colors hover:bg-white/10"
+							aria-label="Cerrar propiedades"
+							className="text-[#a4a4a4] hover:text-[#e6e6e6]"
 						>
-							Cerrar
-						</button>
+							<X className="size-4" aria-hidden="true" />
+						</Button>
 					)}
 				</div>
 			</div>
 
-			<div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+			<ScrollArea className="min-h-0 flex-1 px-4 py-3">
 				{selectedFeature ? (
 					<SelectedFeatureProperties
 						selectedFeature={selectedFeature}
@@ -3746,9 +4066,63 @@ function PropertiesPanel({
 						</div>
 					</div>
 				)}
-			</div>
+			</ScrollArea>
 		</div>
 	);
+}
+
+function getSelectionMeta(selectedFeature: AnySelectedFeature | null): {
+	kindLabel: string;
+	statusLabel: string | null;
+	statusColor: string;
+} {
+	if (!selectedFeature) {
+		return {
+			kindLabel: "Inspector",
+			statusLabel: null,
+			statusColor: STATUS_COLOR.unknown,
+		};
+	}
+	if (selectedFeature.kind === "element") {
+		const { element } = selectedFeature;
+		return {
+			kindLabel: element.type.toUpperCase(),
+			statusLabel: element.status,
+			statusColor: STATUS_COLOR[element.status] ?? STATUS_COLOR.unknown,
+		};
+	}
+	if (selectedFeature.kind === "draftElement") {
+		return {
+			kindLabel: selectedFeature.element.type.toUpperCase(),
+			statusLabel: "Provisional",
+			statusColor:
+				TYPE_COLOR[selectedFeature.element.type] ?? TYPE_COLOR.unknown,
+		};
+	}
+	if (
+		selectedFeature.kind === "route" ||
+		selectedFeature.kind === "draftRoute"
+	) {
+		const route =
+			selectedFeature.kind === "route"
+				? selectedFeature.route
+				: selectedFeature.route;
+		return {
+			kindLabel: "Ruta",
+			statusLabel: route.status,
+			statusColor: CABLE_COLOR[route.type] ?? CABLE_COLOR.default,
+		};
+	}
+	const point =
+		selectedFeature.kind === "routePoint"
+			? selectedFeature.point
+			: selectedFeature.point;
+	return {
+		kindLabel: "Punto",
+		statusLabel:
+			selectedFeature.kind === "draftRoutePoint" ? "Provisional" : point.status,
+		statusColor: ROUTE_POINT_COLOR[point.type] ?? TYPE_COLOR.unknown,
+	};
 }
 
 function SelectedFeatureProperties({
@@ -3807,11 +4181,9 @@ function SelectedFeatureProperties({
 	if (selectedFeature.kind === "draftElement") {
 		const draft = selectedFeature.element;
 		const selectedZone = draft.selectedZone ?? "Z05";
-		const zoneOptions =
+		const zoneOptions: Array<[value: string, label: string]> =
 			zones.length > 0
-				? zones.map(
-						(z) => [z.zone_code, `${z.zone_code} — ${z.zone_name}`] as const,
-					)
+				? zones.map((z) => [z.zone_code, `${z.zone_code} — ${z.zone_name}`])
 				: [["Z05", "Z05"]];
 
 		// Calculate next sequence for this type + zone
@@ -3924,20 +4296,24 @@ function SelectedFeatureProperties({
 					value={`${draft.lat.toFixed(5)}, ${draft.lng.toFixed(5)}`}
 				/>
 				<div className="grid grid-cols-2 gap-2 pt-2">
-					<button
+					<Button
 						type="button"
 						onClick={onCancelDraft}
-						className="rounded-md border border-[rgba(164,164,164,0.16)] px-3 py-2 text-xs text-[#a4a4a4] transition-colors hover:bg-white/10"
+						variant="outline"
+						size="sm"
+						className="border-[rgba(164,164,164,0.16)] bg-transparent text-[#a4a4a4]"
 					>
 						Cancelar
-					</button>
-					<button
+					</Button>
+					<Button
 						type="button"
 						onClick={() => onSaveDraft(draft)}
-						className="rounded-md border border-[rgba(56,189,248,0.32)] bg-[rgba(56,189,248,0.14)] px-3 py-2 text-xs font-medium text-[#bdeafe] transition-colors hover:bg-[rgba(56,189,248,0.22)]"
+						size="sm"
+						className="border border-[rgba(56,189,248,0.32)] bg-[rgba(56,189,248,0.14)] text-[#bdeafe] hover:bg-[rgba(56,189,248,0.22)]"
 					>
+						<Save className="size-3.5" aria-hidden="true" />
 						Guardar
-					</button>
+					</Button>
 				</div>
 				<PendingMutationNotice />
 			</div>
@@ -4010,20 +4386,24 @@ function SelectedFeatureProperties({
 					onChange={(fiber_count) => onDraftRouteChange({ fiber_count })}
 				/>
 				<div className="grid grid-cols-2 gap-2 pt-2">
-					<button
+					<Button
 						type="button"
 						onClick={onCancelDraft}
-						className="rounded-md border border-[rgba(164,164,164,0.16)] px-3 py-2 text-xs text-[#a4a4a4] transition-colors hover:bg-white/10"
+						variant="outline"
+						size="sm"
+						className="border-[rgba(164,164,164,0.16)] bg-transparent text-[#a4a4a4]"
 					>
 						Cancelar
-					</button>
-					<button
+					</Button>
+					<Button
 						type="button"
 						onClick={() => onSaveDraftRoute(draft)}
-						className="rounded-md border border-[rgba(56,189,248,0.32)] bg-[rgba(56,189,248,0.14)] px-3 py-2 text-xs font-medium text-[#bdeafe] transition-colors hover:bg-[rgba(56,189,248,0.22)]"
+						size="sm"
+						className="border border-[rgba(56,189,248,0.32)] bg-[rgba(56,189,248,0.14)] text-[#bdeafe] hover:bg-[rgba(56,189,248,0.22)]"
 					>
+						<Route className="size-3.5" aria-hidden="true" />
 						Guardar
-					</button>
+					</Button>
 				</div>
 				<PendingMutationNotice />
 			</div>
@@ -4197,20 +4577,24 @@ function SelectedFeatureProperties({
 					value={`${draft.lat.toFixed(5)}, ${draft.lng.toFixed(5)}`}
 				/>
 				<div className="grid grid-cols-2 gap-2 pt-2">
-					<button
+					<Button
 						type="button"
 						onClick={onCancelDraft}
-						className="rounded-md border border-[rgba(164,164,164,0.16)] px-3 py-2 text-xs text-[#a4a4a4] transition-colors hover:bg-white/10"
+						variant="outline"
+						size="sm"
+						className="border-[rgba(164,164,164,0.16)] bg-transparent text-[#a4a4a4]"
 					>
 						Cancelar
-					</button>
-					<button
+					</Button>
+					<Button
 						type="button"
 						onClick={() => onSaveRoutePointDraft(draft)}
-						className="rounded-md border border-[rgba(56,189,248,0.32)] bg-[rgba(56,189,248,0.14)] px-3 py-2 text-xs font-medium text-[#bdeafe] transition-colors hover:bg-[rgba(56,189,248,0.22)]"
+						size="sm"
+						className="border border-[rgba(56,189,248,0.32)] bg-[rgba(56,189,248,0.14)] text-[#bdeafe] hover:bg-[rgba(56,189,248,0.22)]"
 					>
+						<MapPin className="size-3.5" aria-hidden="true" />
 						Guardar
-					</button>
+					</Button>
 				</div>
 				<PendingMutationNotice />
 			</div>
@@ -4356,26 +4740,23 @@ function ExistingElementPanel({
 							field("total_pon_ports", v as EquipmentMapItem["total_pon_ports"])
 						}
 					/>
-					<DraftSelectField
-						label="Clase óptica"
-						value={(currentValue("optical_class") as string | null) ?? ""}
-						options={[
-							["", "Sin definir"],
-							["B+", "B+ (13-28 dB) — Urbano común"],
-							["C+", "C+ (17-32 dB) — Mayor distancia"],
-							["C++", "C++ (20-35 dB) — Rural exigente"],
-							["N1", "N1 (14-29 dB) — XGS-PON"],
-							["N2", "N2 (16-31 dB) — XGS-PON"],
-							["E1", "E1 (18-33 dB) — XGS-PON alto"],
-							["E2", "E2 (20-35 dB) — XGS-PON máximo"],
-						]}
-						onChange={(v) =>
-							field(
-								"optical_class",
-								(v || null) as EquipmentMapItem["optical_class"],
-							)
-						}
-					/>
+					<div className="rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)] p-3">
+						<OltModelSelector
+							selectedOpticalClass={
+								currentValue("optical_class") as string | null
+							}
+							onSelect={(model) => {
+								field(
+									"optical_class",
+									model.opticalClass as EquipmentMapItem["optical_class"],
+								);
+								field(
+									"total_pon_ports",
+									model.maxPonPorts as EquipmentMapItem["total_pon_ports"],
+								);
+							}}
+						/>
+					</div>
 				</>
 			)}
 			{element.type === "splitter" && (
@@ -4422,16 +4803,18 @@ function ExistingElementPanel({
 				}
 			/>
 			{isDirty && (
-				<button
+				<Button
 					type="button"
 					onClick={() => {
 						onSave(patch);
 						setPatch({});
 					}}
-					className="w-full rounded-md border border-[rgba(245,158,11,0.4)] bg-[rgba(245,158,11,0.14)] px-3 py-2 text-xs font-medium text-[#fbbf24] transition-colors hover:bg-[rgba(245,158,11,0.24)]"
+					size="sm"
+					className="w-full border border-[rgba(245,158,11,0.4)] bg-[rgba(245,158,11,0.14)] text-[#fbbf24] hover:bg-[rgba(245,158,11,0.24)]"
 				>
+					<Save className="size-3.5" aria-hidden="true" />
 					Guardar cambios
-				</button>
+				</Button>
 			)}
 			{isDeleting && <DeleteConfirm onConfirm={onDelete} />}
 		</div>
@@ -4550,16 +4933,18 @@ function ExistingRoutePanel({
 				}
 			/>
 			{isDirty && (
-				<button
+				<Button
 					type="button"
 					onClick={() => {
 						onSave(patch);
 						setPatch({});
 					}}
-					className="w-full rounded-md border border-[rgba(245,158,11,0.4)] bg-[rgba(245,158,11,0.14)] px-3 py-2 text-xs font-medium text-[#fbbf24] transition-colors hover:bg-[rgba(245,158,11,0.24)]"
+					size="sm"
+					className="w-full border border-[rgba(245,158,11,0.4)] bg-[rgba(245,158,11,0.14)] text-[#fbbf24] hover:bg-[rgba(245,158,11,0.24)]"
 				>
+					<Save className="size-3.5" aria-hidden="true" />
 					Guardar cambios
-				</button>
+				</Button>
 			)}
 			{isDeleting && <DeleteConfirm onConfirm={onDelete} />}
 		</div>
@@ -4569,19 +4954,22 @@ function ExistingRoutePanel({
 function DeleteConfirm({ onConfirm }: { onConfirm: () => void }) {
 	return (
 		<div className="rounded-md border border-[rgba(251,77,109,0.28)] bg-[rgba(251,77,109,0.09)] px-3 py-2.5">
-			<p className="text-xs font-semibold text-[#fb7185]">
+			<p className="flex items-center gap-1.5 text-xs font-semibold text-[#fb7185]">
+				<Trash2 className="size-3.5" aria-hidden="true" />
 				Herramienta eliminar activa
 			</p>
 			<p className="mt-1 text-[11px] text-[#f0b2bf]">
 				Esta acción no se puede deshacer. Solo admin puede eliminar.
 			</p>
-			<button
+			<Button
 				type="button"
 				onClick={onConfirm}
-				className="mt-2 w-full rounded-md border border-[rgba(251,77,109,0.45)] bg-[rgba(251,77,109,0.2)] px-3 py-1.5 text-xs font-medium text-[#fb7185] transition-colors hover:bg-[rgba(251,77,109,0.3)]"
+				variant="destructive"
+				size="sm"
+				className="mt-2 w-full border border-[rgba(251,77,109,0.45)] bg-[rgba(251,77,109,0.2)] text-[#fb7185] hover:bg-[rgba(251,77,109,0.3)]"
 			>
 				Confirmar eliminación
-			</button>
+			</Button>
 		</div>
 	);
 }
@@ -4601,16 +4989,19 @@ function DraftTextField({
 	onChange: (value: string) => void;
 	error?: string;
 }) {
+	const inputId = useId();
+
 	return (
-		<label className="block">
+		<label className="block" htmlFor={inputId}>
 			<span className="mb-1 block text-xs text-[#777879]">{label}</span>
-			<input
+			<Input
+				id={inputId}
 				type="text"
 				value={value}
 				onChange={(event) => onChange(event.target.value)}
-				className={`w-full rounded-md border bg-[rgba(27,28,29,0.82)] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors placeholder:text-[#5c5d5f] focus:border-[rgba(56,189,248,0.45)] ${
+				className={`h-9 bg-[rgba(27,28,29,0.82)] text-xs ${
 					error
-						? "border-[rgba(239,68,68,0.4)] focus:border-[rgba(239,68,68,0.6)]"
+						? "border-[rgba(239,68,68,0.4)] focus-visible:border-[rgba(239,68,68,0.6)]"
 						: "border-[rgba(164,164,164,0.16)]"
 				}`}
 			/>
@@ -4634,10 +5025,13 @@ function DraftNumberField({
 	onChange: (value: number | null) => void;
 	error?: string;
 }) {
+	const inputId = useId();
+
 	return (
-		<label className="block">
+		<label className="block" htmlFor={inputId}>
 			<span className="mb-1 block text-xs text-[#777879]">{label}</span>
-			<input
+			<Input
+				id={inputId}
 				type="number"
 				step={step}
 				value={value ?? ""}
@@ -4646,9 +5040,9 @@ function DraftNumberField({
 						event.target.value === "" ? null : Number(event.target.value),
 					)
 				}
-				className={`w-full rounded-md border bg-[rgba(27,28,29,0.82)] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[rgba(56,189,248,0.45)] ${
+				className={`h-9 bg-[rgba(27,28,29,0.82)] text-xs ${
 					error
-						? "border-[rgba(239,68,68,0.4)] focus:border-[rgba(239,68,68,0.6)]"
+						? "border-[rgba(239,68,68,0.4)] focus-visible:border-[rgba(239,68,68,0.6)]"
 						: "border-[rgba(164,164,164,0.16)]"
 				}`}
 			/>

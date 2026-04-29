@@ -14,7 +14,7 @@ export async function signIn(
 		password: formData.get("password") as string,
 	});
 	if (error) return "Email o contraseña incorrectos";
-	redirect("/map");
+	redirect("/dashboard");
 }
 
 export async function signUp(
