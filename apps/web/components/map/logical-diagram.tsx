@@ -595,14 +595,10 @@ interface DiagramPanelProps {
 }
 
 export function DiagramPanel({ isOpen, onToggle }: DiagramPanelProps) {
-	const { elements, routes, routePoints, selection } = useNetworkEditorStore(
-		(s) => ({
-			elements: s.elements,
-			routes: s.routes,
-			routePoints: s.routePoints,
-			selection: s.selection,
-		}),
-	);
+	const elements = useNetworkEditorStore((s) => s.elements);
+	const routes = useNetworkEditorStore((s) => s.routes);
+	const routePoints = useNetworkEditorStore((s) => s.routePoints);
+	const selection = useNetworkEditorStore((s) => s.selection);
 
 	const panelHeight = isOpen ? 224 : 32;
 
