@@ -502,7 +502,59 @@ interface DiagramPanelProps {
 }
 
 export function DiagramPanel({ isOpen, onToggle }: DiagramPanelProps) {
+	const { elements, routes, routePoints, selection } = useNetworkEditorStore(
+		(s) => ({
+			elements: s.elements,
+			routes: s.routes,
+			routePoints: s.routePoints,
+			selection: s.selection,
+		}),
+	);
+
 	const panelHeight = isOpen ? 224 : 32;
+
+	// Calculate global status: worst status among all paths
+	const roots = useMemo(
+		() => buildNetworkTree(elements, routes, routePoints),
+		[elements, routes, routePoints],
+	);
+
+	const allBudgets = useMemo(() => {
+		const budgets: PathBudget[] = [];
+		const oltMap = new Map<string, string | null>();
+
+		for (const root of roots) {
+			oltMap.set(root.element.id, root.element.optical_class ?? null);
+		}
+
+		const traverse = (node: TreeNode, oltClass: string | null) => {
+			budgets.push(calculatePathBudget(node, oltClass));
+			for (const child of node.children) {
+				traverse(child, oltClass);
+			}
+		};
+
+		for (const root of roots) {
+			traverse(root, root.element.optical_class ?? null);
+		}
+
+		return budgets;
+	}, [roots]);
+
+	const worstStatus = useMemo(() => {
+		const statusOrder: Record<OpticalStatus, number> = {
+			red: 0,
+			yellow: 1,
+			green: 2,
+			gray: 3,
+		};
+		if (allBudgets.length === 0) return "gray";
+		return allBudgets.reduce((worst, b) => {
+			return statusOrder[b.status] < statusOrder[worst] ? b.status : worst;
+		}, allBudgets[0].status);
+	}, [allBudgets]);
+
+	const globalColor = OPTICAL_STATUS_COLOR[worstStatus];
 
 	return (
 		<div
@@ -511,9 +563,29 @@ export function DiagramPanel({ isOpen, onToggle }: DiagramPanelProps) {
 		>
 			{/* Header */}
 			<div className="flex h-8 shrink-0 items-center justify-between px-4">
-				<span className="text-xs font-medium text-[#e6e6e6]">
-					Diagrama lógico
-				</span>
+				<div className="flex items-center gap-2">
+					<span className="text-xs font-medium text-[#e6e6e6]">
+						Diagrama lógico
+					</span>
+					{allBudgets.length > 0 && (
+						<>
+							<span className="text-[rgba(164,164,164,0.3)]">•</span>
+							<span
+								className="text-[9px] font-semibold px-2 py-0.5 rounded"
+								style={{
+									backgroundColor: `${globalColor}22`,
+									color: globalColor,
+								}}
+							>
+								{allBudgets.filter((b) => b.status === "red").length > 0
+									? "Riesgo"
+									: allBudgets.filter((b) => b.status === "yellow").length > 0
+										? "Margen ajustado"
+										: "Óptimo"}
+							</span>
+						</>
+					)}
+				</div>
 				<button
 					type="button"
 					onClick={onToggle}
@@ -526,7 +598,10 @@ export function DiagramPanel({ isOpen, onToggle }: DiagramPanelProps) {
 			{/* Content */}
 			{isOpen && (
 				<div className="h-56 overflow-x-auto px-4 pb-4">
-					<LogicalDiagram height={200} />
+					<LogicalDiagram
+						height={200}
+						selectedId={selection?.type === "element" ? selection.id : null}
+					/>
 				</div>
 			)}
 		</div>

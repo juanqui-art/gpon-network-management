@@ -4240,11 +4240,17 @@ function SelectedFeatureProperties({
 					}
 				/>
 				{draft.type === "olt" && (
-					<DraftNumberField
-						label="Puertos PON"
-						value={draft.total_pon_ports}
-						onChange={(total_pon_ports) => onDraftChange({ total_pon_ports })}
-					/>
+					<div className="rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)] p-3">
+						<OltModelSelector
+							selectedOpticalClass={draft.optical_class ?? null}
+							onSelect={(model) => {
+								onDraftChange({
+									optical_class: model.opticalClass,
+									total_pon_ports: model.maxPonPorts,
+								});
+							}}
+						/>
+					</div>
 				)}
 				{draft.type === "splitter" && (
 					<>
