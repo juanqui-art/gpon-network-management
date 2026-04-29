@@ -171,6 +171,7 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 					equipment={getElementsArray()}
 					connections={getRoutesArray()}
 					routePoints={getRoutePointsArray()}
+					validationErrors={validationErrors}
 					onSaveDraftElement={(draft) => {
 						useNetworkEditorStore.getState().addElement({
 							...draft,

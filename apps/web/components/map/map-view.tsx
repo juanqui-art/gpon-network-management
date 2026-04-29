@@ -36,6 +36,7 @@ import type {
 	ActiveDraft,
 	EditorTool,
 	Selection,
+	ValidationError,
 } from "@/lib/store/network-editor";
 import type {
 	ElementStatus,
@@ -66,6 +67,7 @@ interface Props {
 	routePoints?: RoutePoint[];
 	incidents: IncidentMapItem[];
 	zones?: NetworkZone[]; // Available zones for the network
+	validationErrors?: ValidationError[];
 	userRole?: UserRole | null;
 	editorMode?: EditorMode;
 	onEditorModeChange?: (mode: EditorMode) => void;
@@ -1061,6 +1063,7 @@ export function MapView({
 	routePoints = [],
 	incidents,
 	zones = [],
+	validationErrors = [],
 	userRole = null,
 	editorMode,
 	onEditorModeChange,
@@ -2795,6 +2798,7 @@ export function MapView({
 						: null
 				}
 				mode={mode}
+				validationErrors={validationErrors}
 				onClose={() => setSelected(null)}
 				onCancelDraft={clearDraft}
 				onDraftChange={(patch) => {
@@ -3608,6 +3612,7 @@ function PropertiesPanel({
 	selectedFeature,
 	incident,
 	mode,
+	validationErrors,
 	isDeleting,
 	onClose,
 	onCancelDraft,
@@ -3626,6 +3631,7 @@ function PropertiesPanel({
 	selectedFeature: AnySelectedFeature | null;
 	incident: IncidentMapItem | null;
 	mode: EditorMode;
+	validationErrors: ValidationError[];
 	isDeleting: boolean;
 	onClose: () => void;
 	onCancelDraft: () => void;
@@ -3706,6 +3712,7 @@ function PropertiesPanel({
 						selectedFeature={selectedFeature}
 						incident={incident}
 						mode={mode}
+						validationErrors={validationErrors}
 						isDeleting={isDeleting}
 						onCancelDraft={onCancelDraft}
 						onDraftChange={onDraftChange}
@@ -3747,6 +3754,7 @@ function SelectedFeatureProperties({
 	selectedFeature,
 	incident,
 	mode,
+	validationErrors,
 	isDeleting,
 	onCancelDraft,
 	onDraftChange,
@@ -3764,6 +3772,7 @@ function SelectedFeatureProperties({
 	selectedFeature: AnySelectedFeature;
 	incident: IncidentMapItem | null;
 	mode: EditorMode;
+	validationErrors: ValidationError[];
 	isDeleting: boolean;
 	onCancelDraft: () => void;
 	onDraftChange: (patch: DraftElementPatch) => void;
@@ -3784,6 +3793,16 @@ function SelectedFeatureProperties({
 	zones: NetworkZone[];
 	equipment: EquipmentMapItem[];
 }) {
+	// Helper: find validation error for a specific field
+	const getFieldError = (
+		elementId: string,
+		fieldName: string,
+	): string | undefined => {
+		return validationErrors.find(
+			(e) => e.id === elementId && e.field === fieldName,
+		)?.message;
+	};
+
 	if (selectedFeature.kind === "draftElement") {
 		const draft = selectedFeature.element;
 		const selectedZone = draft.selectedZone ?? "Z05";
@@ -3828,6 +3847,7 @@ function SelectedFeatureProperties({
 				<DraftTextField
 					label="Nombre"
 					value={draft.name ?? ""}
+					error={getFieldError(draft.id, "name")}
 					onChange={(name) => onDraftChange({ name: name || null })}
 				/>
 				<DraftSelectField
@@ -3858,6 +3878,7 @@ function SelectedFeatureProperties({
 						<DraftSelectField
 							label="Ratio"
 							value={draft.split_ratio ?? "1:8"}
+							error={getFieldError(draft.id, "split_ratio")}
 							options={[
 								["1:2", "1:2"],
 								["1:4", "1:4"],
@@ -3886,6 +3907,7 @@ function SelectedFeatureProperties({
 					<DraftNumberField
 						label="Puertos"
 						value={draft.total_ports}
+						error={getFieldError(draft.id, "capacity")}
 						onChange={(total_ports) => onDraftChange({ total_ports })}
 					/>
 				)}
@@ -4571,10 +4593,12 @@ function DraftTextField({
 	label,
 	value,
 	onChange,
+	error,
 }: {
 	label: string;
 	value: string;
 	onChange: (value: string) => void;
+	error?: string;
 }) {
 	return (
 		<label className="block">
@@ -4583,8 +4607,15 @@ function DraftTextField({
 				type="text"
 				value={value}
 				onChange={(event) => onChange(event.target.value)}
-				className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(27,28,29,0.82)] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors placeholder:text-[#5c5d5f] focus:border-[rgba(56,189,248,0.45)]"
+				className={`w-full rounded-md border bg-[rgba(27,28,29,0.82)] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors placeholder:text-[#5c5d5f] focus:border-[rgba(56,189,248,0.45)] ${
+					error
+						? "border-[rgba(239,68,68,0.4)] focus:border-[rgba(239,68,68,0.6)]"
+						: "border-[rgba(164,164,164,0.16)]"
+				}`}
 			/>
+			{error && (
+				<span className="mt-1 block text-[10px] text-[#ef4444]">{error}</span>
+			)}
 		</label>
 	);
 }
@@ -4594,11 +4625,13 @@ function DraftNumberField({
 	value,
 	step = "1",
 	onChange,
+	error,
 }: {
 	label: string;
 	value: number | null;
 	step?: string;
 	onChange: (value: number | null) => void;
+	error?: string;
 }) {
 	return (
 		<label className="block">
@@ -4612,8 +4645,15 @@ function DraftNumberField({
 						event.target.value === "" ? null : Number(event.target.value),
 					)
 				}
-				className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(27,28,29,0.82)] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[rgba(56,189,248,0.45)]"
+				className={`w-full rounded-md border bg-[rgba(27,28,29,0.82)] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[rgba(56,189,248,0.45)] ${
+					error
+						? "border-[rgba(239,68,68,0.4)] focus:border-[rgba(239,68,68,0.6)]"
+						: "border-[rgba(164,164,164,0.16)]"
+				}`}
 			/>
+			{error && (
+				<span className="mt-1 block text-[10px] text-[#ef4444]">{error}</span>
+			)}
 		</label>
 	);
 }
@@ -4623,11 +4663,13 @@ function DraftSelectField({
 	value,
 	options,
 	onChange,
+	error,
 }: {
 	label: string;
 	value: string;
 	options: Array<[value: string, label: string]>;
 	onChange: (value: string) => void;
+	error?: string;
 }) {
 	return (
 		<label className="block">
@@ -4635,7 +4677,11 @@ function DraftSelectField({
 			<select
 				value={value}
 				onChange={(event) => onChange(event.target.value)}
-				className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(27,28,29,0.82)] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[rgba(56,189,248,0.45)]"
+				className={`w-full rounded-md border bg-[rgba(27,28,29,0.82)] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[rgba(56,189,248,0.45)] ${
+					error
+						? "border-[rgba(239,68,68,0.4)] focus:border-[rgba(239,68,68,0.6)]"
+						: "border-[rgba(164,164,164,0.16)]"
+				}`}
 			>
 				{options.map(([optionValue, optionLabel]) => (
 					<option key={optionValue} value={optionValue}>
@@ -4643,6 +4689,9 @@ function DraftSelectField({
 					</option>
 				))}
 			</select>
+			{error && (
+				<span className="mt-1 block text-[10px] text-[#ef4444]">{error}</span>
+			)}
 		</label>
 	);
 }
