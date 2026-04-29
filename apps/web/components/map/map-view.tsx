@@ -503,7 +503,7 @@ type EditorTool =
 	| "delete";
 
 type EditorMode = "view" | "design" | "edit";
-type LeftPanelTab = "layers" | "elements" | "quality";
+type LeftPanelTab = "layers" | "elements" | "tree" | "quality";
 type SelectedFeature =
 	| { kind: "element"; element: EquipmentMapItem }
 	| { kind: "route"; route: ConnectionMapItem }
@@ -2536,10 +2536,12 @@ export function MapView({
 				onTabChange={setLeftTab}
 				mode={mode}
 				equipment={visibleEquipment}
+				allEquipment={equipment}
 				totalEquipment={equipment.length}
 				connections={connections}
 				routePointCount={routePointCount}
 				incidents={incidents}
+				mapWarnings={mapWarnings}
 				filterType={filterType}
 				filterStatus={filterStatus}
 				onTypeChange={setFilterType}
@@ -2950,10 +2952,12 @@ function InfrastructurePanel({
 	onTabChange,
 	mode,
 	equipment,
+	allEquipment,
 	totalEquipment,
 	connections,
 	routePointCount,
 	incidents,
+	mapWarnings,
 	filterType,
 	filterStatus,
 	onTypeChange,
@@ -2964,10 +2968,12 @@ function InfrastructurePanel({
 	onTabChange: (tab: LeftPanelTab) => void;
 	mode: EditorMode;
 	equipment: EquipmentMapItem[];
+	allEquipment: EquipmentMapItem[];
 	totalEquipment: number;
 	connections: ConnectionMapItem[];
 	routePointCount: number;
 	incidents: IncidentMapItem[];
+	mapWarnings: string[];
 	filterType: string;
 	filterStatus: string;
 	onTypeChange: (v: string) => void;
@@ -2975,10 +2981,6 @@ function InfrastructurePanel({
 	onSelectEquipment: (eq: EquipmentMapItem) => void;
 }) {
 	const [search, setSearch] = useState("");
-	const counts = equipment.reduce<Record<string, number>>((acc, eq) => {
-		acc[eq.type] = (acc[eq.type] ?? 0) + 1;
-		return acc;
-	}, {});
 	const q = search.trim().toLowerCase();
 	const filteredElements = q
 		? equipment.filter(
@@ -2987,63 +2989,58 @@ function InfrastructurePanel({
 					eq.code.toLowerCase().includes(q),
 			)
 		: equipment;
-	const warnings = [
-		...equipment
-			.filter(
-				(eq) =>
-					(eq.type === "olt" && eq.total_pon_ports == null) ||
-					(eq.type === "splitter" && !eq.split_ratio) ||
-					(eq.type === "nap" && eq.total_ports == null),
-			)
-			.slice(0, 4)
-			.map((eq) => `${eq.name}: dato tecnico pendiente`),
-		...connections
-			.filter((connection) => connection.length_meters == null)
-			.slice(0, 2)
-			.map(() => "Ruta sin longitud registrada"),
-	];
+
+	// Network stats for header
+	const olts = allEquipment.filter(e => e.type === "olt").length;
+	const splitters = allEquipment.filter(e => e.type === "splitter").length;
+	const naps = allEquipment.filter(e => e.type === "nap").length;
+	const totalKm = connections.reduce((sum, c) => sum + (c.length_meters ?? 0), 0) / 1000;
+	const saturatedNaps = allEquipment.filter(
+		e => e.type === "nap" && e.total_ports && (e.ports_used ?? 0) >= e.total_ports
+	).length;
 
 	return (
 		<div
 			className={`absolute left-4 top-4 z-20 flex max-h-[calc(100%-5rem)] flex-col overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md ${mode !== "view" ? "w-80" : "w-72"}`}
 		>
 			<div className="border-b border-[rgba(164,164,164,0.12)] px-3 py-2.5">
-				<div className="flex items-start justify-between gap-3">
-					<div>
-						<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-							Infraestructura
-						</p>
-						<p className="mt-1 text-sm font-semibold text-[#e6e6e6]">
-							{totalEquipment} elementos
-						</p>
-					</div>
-					<div className="rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(164,164,164,0.07)] px-2 py-1 text-right">
-						<p className="font-mono text-xs text-[#e6e6e6]">
-							{connections.length}
-						</p>
-						<p className="text-[10px] text-[#777879]">rutas</p>
-					</div>
+				{/* Network stats header */}
+				<div className="grid grid-cols-4 gap-1.5 mb-2.5">
+					<StatChip label="OLT" value={olts} color={TYPE_COLOR.olt} />
+					<StatChip label="SPL" value={splitters} color={TYPE_COLOR.splitter} />
+					<StatChip label="NAP" value={naps} color={TYPE_COLOR.nap} />
+					<StatChip label="km" value={totalKm.toFixed(1)} color="#a4a4a4" />
 				</div>
+				{saturatedNaps > 0 && (
+					<p className="mb-2 rounded-md border border-[rgba(251,77,109,0.28)] bg-[rgba(251,77,109,0.08)] px-2 py-1 text-[10px] text-[#fb7185]">
+						⚠ {saturatedNaps} NAP{saturatedNaps > 1 ? "s" : ""} saturada{saturatedNaps > 1 ? "s" : ""}
+					</p>
+				)}
 
-				<div className="mt-3 flex rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)] p-0.5">
-					{[
+				<div className="flex rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)] p-0.5">
+					{([
 						["layers", "Capas"],
-						["elements", "Elementos"],
-						["quality", "Calidad"],
-					].map(([value, label]) => (
+						["elements", "Lista"],
+						["tree", "Árbol"],
+						["quality", "Alertas"],
+					] as const).map(([value, label]) => (
 						<button
 							key={value}
 							type="button"
 							aria-pressed={tab === value}
-							onClick={() => onTabChange(value as LeftPanelTab)}
-							className="flex-1 rounded px-2 py-1 text-[11px] font-medium transition-colors"
+							onClick={() => onTabChange(value)}
+							className="flex-1 rounded px-1.5 py-1 text-[10px] font-medium transition-colors"
 							style={{
-								background:
-									tab === value ? "rgba(164,164,164,0.16)" : "transparent",
+								background: tab === value ? "rgba(164,164,164,0.16)" : "transparent",
 								color: tab === value ? "#e6e6e6" : "#858585",
 							}}
 						>
 							{label}
+							{value === "quality" && mapWarnings.length > 0 && (
+								<span className="ml-1 rounded-full bg-[#f59e0b] px-1 text-[9px] font-bold text-[#1b1c1d]">
+									{mapWarnings.length}
+								</span>
+							)}
 						</button>
 					))}
 				</div>
@@ -3149,34 +3146,142 @@ function InfrastructurePanel({
 				</div>
 			)}
 
-			{tab === "quality" && (
-				<div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-					<div className="mb-3 flex items-center justify-between">
-						<p className="text-xs font-semibold uppercase tracking-widest text-[#777879]">
-							Advertencias
+			{tab === "tree" && (
+				<div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 space-y-2">
+					<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879] mb-2">
+						Topología OLT → Splitter → NAP
+					</p>
+					{allEquipment.filter(e => e.type === "olt").length === 0 ? (
+						<p className="text-[11px] text-[#5c5d5f] text-center py-4">
+							Sin elementos en la red
 						</p>
-						<p className="text-[11px] text-[#777879]">
-							{incidents.length} incidentes
-						</p>
-					</div>
-					{warnings.length > 0 ? (
-						<div className="space-y-1.5">
-							{warnings.slice(0, 3).map((warning) => (
-								<p
-									key={warning}
-									className="rounded-md border border-[rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.09)] px-2 py-1.5 text-[11px] leading-snug text-[#f6c768]"
+					) : allEquipment.filter(e => e.type === "olt").map(olt => {
+						const feederRoutes = connections.filter(c => c.from_element_id === olt.id || c.to_element_id === olt.id);
+						const connectedSplitters = allEquipment.filter(e =>
+							e.type === "splitter" &&
+							feederRoutes.some(r => r.from_element_id === e.id || r.to_element_id === e.id)
+						);
+						return (
+							<div key={olt.id} className="rounded-md border border-[rgba(56,189,248,0.2)] bg-[rgba(56,189,248,0.05)] p-2">
+								<button
+									type="button"
+									onClick={() => onSelectEquipment(olt)}
+									className="flex w-full items-center gap-2 text-left hover:opacity-80"
 								>
-									{warning}
-								</p>
-							))}
+									<span className="h-2.5 w-2.5 rounded-full bg-[#38bdf8] shrink-0" />
+									<span className="text-xs font-semibold text-[#e6e6e6] truncate">{olt.name ?? olt.code}</span>
+									{olt.total_pon_ports && <span className="ml-auto text-[10px] text-[#777879] shrink-0">{olt.total_pon_ports}P</span>}
+								</button>
+								{connectedSplitters.map(spl => {
+									const distRoutes = connections.filter(c => c.from_element_id === spl.id || c.to_element_id === spl.id);
+									const connectedNaps = allEquipment.filter(e =>
+										e.type === "nap" &&
+										distRoutes.some(r => r.from_element_id === e.id || r.to_element_id === e.id)
+									);
+									return (
+										<div key={spl.id} className="ml-3 mt-1.5 border-l border-[rgba(167,139,250,0.3)] pl-2.5">
+											<button
+												type="button"
+												onClick={() => onSelectEquipment(spl)}
+												className="flex w-full items-center gap-2 text-left hover:opacity-80"
+											>
+												<span className="h-2 w-2 rounded-full bg-[#a78bfa] shrink-0" />
+												<span className="text-[11px] text-[#d7d7d7] truncate">{spl.name ?? spl.code}</span>
+												{spl.split_ratio && <span className="ml-auto text-[10px] text-[#777879] shrink-0">{spl.split_ratio}</span>}
+											</button>
+											{connectedNaps.map(nap => {
+												const pct = nap.total_ports ? (nap.ports_used ?? 0) / nap.total_ports : 0;
+												const napColor = pct >= 0.9 ? "#fb4d6d" : pct >= 0.7 ? "#f59e0b" : "#34d399";
+												return (
+													<div key={nap.id} className="ml-3 mt-1 border-l border-[rgba(245,158,11,0.2)] pl-2.5">
+														<button
+															type="button"
+															onClick={() => onSelectEquipment(nap)}
+															className="flex w-full items-center gap-1.5 text-left hover:opacity-80"
+														>
+															<span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: napColor }} />
+															<span className="text-[10px] text-[#a4a4a4] truncate">{nap.name ?? nap.code}</span>
+															{nap.total_ports && (
+																<span className="ml-auto text-[9px] shrink-0" style={{ color: napColor }}>
+																	{nap.ports_used ?? 0}/{nap.total_ports}
+																</span>
+															)}
+														</button>
+													</div>
+												);
+											})}
+											{connectedNaps.length === 0 && (
+												<p className="ml-3 text-[10px] text-[#5c5d5f] mt-0.5">Sin NAPs conectadas</p>
+											)}
+										</div>
+									);
+								})}
+								{connectedSplitters.length === 0 && (
+									<p className="ml-3 mt-1 text-[10px] text-[#5c5d5f]">Sin splitters conectados</p>
+								)}
+							</div>
+						);
+					})}
+				</div>
+			)}
+
+			{tab === "quality" && (
+				<div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 space-y-1.5">
+					<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879] mb-2">
+						Alertas de red — {mapWarnings.length} activas
+					</p>
+					{mapWarnings.length === 0 ? (
+						<div className="rounded-md border border-[rgba(52,211,153,0.2)] bg-[rgba(52,211,153,0.08)] px-3 py-2.5">
+							<p className="text-[11px] font-semibold text-[#34d399]">✓ Red sin alertas</p>
+							<p className="mt-0.5 text-[10px] text-[#9ee8c9]">
+								Todos los elementos tienen datos técnicos válidos.
+							</p>
 						</div>
 					) : (
-						<p className="rounded-md border border-[rgba(52,211,153,0.2)] bg-[rgba(52,211,153,0.08)] px-2 py-1.5 text-[11px] text-[#9ee8c9]">
-							Sin advertencias basicas en la vista actual.
-						</p>
+						mapWarnings.map((w) => (
+							<div
+								key={w}
+								className="flex items-start gap-2 rounded-md border border-[rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.08)] px-2.5 py-2"
+							>
+								<span className="shrink-0 text-[#f59e0b]">⚠</span>
+								<p className="text-[11px] text-[#f6c768] leading-snug">{w}</p>
+							</div>
+						))
+					)}
+					{incidents.length > 0 && (
+						<>
+							<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879] mt-3 mb-1">
+								Incidentes activos — {incidents.length}
+							</p>
+							{incidents.map(inc => (
+								<div
+									key={inc.id}
+									className="rounded-md border border-[rgba(251,77,109,0.22)] bg-[rgba(251,77,109,0.08)] px-2.5 py-1.5"
+								>
+									<p className="text-[11px] text-[#fb7185]">{inc.title}</p>
+								</div>
+							))}
+						</>
 					)}
 				</div>
 			)}
+		</div>
+	);
+}
+
+function StatChip({
+	label,
+	value,
+	color,
+}: {
+	label: string;
+	value: number | string;
+	color: string;
+}) {
+	return (
+		<div className="rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)] px-2 py-1.5 text-center">
+			<p className="font-mono text-xs font-bold" style={{ color }}>{value}</p>
+			<p className="text-[9px] font-semibold uppercase text-[#777879]">{label}</p>
 		</div>
 	);
 }
