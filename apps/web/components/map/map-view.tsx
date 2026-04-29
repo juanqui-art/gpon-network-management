@@ -1256,12 +1256,13 @@ export function MapView({
 		drawingSource?.setData(buildDrawingGeoJSON([]));
 		setSelectedFeature((current) => {
 			if (current?.kind === "draftElement" || current?.kind === "draftRoute") {
-				onEditorSelectionChange?.(null);
-				onEditorDraftChange?.(null);
 				return null;
 			}
 			return current;
 		});
+		// Notify parent AFTER state update (avoid setState-during-render)
+		onEditorSelectionChange?.(null);
+		onEditorDraftChange?.(null);
 	}, [onEditorDraftChange, onEditorSelectionChange]);
 	const createElementDraftAt = useCallback(
 		(type: "olt" | "splitter" | "nap", lngLat: mapboxgl.LngLat) => {
