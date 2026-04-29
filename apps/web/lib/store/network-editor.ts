@@ -416,7 +416,7 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 			},
 
 			save: async () => {
-				const { elements, routes, networkId, validate } = get();
+				const { elements, routes, routePoints, networkId, validate } = get();
 				if (!networkId) return;
 
 				const errors = validate();
@@ -431,7 +431,6 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 					// Upsert elements
 					for (const el of Object.values(elements)) {
 						await supabase.rpc("create_infrastructure_element_draft", {
-							p_network_id: networkId,
 							p_type: el.type,
 							p_code: el.code,
 							p_name: el.name,
@@ -449,23 +448,50 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 					// Upsert routes
 					for (const r of Object.values(routes)) {
 						await supabase.rpc("create_fiber_route_draft", {
-							p_network_id: networkId,
 							p_code: r.code,
 							p_type: r.type,
+							p_status: r.status,
 							p_from_element_id: r.from_element_id,
 							p_to_element_id: r.to_element_id,
 							p_geojson_coordinates: r.geojson_coordinates as unknown,
+							p_route_quality: r.route_quality,
+							p_installation_type: r.installation_type,
 							p_fiber_type: r.fiber_type,
 							p_fiber_count: r.fiber_count,
 							p_length_meters: r.length_meters,
+							p_attenuation_db_per_km: r.attenuation_db_per_km,
+							p_splice_loss_db: r.splice_loss_db,
+							p_connector_loss_db: r.connector_loss_db,
 							p_notes: r.notes,
+						});
+					}
+
+					// Save route points
+					const { createRoutePoint } = await import(
+						"@/lib/queries/network-editor"
+					);
+					for (const rp of Object.values(routePoints)) {
+						await createRoutePoint({
+							fiber_route_id: rp.fiber_route_id,
+							type: rp.type,
+							lng: rp.lng,
+							lat: rp.lat,
+							code: rp.code,
+							location_quality: rp.location_quality,
+							crossing_type: rp.crossing_type,
+							risk_level: rp.risk_level,
+							reserve_length_m: rp.reserve_length_m,
+							splice_loss_db: rp.splice_loss_db,
+							reference_text: rp.reference_text,
+							notes: rp.notes,
 						});
 					}
 
 					set({ isDirty: false, isSaving: false });
 					useNetworkEditorStore.temporal.getState().clear();
-				} catch {
+				} catch (error) {
 					set({ isSaving: false });
+					console.error("Save failed:", error);
 				}
 			},
 
