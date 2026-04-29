@@ -2808,6 +2808,7 @@ export function MapView({
 				onSaveElement={saveExistingElement}
 				onSaveRoute={saveExistingRoute}
 				zones={zones}
+				equipment={equipment}
 			/>
 
 			{mode === "view" && <Legend />}
@@ -3596,6 +3597,7 @@ function PropertiesPanel({
 	onSaveElement,
 	onSaveRoute,
 	zones,
+	equipment,
 }: {
 	selectedFeature: AnySelectedFeature | null;
 	incident: IncidentMapItem | null;
@@ -3619,6 +3621,7 @@ function PropertiesPanel({
 		patch: Partial<ConnectionMapItem>,
 	) => void | Promise<void>;
 	zones: NetworkZone[];
+	equipment: EquipmentMapItem[];
 }) {
 	const title =
 		selectedFeature?.kind === "draftElement"
@@ -3691,6 +3694,7 @@ function PropertiesPanel({
 						onSaveElement={onSaveElement}
 						onSaveRoute={onSaveRoute}
 						zones={zones}
+						equipment={equipment}
 					/>
 				) : (
 					<div className="space-y-3 text-xs text-[#a4a4a4]">
@@ -3753,6 +3757,7 @@ function SelectedFeatureProperties({
 		patch: Partial<ConnectionMapItem>,
 	) => void | Promise<void>;
 	zones: NetworkZone[];
+	equipment: EquipmentMapItem[];
 }) {
 	if (selectedFeature.kind === "draftElement") {
 		const draft = selectedFeature.element;
