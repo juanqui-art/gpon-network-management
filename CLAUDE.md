@@ -5,6 +5,10 @@
 - **React 19.2.4**
 - **Supabase** — Auth + PostgreSQL + PostGIS + Realtime (`ybijrwyenlfemjjueopo`)
 - **Mapbox GL JS v3.22** — mapa interactivo
+- **@mapbox/mapbox-gl-draw** — herramienta de dibujo de rutas en el mapa
+- **Zustand v5 + Zundo v2** — state management del editor con undo/redo (50 steps)
+- **Turf.js** — cálculos geoespaciales (distance, length, nearest-point)
+- **@tanstack/react-query v5** — data fetching (provider instalado, pendiente uso)
 - **Tailwind CSS v4** + **shadcn/ui** (pendiente instalar)
 - **Biome 2.4** — linting y formatting (no ESLint, no Prettier)
 - **pnpm** — gestor de paquetes
@@ -24,50 +28,86 @@ pnpm check:fix    # lint + format auto-fix
 pnpm build        # build de producción
 ```
 
-## Estructura actual (lo que existe)
+## Rutas de la aplicación
+```
+/                   → redirige a /networks
+/login              → auth
+/register           → auth
+/networks           → lista de redes + crear nueva
+/networks/[id]      → editor de red (NetworkEditorShell + MapView)
+/map                → editor legacy (acceso directo al MapView con seed dev)
+```
+
+## Estructura actual
 ```
 apps/web/
 ├── app/
 │   ├── globals.css
-│   ├── layout.tsx                    # Root layout
-│   ├── page.tsx                      # Redirige a /map
+│   ├── layout.tsx
+│   ├── page.tsx                          # Redirige a /networks
 │   ├── (auth)/
-│   │   ├── layout.tsx                # Contenedor centrado dark
-│   │   ├── login/page.tsx            # Login email/password
-│   │   └── register/page.tsx         # Registro (rol inicial: a definir)
+│   │   ├── login/page.tsx
+│   │   └── register/page.tsx
 │   ├── (dashboard)/
-│   │   ├── layout.tsx                # Header con botón salir
-│   │   └── map/page.tsx              # Server component — carga datos vía RPCs
-│   └── actions/auth.ts               # signIn, signUp, signOut (server actions)
-├── components/map/
-│   ├── map-view.tsx                  # Visor + editor Mapbox (3000+ líneas)
-│   ├── equipment-panel.tsx           # Panel detalle equipo (ONT enriquecido)
-│   └── types.ts                      # Tipos de mapa (EquipmentMapItem, etc.)
+│   │   ├── layout.tsx                    # Header nav (Redes, Salir)
+│   │   ├── map/page.tsx                  # Editor legacy (seed dev)
+│   │   └── networks/
+│   │       ├── page.tsx                  # Lista redes (server, llama list_networks RPC)
+│   │       ├── networks-client.tsx       # UI crear/listar redes
+│   │       └── [id]/
+│   │           ├── page.tsx              # Editor de red (server)
+│   │           └── network-editor-shell.tsx  # Shell con Zustand store + MapView
+│   └── actions/auth.ts
+├── components/
+│   ├── map/
+│   │   ├── map-view.tsx                  # Editor Mapbox (~4500 líneas)
+│   │   ├── data-quality-badge.tsx        # Badge de calidad de datos
+│   │   ├── nap-capacity.tsx              # Barra de capacidad NAP
+│   │   ├── optical-budget-panel.tsx      # Calculadora óptica con semáforo
+│   │   ├── equipment-panel.tsx           # Panel detalle equipo (ONT enriquecido)
+│   │   └── types.ts                      # Tipos de mapa
+│   └── topology/
+│       └── topology-picker.tsx           # Selector de topología (Star/Tree/Cascade)
 ├── lib/
-│   ├── env.ts                        # requireEnv() — falla rápido si falta variable
-│   ├── types/gpon.ts                 # Tipos TS del MVP (3 tablas + ENUMs + helpers)
-│   ├── map/palette.ts                # Colores del mapa (TYPE_COLOR, STATUS_COLOR…)
-│   ├── supabase/client.ts            # Cliente browser
-│   ├── supabase/server.ts            # Cliente server (async cookies)
-│   └── mapbox/config.ts              # Token + centro mapa (Quito)
-├── proxy.ts                          # Auth guard (Next.js 16)
+│   ├── env.ts
+│   ├── types/
+│   │   ├── gpon.ts                       # Tipos TS MVP (tablas + ENUMs + helpers)
+│   │   └── network.ts                    # Tipos Network, NetworkSummary, topologías
+│   ├── map/palette.ts                    # Colores (TYPE_COLOR, STATUS_COLOR, DATA_QUALITY_COLOR…)
+│   ├── gpon/
+│   │   ├── optical-budget.ts             # Calculadora presupuesto óptico GPON/XGS-PON
+│   │   ├── operative-code.ts             # Generador códigos operativos (PIC-UIO-Z05-NAP-128)
+│   │   └── topology-templates.ts         # Generador topologías pre-configuradas
+│   ├── store/
+│   │   └── network-editor.ts             # Zustand store con undo/redo para el editor
+│   ├── providers/
+│   │   └── query-provider.tsx            # React Query provider
+│   ├── supabase/client.ts
+│   ├── supabase/server.ts
+│   └── mapbox/config.ts
+├── proxy.ts
 ├── biome.json
 └── package.json
 
-database/migrations/                  # ✅ 001-006 APLICADAS en Supabase
-├── 001_initial_schema.sql            # 3 tablas + 13 ENUMs + indices + trigger
-├── 002_rls_policies.sql              # RLS para 5 roles + get_user_role()
-├── 003_seed_dev.sql                  # Red mínima Quito (8 elementos, 7 rutas, 3 puntos)
-├── 004_map_rpcs.sql                  # RPCs lectura: *_for_map()
-├── 005_editor_mutations.sql          # RPCs escritura: create_infrastructure_element_draft, create_fiber_route_draft
-└── 006_route_point_and_delete_rpcs.sql # create_route_point_draft + delete_*
+database/migrations/                      # ✅ 001-008 APLICADAS en Supabase
+├── 001_initial_schema.sql                # 3 tablas + 13 ENUMs + indices + trigger
+├── 002_rls_policies.sql                  # RLS para 5 roles + get_user_role()
+├── 003_seed_dev.sql                      # Red mínima Quito (8 elementos, 7 rutas, 3 puntos)
+├── 004_map_rpcs.sql                      # RPCs lectura: *_for_map() (con/sin p_network_id)
+├── 005_editor_mutations.sql              # create_infrastructure_element_draft, create_fiber_route_draft
+├── 006_route_point_and_delete_rpcs.sql   # create_route_point_draft + delete_*
+├── 007_fix_role_app_metadata.sql         # Rol en app_metadata
+└── 008_update_rpcs.sql                   # update_infrastructure_element + update_fiber_route
 
 docs/
-├── MVP_SCOPE.md                  # Alcance autoritativo del MVP
-├── INFRASTRUCTURE_EDITOR_PLAN.md # Vision de producto
-├── OPERATIONAL_ROLES.md          # Definicion de los 5 roles
-├── EDITOR_UI_UX_SPEC.md          # Spec de UI/UX por modo
-├── GPON_SYMBOLOGY.md             # Iconografia tecnica
+├── MVP_SCOPE.md
+├── INFRASTRUCTURE_EDITOR_PLAN.md
+├── OPERATIONAL_ROLES.md
+├── EDITOR_UI_UX_SPEC.md
+├── GPON_SYMBOLOGY.md
+├── TOPOLOGIES.md                         # Guía topologías Star/Tree/Cascade Ecuador
+├── NAP_CAPACITY.md                       # Gestión de capacidad NAP
+├── GPON_FTTH_ECUADOR_RESEARCH.md         # Investigación técnica consolidada
 └── adr/
     ├── 0001-single-tenant-mvp.md
     ├── 0002-no-port-tracking.md
@@ -75,41 +115,70 @@ docs/
 ```
 
 ## Estado del editor (map-view.tsx)
-- ✅ Visor modo `view`: markers SVG, rutas coloreadas, route points, leyenda, filtros
-- ✅ Editor modo `edit`: toolbar 11 herramientas (V/H/O/S/N/F/C/R/E/M + Del), shortcuts
-- ✅ Crear OLT/splitter/NAP por click → draft → guardar vía RPC
-- ✅ Dibujar fibra (feeder/distribution) origen→vértices→destino → guardar vía RPC
-- ✅ Marcar cruce/reserva/empalme sobre ruta seleccionada → guardar vía RPC
-- ✅ Panel de propiedades: lectura de elementos/rutas/route points; edición de drafts
-- ❌ Editar elementos/rutas existentes (faltan RPCs update_* y UI de edición)
-- ❌ Herramienta delete (RPC existe, falta conectar handler)
-- ❌ Herramienta measure (sin implementar)
-- ⚠️ map-view.tsx tiene 3100+ líneas — candidato a partir en subcomponentes
 
-## Pendiente de construir
-- Conectar herramienta delete (RPCs delete_* ya existen en migración 006)
-- RPCs update_infrastructure_element / update_fiber_route + UI de edición
-- Herramienta measure
-- Registro: definir rol inicial y flujo de asignación
-- Instalar shadcn/ui (cuando haya pantallas de admin/inventario)
+### Modos implementados
+- ✅ **Modo `view`**: markers SVG con ring de calidad, rutas coloreadas, route points, leyenda, filtros por tipo/estado
+- ✅ **Modo `design`**: crear OLT/Splitter/NAP por click → draft → guardar. Dibujar fibra con vértices y snap automático. Marcar cruce/reserva/empalme
+- ✅ **Modo `edit`**: seleccionar elementos/rutas → editar propiedades inline → guardar vía update RPC. Drag de marcadores para mover ubicación. Eliminar con confirmación
+
+### Panel izquierdo (4 tabs)
+- ✅ **Capas**: filtros tipo/estado + layer toggles + stats (OLT/SPL/NAP/km)
+- ✅ **Lista**: búsqueda de elementos por nombre o código
+- ✅ **Árbol**: jerarquía OLT → Splitter → NAP con capacidad visual en tiempo real
+- ✅ **Alertas**: advertencias en tiempo real (splitter sin ratio, NAP saturada, ruta sin endpoints)
+
+### Features transversales
+- ✅ Calidad de datos: ring punteado en mapa + badge en panel (unknown/approximate/drawn/gps_captured/verified)
+- ✅ Capacidad NAP: barra usada/reservada/disponible + advertencias (70%/90% umbral)
+- ✅ Calculadora óptica: semáforo por ruta (verde/ámbar/rojo/gris) basado en pérdida por fibra + splitter + conectores
+- ✅ Códigos operativos: patrón PIC-UIO-DRF-{TIPO}-{SEQ} para drafts
+- ✅ Undo/redo: Zundo con 50 steps para elementos/rutas/puntos
+- ✅ Templates de topología: Star (1:16), Tree (1:32), Cascade (1:64), Blank
+
+### Pendiente en el editor
+- ❌ **Herramienta `measure`**: medir distancia sobre el mapa (Turf.js ya instalado)
+- ❌ **Clase óptica del OLT**: campo editable; sin él el semáforo queda en gris
+- ❌ **Reserva de fibra** (`reservation_m`): requiere migración DB + campo en panel de rutas
+- ⚠️ **map-view.tsx tiene ~4500 líneas** — candidato urgente a partir en subcomponentes
+
+## Pendiente de construir (priorizado)
+
+### Alta prioridad
+1. Clase óptica del OLT (campo en panel + uso en calculadora óptica)
+2. Herramienta measure (Turf.js `@turf/length` ya instalado)
+3. Reserva de fibra — campo `reservation_m` en rutas
+4. Partir map-view.tsx en subcomponentes
+
+### Media prioridad
+5. Zona operativa configurable en el código (Z05 hardcoded → seleccionable)
+6. Historial de cambios (quién modificó qué y cuándo)
+7. Splitters desbalanceados (ratios 10/90, 20/80, etc.)
+8. Vista árbol lógico más completa (con longitudes y pérdidas por tramo)
+
+### Baja prioridad / Fase 4
+9. Registro: definir rol inicial y flujo de asignación
+10. Instalar shadcn/ui (cuando haya pantallas de admin/inventario)
+11. Clientes, ONTs, acometidas (ADR 0003)
+12. Monitoreo SNMP, TR-069, APIs de OLT
 
 ## Base de datos (Supabase)
-- **Proyecto:** `ybijrwyenlfemjjueopo` — migraciones aplicadas
-- **Tablas MVP (3):** `infrastructure_elements`, `fiber_routes`, `route_points`
+- **Proyecto:** `ybijrwyenlfemjjueopo` — migraciones 001-008 aplicadas
+- **Tablas MVP (4):** `networks`, `infrastructure_elements`, `fiber_routes`, `route_points`
 - **ENUMs (13):** `user_role`, `element_type`, `element_status`, `data_quality`, `pon_standard`, `split_ratio`, `route_type`, `route_status`, `installation_type`, `fiber_type`, `route_point_type`, `crossing_type`, `risk_level`
 - **Seed dev:** 1 OLT, 2 splitters, 5 NAPs, 7 rutas (2 feeder + 5 distribution), 3 puntos (1 cruce, 1 reserva, 1 empalme)
 
 ## Modelo de datos GPON (MVP)
 ```
-infrastructure_elements (OLT, Splitter, NAP)
-fiber_routes            (feeder, distribution, other)   — con from/to a elementos
-route_points            (crossing, reserve, splice)     — siempre asociados a una ruta
+networks                — tabla raíz; cada red tiene nombre, topología, created_by
+infrastructure_elements — OLT, Splitter, NAP; con network_id (filtrable)
+fiber_routes            — feeder, distribution; con from/to a elementos
+route_points            — crossing, reserve, splice; siempre asociados a una ruta
 ```
 - Conectividad plana: `fiber_routes.from_element_id` / `to_element_id` directo (no grafo logico)
 - Calidad de dato: ENUM `data_quality` unificado en `location_quality` y `route_quality`
 - Geometria con `geography(Point/LineString, 4326)` (PostGIS)
-- Capacidad por contadores: `total_pon_ports`, `total_ports` (sin tabla de puertos — ver ADR 0002)
-- Distribucion (clientes, ONTs, drops) y operacion (incidentes, signal, audit) → Fase 4 (ADR 0003)
+- Capacidad por contadores: `total_pon_ports`, `total_ports`, `ports_used`, `ports_reserved`
+- Distribución (clientes, ONTs, drops) y operación (incidentes, signal, audit) → Fase 4 (ADR 0003)
 - Single-tenant en MVP (ADR 0001)
 
 ## Variables de entorno
@@ -122,13 +191,13 @@ NEXT_PUBLIC_MAPBOX_TOKEN
 ```
 
 ## Roles de usuario (5 base, 3 activos en MVP)
-- `admin` — gobierno, todo CRUD, unico que puede borrar
-- `network_engineer` — diseno, validacion, CRUD infraestructura
+- `admin` — gobierno, todo CRUD, único que puede borrar
+- `network_engineer` — diseño, validación, CRUD infraestructura
 - `outside_plant` — campo, CRUD infraestructura, marcar puntos
 - `installer` — Fase 4 (instalaciones de cliente)
 - `support` — Fase 4 (incidentes y consulta)
 
-Rol almacenado en `auth.users.raw_user_meta_data.role`, leido via `get_user_role()` en RLS.
+Rol almacenado en `auth.users.app_metadata.role`, leído via `get_user_role()` en RLS.
 Detalle de permisos por rol en `docs/OPERATIONAL_ROLES.md`.
 
 Matriz de RLS en MVP:
@@ -136,3 +205,18 @@ Matriz de RLS en MVP:
 - `insert` → admin, network_engineer, outside_plant
 - `update` → admin, network_engineer, outside_plant
 - `delete` → admin
+
+## Calculadora óptica (lib/gpon/optical-budget.ts)
+```
+Pérdida total = pérdida_fibra + pérdida_splitter + pérdida_conectores
+```
+Valores conservadores para Ecuador (UV, humedad, reparaciones frecuentes).
+Semáforo: verde (>3dB margen) / ámbar (1-3dB) / rojo (<1dB) / gris (sin clase óptica del OLT).
+
+## Códigos operativos (lib/gpon/operative-code.ts)
+```
+Patrón: {PROV}-{CIUDAD}-{ZONA}-{TIPO}-{SEQ}
+Draft:  PIC-UIO-DRF-NAP-001
+Campo:  PIC-UIO-Z05-NAP-128
+```
+Documentado en GPON_FTTH_ECUADOR_RESEARCH.md §9.
