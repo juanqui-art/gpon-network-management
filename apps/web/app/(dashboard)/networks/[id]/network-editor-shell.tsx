@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect } from "react";
 import { MapView } from "@/components/map/map-view";
+import type { InfrastructureElement as MapInfrastructureElement } from "@/components/map/types";
 import { MAPBOX_TOKEN } from "@/lib/mapbox/config";
 import {
 	fetchNetworkEditorData,
@@ -170,6 +171,18 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 					equipment={getElementsArray()}
 					connections={getRoutesArray()}
 					routePoints={getRoutePointsArray()}
+					onSaveDraftElement={(draft) => {
+						useNetworkEditorStore.getState().addElement({
+							...draft,
+							pon_standard: draft.pon_standard ?? null,
+							optical_class: null,
+							ports_used: null,
+							ports_reserved: null,
+							properties: draft.properties ?? {},
+							created_by: null,
+							updated_by: null,
+						} as MapInfrastructureElement);
+					}}
 					incidents={[]}
 					zones={zonesQuery.data ?? []}
 					userRole={userRole}

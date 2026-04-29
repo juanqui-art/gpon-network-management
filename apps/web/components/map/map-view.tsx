@@ -83,6 +83,7 @@ interface Props {
 	onRouteSaved?: (route: FiberRoute) => void;
 	onElementDeleted?: (id: string) => void;
 	onRouteDeleted?: (id: string) => void;
+	onSaveDraftElement?: (draft: DraftElement) => void;
 }
 
 // ── Connection GeoJSON builder ────────────────────────────────────────────────
@@ -1070,6 +1071,7 @@ export function MapView({
 	editorStatusMessage,
 	onEditorStatusMessageChange,
 	networkId = null,
+	onSaveDraftElement,
 }: Props) {
 	const canEdit = canWriteInfrastructure(userRole);
 	const canDelete = canDeleteInfrastructure(userRole);
@@ -1293,33 +1295,42 @@ export function MapView({
 		[draftCount, setSelected, setStatusMessage, zones],
 	);
 	const saveDraftElement = useCallback(
-		async (draft: DraftElement) => {
-			setStatusMessage(`Guardando ${draft.code}...`);
-			try {
-				await createInfrastructureElement({
-					type: draft.type as ElementType,
-					code: draft.code,
-					name: draft.name,
-					lng: draft.lng,
-					lat: draft.lat,
-					status: draft.status as ElementStatus,
-					location_quality: draft.location_quality,
-					pon_standard: draft.pon_standard,
-					total_pon_ports: draft.total_pon_ports,
-					split_ratio: draft.split_ratio,
-					insertion_loss_db: draft.insertion_loss_db,
-					total_ports: draft.total_ports,
-					address_reference: draft.address_reference,
-					notes: draft.notes,
-				});
-			} catch (error) {
-				const message =
-					error instanceof Error ? error.message : "Error desconocido";
-				setStatusMessage(`No se pudo guardar ${draft.code}: ${message}`);
-				return;
+		(draft: DraftElement) => {
+			if (onSaveDraftElement) {
+				// Usa callback para agregar al store (sin RPC inmediato)
+				onSaveDraftElement(draft);
+			} else {
+				// Fallback: RPC directo (compatible con implementaciones que no usan callback)
+				(async () => {
+					setStatusMessage(`Guardando ${draft.code}...`);
+					try {
+						await createInfrastructureElement({
+							type: draft.type as ElementType,
+							code: draft.code,
+							name: draft.name,
+							lng: draft.lng,
+							lat: draft.lat,
+							status: draft.status as ElementStatus,
+							location_quality: draft.location_quality,
+							pon_standard: draft.pon_standard,
+							total_pon_ports: draft.total_pon_ports,
+							split_ratio: draft.split_ratio,
+							insertion_loss_db: draft.insertion_loss_db,
+							total_ports: draft.total_ports,
+							address_reference: draft.address_reference,
+							notes: draft.notes,
+						});
+					} catch (error) {
+						const message =
+							error instanceof Error ? error.message : "Error desconocido";
+						setStatusMessage(`No se pudo guardar ${draft.code}: ${message}`);
+						return;
+					}
+					refreshEditorData();
+				})();
 			}
 
-			// Fly to the saved position so the new marker appears in view
+			// Fly to the new element position
 			mapRef.current?.flyTo({
 				center: [draft.lng, draft.lat],
 				zoom: Math.max(mapRef.current.getZoom(), 16),
@@ -1328,10 +1339,17 @@ export function MapView({
 			});
 			clearDraft();
 			setActiveTool("select");
-			setStatusMessage(`${draft.code} guardado — marcador visible en el mapa.`);
-			refreshEditorData();
+			setStatusMessage(
+				`${draft.code} agregado — click "Guardar" para persistir.`,
+			);
 		},
-		[clearDraft, refreshEditorData, setActiveTool, setStatusMessage],
+		[
+			clearDraft,
+			refreshEditorData,
+			setActiveTool,
+			setStatusMessage,
+			onSaveDraftElement,
+		],
 	);
 	const updateFiberDraftSource = useCallback((coordinates: LngLat[]) => {
 		const source = mapRef.current?.getSource(
