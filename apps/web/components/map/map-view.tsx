@@ -1492,7 +1492,13 @@ export function MapView({
 			setStatusMessage(`Guardando ${element.code}…`);
 
 			try {
-				await updateInfrastructureElement({ element, patch });
+				// Asegura que lng/lat se incluyen en el patch si se pasaron
+				const fullPatch = {
+					...patch,
+					lng: patch.lng ?? element.lng,
+					lat: patch.lat ?? element.lat,
+				};
+				await updateInfrastructureElement({ element, patch: fullPatch });
 			} catch (error) {
 				const message =
 					error instanceof Error ? error.message : "Error desconocido";
@@ -4540,11 +4546,7 @@ function DeleteConfirm({ onConfirm }: { onConfirm: () => void }) {
 }
 
 function PendingMutationNotice() {
-	return (
-		<div className="rounded-md border border-[rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.08)] px-3 py-2 text-xs text-[#f6c768]">
-			Los campos editables se conectarán a las mutaciones del modelo MVP.
-		</div>
-	);
+	return null;
 }
 
 function DraftTextField({

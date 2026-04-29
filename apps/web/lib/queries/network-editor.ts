@@ -204,6 +204,8 @@ export async function updateInfrastructureElement(input: {
 		p_name: patch.name ?? element.name,
 		p_status: patch.status ?? element.status,
 		p_location_quality: patch.location_quality ?? element.location_quality,
+		p_lng: patch.lng ?? element.lng,
+		p_lat: patch.lat ?? element.lat,
 		p_total_pon_ports: patch.total_pon_ports ?? element.total_pon_ports,
 		p_split_ratio: patch.split_ratio ?? element.split_ratio,
 		p_insertion_loss_db: patch.insertion_loss_db ?? element.insertion_loss_db,
@@ -227,8 +229,12 @@ export async function updateFiberRoute(input: {
 		p_id: route.id,
 		p_code: patch.code ?? route.code,
 		p_type: patch.type ?? route.type,
+		p_status: patch.status ?? route.status,
+		p_route_quality: patch.route_quality ?? route.route_quality,
+		p_installation_type: patch.installation_type ?? route.installation_type,
 		p_fiber_type: patch.fiber_type ?? route.fiber_type,
 		p_fiber_count: patch.fiber_count ?? route.fiber_count,
+		p_length_meters: patch.length_meters ?? route.length_meters,
 		p_notes: patch.notes ?? route.notes,
 	});
 
