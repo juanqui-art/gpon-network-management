@@ -3,6 +3,7 @@
 import MapboxDraw from "@mapbox/mapbox-gl-draw";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import { useQueryClient } from "@tanstack/react-query";
+import turfDistance from "@turf/distance";
 import turfLength from "@turf/length";
 import {
 	AlertTriangle,
@@ -1166,6 +1167,10 @@ export function MapView({
 	const [internalStatusMessage, setInternalStatusMessage] = useState(
 		"Modo infraestructura listo.",
 	);
+	const [measureFirstPoint, setMeasureFirstPoint] = useState<{
+		lng: number;
+		lat: number;
+	} | null>(null);
 
 	const incidentByEquipment = Object.fromEntries(
 		incidents.map((i) => [i.equipment_id, i]),
@@ -1183,6 +1188,10 @@ export function MapView({
 		(nextTool: EditorTool) => {
 			setInternalActiveTool(nextTool);
 			onEditorToolChange?.(nextTool);
+			// Reset measure state when switching tools
+			if (nextTool !== "measure") {
+				setMeasureFirstPoint(null);
+			}
 		},
 		[onEditorToolChange],
 	);
@@ -2703,6 +2712,33 @@ export function MapView({
 						setStatusMessage(
 							`Punto de ${tool} provisional. Completa datos y guarda.`,
 						);
+					}
+				} else if (tool === "measure") {
+					const currentPoint = { lng: event.lngLat.lng, lat: event.lngLat.lat };
+
+					if (!measureFirstPoint) {
+						setMeasureFirstPoint(currentPoint);
+						setStatusMessage(
+							"Primer punto marcado. Haz click en el segundo punto.",
+						);
+					} else {
+						const distance = turfDistance(
+							[measureFirstPoint.lng, measureFirstPoint.lat],
+							[currentPoint.lng, currentPoint.lat],
+							{ units: "kilometers" },
+						);
+
+						const meters = distance * 1000;
+						const displayKm =
+							distance > 1
+								? `${distance.toFixed(2)} km`
+								: `${meters.toFixed(0)} m`;
+
+						setStatusMessage(
+							`Distancia: ${displayKm} (${meters.toFixed(0)}m). Click nuevamente para otra medida.`,
+						);
+
+						setMeasureFirstPoint(null);
 					}
 				} else {
 					setStatusMessage(TOOL_HELP[tool]);
