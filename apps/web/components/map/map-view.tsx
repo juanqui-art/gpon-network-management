@@ -22,6 +22,8 @@ import {
 	canWriteInfrastructure,
 } from "@/lib/types/gpon";
 import { NapCapacity } from "./nap-capacity";
+import { OpticalBudgetPanel } from "./optical-budget-panel";
+import { generateDraftCode } from "@/lib/gpon/operative-code";
 import type {
 	ConnectionMapItem,
 	EquipmentMapItem,
@@ -798,9 +800,7 @@ function createDraftElement(
 	lngLat: mapboxgl.LngLat,
 	index: number,
 ): DraftElement {
-	const codePrefix =
-		type === "olt" ? "OLT" : type === "splitter" ? "SPL" : "NAP";
-	const code = `${codePrefix}-DRAFT-${String(index).padStart(3, "0")}`;
+	const code = generateDraftCode(type, index);
 
 	return {
 		id: `draft-${type}-${Date.now()}-${index}`,
@@ -891,7 +891,8 @@ function createDraftRoute(
 	coordinates: LngLat[],
 	index: number,
 ): DraftRoute {
-	const code = `R-DRAFT-${String(index).padStart(3, "0")}`;
+	const routeType = fromElement.type === "olt" ? "feeder" : "distribution";
+	const code = generateDraftCode(routeType, index);
 	const length = polylineLengthMeters(coordinates);
 	const fromElementType =
 		fromElement.type === "olt" ||
@@ -1003,6 +1004,27 @@ export function MapView({
 	const isDesigning = mode === "design"; // placing new elements / drawing routes
 	const isEditing   = mode === "edit";   // modifying / deleting existing elements
 	const isActive    = mode !== "view";   // any non-read-only mode
+
+	// Real-time non-blocking warnings derived from current map data
+	const mapWarnings = (() => {
+		const warnings: string[] = [];
+		for (const eq of equipment) {
+			if (eq.type === "splitter" && !eq.split_ratio) {
+				warnings.push(`${eq.code}: sin ratio de división`);
+			}
+			if (eq.type === "nap" && eq.total_ports) {
+				const used = eq.ports_used ?? 0;
+				if (used >= eq.total_ports) warnings.push(`${eq.code}: NAP saturada`);
+				else if (used / eq.total_ports >= 0.8) warnings.push(`${eq.code}: NAP casi llena`);
+			}
+		}
+		for (const conn of connections) {
+			if (!conn.from_element_id || !conn.to_element_id) {
+				warnings.push(`${conn.code ?? "Ruta"}: sin origen o destino`);
+			}
+		}
+		return warnings;
+	})();
 	const visibleEquipment = equipment.filter((eq) => {
 		const typeOk = filterType === "all" || eq.type === filterType;
 		const statusOk = filterStatus === "all" || eq.status === filterStatus;
@@ -2615,6 +2637,7 @@ export function MapView({
 				statusMessage={statusMessage}
 				zoom={zoom}
 				mode={mode}
+				warnings={mapWarnings}
 			/>
 		</div>
 	);
@@ -3913,8 +3936,10 @@ function ExistingRoutePanel({
 				<PropertyRow label="Longitud" value={lengthLabel} />
 				<PropertyRow label="Fibra" value={route.fiber_type ?? "—"} />
 				{route.total_loss_db != null && (
-					<PropertyRow label="Pérdida" value={`${route.total_loss_db.toFixed(2)} dB`} />
+					<PropertyRow label="Pérdida medida" value={`${route.total_loss_db.toFixed(2)} dB`} />
 				)}
+				<div className="h-px bg-[rgba(164,164,164,0.1)]" />
+				<OpticalBudgetPanel route={route} />
 			</div>
 		);
 	}
@@ -4165,23 +4190,54 @@ function EditorStatusBar({
 	statusMessage,
 	zoom,
 	mode,
+	warnings,
 }: {
 	activeToolLabel: string;
 	statusMessage: string;
 	zoom: number;
 	mode: EditorMode;
+	warnings: string[];
 }) {
+	const [showWarnings, setShowWarnings] = useState(false);
+	const hasWarnings = warnings.length > 0;
+
 	return (
-		<div className="absolute bottom-3 left-4 right-4 z-20 flex min-h-10 items-center justify-between gap-4 rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] px-3 py-2 text-xs text-[#a4a4a4] shadow-2xl backdrop-blur-md">
-			<div className="flex min-w-0 items-center gap-2">
-				<span className="shrink-0 rounded-md border border-[rgba(56,189,248,0.24)] bg-[rgba(56,189,248,0.1)] px-2 py-1 font-medium text-[#bdeafe]">
-					{activeToolLabel}
-				</span>
-				<span className="truncate">{statusMessage}</span>
-			</div>
-			<div className="hidden shrink-0 items-center gap-3 font-mono text-[11px] text-[#777879] sm:flex">
-				<span>zoom {zoom.toFixed(1)}</span>
-				{mode !== "view" && <span>Esc cancela</span>}
+		<div className="absolute bottom-3 left-4 right-4 z-20 rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md">
+			{/* Warning list (expandible) */}
+			{showWarnings && hasWarnings && (
+				<div className="border-b border-[rgba(164,164,164,0.14)] px-3 py-2 space-y-1">
+					{warnings.map((w) => (
+						<p key={w} className="text-[10px] text-[#f59e0b] flex items-start gap-1.5">
+							<span className="shrink-0">⚠</span>
+							{w}
+						</p>
+					))}
+				</div>
+			)}
+
+			{/* Main bar */}
+			<div className="flex min-h-10 items-center justify-between gap-4 px-3 py-2 text-xs text-[#a4a4a4]">
+				<div className="flex min-w-0 items-center gap-2">
+					<span className="shrink-0 rounded-md border border-[rgba(56,189,248,0.24)] bg-[rgba(56,189,248,0.1)] px-2 py-1 font-medium text-[#bdeafe]">
+						{activeToolLabel}
+					</span>
+					<span className="truncate">{statusMessage}</span>
+				</div>
+				<div className="flex shrink-0 items-center gap-3">
+					{hasWarnings && (
+						<button
+							type="button"
+							onClick={() => setShowWarnings((v) => !v)}
+							className="flex items-center gap-1.5 rounded-md border border-[rgba(245,158,11,0.3)] bg-[rgba(245,158,11,0.1)] px-2 py-1 text-[11px] font-medium text-[#f59e0b] transition-colors hover:bg-[rgba(245,158,11,0.18)]"
+						>
+							⚠ {warnings.length}
+						</button>
+					)}
+					<div className="hidden font-mono text-[11px] text-[#777879] sm:flex items-center gap-3">
+						<span>zoom {zoom.toFixed(1)}</span>
+						{mode !== "view" && <span>Esc cancela</span>}
+					</div>
+				</div>
 			</div>
 		</div>
 	);
