@@ -301,11 +301,9 @@ function LogicalDiagram({
 }: LogicalDiagramProps) {
 	const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
-	const { elements, routes, routePoints } = useNetworkEditorStore((s) => ({
-		elements: s.elements,
-		routes: s.routes,
-		routePoints: s.routePoints,
-	}));
+	const elements = useNetworkEditorStore((s) => s.elements);
+	const routes = useNetworkEditorStore((s) => s.routes);
+	const routePoints = useNetworkEditorStore((s) => s.routePoints);
 
 	const toggleGroupExpanded = (splitterId: string) => {
 		setExpandedGroups((prev) => {
