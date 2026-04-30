@@ -16,7 +16,10 @@ import {
 } from "@/lib/gpon/symbology";
 import {
 	CABLE_COLOR,
+	CABLE_LABEL,
 	DATA_QUALITY_COLOR,
+	ROUTE_POINT_COLOR,
+	ROUTE_POINT_LABEL,
 	SEVERITY_COLOR,
 	STATUS_COLOR,
 	TYPE_COLOR,
@@ -137,12 +140,6 @@ function buildRoutePointsGeoJSON(
 }
 
 // ── Marker helpers ───────────────────────────────────────────────────────────
-
-const ROUTE_POINT_COLOR: Record<string, string> = {
-	crossing: "#d7d7d7",
-	reserve: "#f6c768",
-	splice: "#fb7185",
-};
 
 function interpolateZoomScale(
 	zoom: number,
@@ -498,8 +495,8 @@ const LEGEND_STATUS = [
 ];
 
 const LEGEND_CABLES: Array<[color: string, label: string, dashed: boolean]> = [
-	[CABLE_COLOR.feeder, "Feeder", false],
-	[CABLE_COLOR.distribution, "Distribution", true],
+	[CABLE_COLOR.feeder, CABLE_LABEL.feeder, false],
+	[CABLE_COLOR.distribution, CABLE_LABEL.distribution, true],
 ];
 
 // ── Main component ──────────────────────────────────────────────────────────
@@ -588,15 +585,47 @@ export function MapViewer({
 				),
 			});
 
-			// Casing — dark outline behind lines for contrast on dark map
-			// zoom must be top-level; match inside stop values (camera+data expression)
+			const cableWidthByType: mapboxgl.ExpressionSpecification = [
+				"match",
+				["get", "cable_type"],
+				"feeder",
+				1.7,
+				"distribution",
+				1.25,
+				0.95,
+			];
+
+			// Colored halo plus core. The map style is dark, so a black-only casing
+			// makes fibers read as unstyled; tinting the halo preserves contrast.
 			map.addLayer({
 				id: "route-lines-casing",
 				type: "line",
 				source: "routes-source",
+				layout: {
+					"line-cap": "round",
+					"line-join": "round",
+				},
 				paint: {
-					"line-width": 5,
-					"line-color": "rgba(0,0,0,0.55)",
+					"line-width": [
+						"interpolate",
+						["linear"],
+						["zoom"],
+						10,
+						["*", cableWidthByType, 3.2],
+						14,
+						["*", cableWidthByType, 5.4],
+						18,
+						["*", cableWidthByType, 8.2],
+					],
+					"line-color": [
+						"match",
+						["get", "cable_type"],
+						"feeder",
+						"rgba(56,189,248,0.5)",
+						"distribution",
+						"rgba(167,139,250,0.5)",
+						"rgba(164,164,164,0.5)",
+					],
 					"line-opacity": [
 						"interpolate",
 						["linear"],
@@ -606,6 +635,8 @@ export function MapViewer({
 						ZOOM_DISTRIBUTION,
 						1,
 					],
+					"line-blur": 1.6,
+					"line-emissive-strength": 0.35,
 				},
 			});
 
@@ -614,8 +645,22 @@ export function MapViewer({
 				id: "route-lines",
 				type: "line",
 				source: "routes-source",
+				layout: {
+					"line-cap": "round",
+					"line-join": "round",
+				},
 				paint: {
-					"line-width": 3,
+					"line-width": [
+						"interpolate",
+						["linear"],
+						["zoom"],
+						10,
+						["*", cableWidthByType, 1.45],
+						14,
+						["*", cableWidthByType, 2.6],
+						18,
+						["*", cableWidthByType, 4.4],
+					],
 					"line-color": [
 						"match",
 						["get", "cable_type"],
@@ -641,6 +686,7 @@ export function MapViewer({
 						["literal", [2, 1.5]],
 						["literal", [1, 0]],
 					],
+					"line-emissive-strength": 0.65,
 				},
 			});
 
@@ -1274,7 +1320,10 @@ interface RoutePointPropertiesProps {
 function RoutePointProperties({ point }: RoutePointPropertiesProps) {
 	return (
 		<div className="space-y-3 text-sm">
-			<PropertyRow label="Tipo" value={point.type} />
+			<PropertyRow
+				label="Tipo"
+				value={ROUTE_POINT_LABEL[point.type] ?? point.type}
+			/>
 			<PropertyRow label="Código" value={point.code || "Sin código"} />
 			<PropertyRow label="Estado" value={point.status || "Pendiente"} />
 			<PropertyRow label="Calidad" value={point.location_quality} />

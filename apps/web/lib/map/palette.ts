@@ -59,6 +59,28 @@ export const CABLE_COLOR: Record<string, string> = {
 
 export const CABLE_CASING = "rgba(0, 0, 0, 0.55)";
 
+export const CABLE_LABEL: Record<string, string> = {
+	feeder: "Feeder",
+	distribution: "Distribución",
+	drop: "Drop",
+	default: "Fibra",
+};
+
+// ── Route points ────────────────────────────────────────────────────────────
+export type RoutePointVisualType = "crossing" | "reserve" | "splice";
+
+export const ROUTE_POINT_COLOR: Record<RoutePointVisualType, string> = {
+	crossing: "#d7d7d7",
+	reserve: "#f6c768",
+	splice: "#fb7185",
+};
+
+export const ROUTE_POINT_LABEL: Record<RoutePointVisualType, string> = {
+	crossing: "Cruce",
+	reserve: "Reserva",
+	splice: "Empalme",
+};
+
 // ── Incident severity ───────────────────────────────────────────────────────
 export type IncidentSeverity = "critical" | "high" | "medium" | "low";
 

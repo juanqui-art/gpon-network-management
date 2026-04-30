@@ -72,7 +72,10 @@ import {
 } from "@/lib/gpon/symbology";
 import {
 	CABLE_COLOR,
+	CABLE_LABEL,
 	DATA_QUALITY_COLOR,
+	ROUTE_POINT_COLOR,
+	ROUTE_POINT_LABEL,
 	SEVERITY_COLOR,
 	STATUS_COLOR,
 	TYPE_COLOR,
@@ -248,12 +251,6 @@ function buildRoutePointsGeoJSON(
 }
 
 // ── GPON symbology ───────────────────────────────────────────────────────────
-
-const ROUTE_POINT_COLOR: Record<string, string> = {
-	crossing: "#d7d7d7",
-	reserve: "#f6c768",
-	splice: "#fb7185",
-};
 
 function interpolateZoomScale(
 	zoom: number,
@@ -2394,18 +2391,13 @@ export function MapView({
 					return;
 				}
 
-				const cableLabel: Record<string, string> = {
-					feeder: "Feeder",
-					distribution: "Distribución",
-					drop: "Drop",
-				};
 				const fiberLabel: Record<string, string> = {
 					"single-mode": "SM",
 					"multi-mode": "MM",
 				};
 
 				const rows: Array<[string, string]> = [
-					["Tipo", cableLabel[props.cable_type] ?? props.cable_type ?? "—"],
+					["Tipo", CABLE_LABEL[props.cable_type] ?? props.cable_type ?? "—"],
 					[
 						"Fibra",
 						props.fiber_type
@@ -2475,13 +2467,8 @@ export function MapView({
 					return;
 				}
 
-				const pointLabel: Record<string, string> = {
-					crossing: "Cruce",
-					reserve: "Reserva",
-					splice: "Empalme",
-				};
 				const rows: Array<[string, string]> = [
-					["Tipo", pointLabel[props.type] ?? props.type ?? "—"],
+					["Tipo", ROUTE_POINT_LABEL[props.type] ?? props.type ?? "—"],
 					["Código", props.code ?? "—"],
 					["Calidad", props.location_quality ?? "—"],
 				];
@@ -3452,9 +3439,9 @@ function InfrastructurePanel({
 								label="Rutas distribución"
 								color={CABLE_COLOR.distribution}
 							/>
-							<LayerToggle label="Cruces" color="#d7d7d7" />
-							<LayerToggle label="Reservas" color="#f6c768" />
-							<LayerToggle label="Empalmes" color="#fb7185" />
+							<LayerToggle label="Cruces" color={ROUTE_POINT_COLOR.crossing} />
+							<LayerToggle label="Reservas" color={ROUTE_POINT_COLOR.reserve} />
+							<LayerToggle label="Empalmes" color={ROUTE_POINT_COLOR.splice} />
 						</div>
 						<p className="mt-3 text-[11px] text-[#777879]">
 							{routePointCount} puntos relevantes cargados
@@ -4589,16 +4576,11 @@ function SelectedFeatureProperties({
 
 	if (selectedFeature.kind === "draftRoutePoint") {
 		const draft = selectedFeature.point;
-		const TYPE_LABELS: Record<string, string> = {
-			crossing: "Cruce",
-			reserve: "Reserva",
-			splice: "Empalme",
-		};
 		return (
 			<div className="space-y-3">
 				<PropertyRow
 					label="Entidad"
-					value={`${TYPE_LABELS[draft.type] ?? draft.type} provisional`}
+					value={`${ROUTE_POINT_LABEL[draft.type] ?? draft.type} provisional`}
 				/>
 				<DraftTextField
 					label="Código"
@@ -5095,8 +5077,8 @@ function ExistingRoutePanel({
 				label="Tipo de ruta"
 				value={cur("type") as string}
 				options={[
-					["feeder", "Feeder"],
-					["distribution", "Distribution"],
+					["feeder", CABLE_LABEL.feeder],
+					["distribution", CABLE_LABEL.distribution],
 					["other", "Otro"],
 				]}
 				onChange={(v) => field("type", v as ConnectionMapItem["type"])}
@@ -5118,7 +5100,7 @@ function ExistingRoutePanel({
 				value={(cur("fiber_type") as string | null) ?? "g652d"}
 				options={[
 					["g652d", "G.652D — Feeder"],
-					["g657a1", "G.657A1 — Distribution"],
+					["g657a1", "G.657A1 — Distribución"],
 					["g657a2", "G.657A2 — Drop"],
 				]}
 				onChange={(v) =>
@@ -5508,9 +5490,9 @@ const LEGEND_STATUS: Array<[string, string]> = [
 ];
 
 const LEGEND_CABLES: Array<[string, string, boolean]> = [
-	[CABLE_COLOR.feeder, "Feeder", false],
-	[CABLE_COLOR.distribution, "Distribución", false],
-	[CABLE_COLOR.drop, "Drop", true], // dashed
+	[CABLE_COLOR.feeder, CABLE_LABEL.feeder, false],
+	[CABLE_COLOR.distribution, CABLE_LABEL.distribution, false],
+	[CABLE_COLOR.drop, CABLE_LABEL.drop, true], // dashed
 ];
 
 function Legend() {
