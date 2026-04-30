@@ -213,6 +213,7 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 					editorStatusMessage={statusMessage}
 					onEditorStatusMessageChange={setStatusMessage}
 					networkId={networkId}
+					onShowDiagram={() => setDiagramOpen(true)}
 				/>
 			</div>
 

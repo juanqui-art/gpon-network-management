@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import mapboxgl from "mapbox-gl";
 import { useRouter } from "next/navigation";
-import type { ReactNode } from "react";
+import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { OltModelSelector } from "@/components/map/olt-model-selector";
@@ -144,6 +144,7 @@ interface Props {
 	onElementDeleted?: (id: string) => void;
 	onRouteDeleted?: (id: string) => void;
 	onSaveDraftElement?: (draft: DraftElement) => void;
+	onShowDiagram?: () => void;
 }
 
 // ── Connection GeoJSON builder ────────────────────────────────────────────────
@@ -346,6 +347,7 @@ function createMarkerEl(
 	// inner   → SVG icon + drop-shadow + pulse.
 
 	const outer = document.createElement("div");
+	outer.dataset.elementId = eq.id;
 	outer.dataset.code = eq.code;
 	outer.dataset.type = eq.type;
 	outer.style.cssText = `
@@ -551,6 +553,23 @@ const NOISE_LAYERS = [
 	"road-label",
 	"path-pedestrian-label",
 ];
+
+function getContextMenuPosition(
+	container: HTMLElement | null,
+	clientX: number,
+	clientY: number,
+): { x: number; y: number } {
+	const rect = container?.getBoundingClientRect();
+	const x = rect ? clientX - rect.left : clientX;
+	const y = rect ? clientY - rect.top : clientY;
+	const width = rect?.width ?? window.innerWidth;
+	const height = rect?.height ?? window.innerHeight;
+
+	return {
+		x: Math.min(Math.max(x, 8), Math.max(8, width - 196)),
+		y: Math.min(Math.max(y, 8), Math.max(8, height - 148)),
+	};
+}
 
 // ── Filter bar ───────────────────────────────────────────────────────────────
 
@@ -1063,6 +1082,7 @@ export function MapView({
 	onEditorStatusMessageChange,
 	networkId = null,
 	onSaveDraftElement,
+	onShowDiagram,
 }: Props) {
 	const canEdit = canWriteInfrastructure(userRole);
 	const canDelete = canDeleteInfrastructure(userRole);
@@ -1206,6 +1226,171 @@ export function MapView({
 		},
 		[onEditorStatusMessageChange],
 	);
+	const openContextMenuForFeature = useCallback(
+		(feature: SelectedFeature, clientX: number, clientY: number) => {
+			const position = getContextMenuPosition(
+				containerRef.current,
+				clientX,
+				clientY,
+			);
+			setContextMenu({ ...position, feature });
+			setSelected(feature);
+		},
+		[setSelected],
+	);
+	const openContextMenuFromMapEvent = useCallback(
+		(event: ReactMouseEvent<HTMLDivElement>) => {
+			const target = event.target;
+			if (
+				!(target instanceof Element) ||
+				!target.closest(".mapboxgl-canvas-container, .mapboxgl-marker")
+			) {
+				return;
+			}
+
+			event.preventDefault();
+			event.stopPropagation();
+
+			const map = mapRef.current;
+			const container = containerRef.current;
+			if (!map || !container) return;
+
+			const rect = container.getBoundingClientRect();
+			const point: [number, number] = [
+				event.clientX - rect.left,
+				event.clientY - rect.top,
+			];
+			const layers = [
+				"route-points-circle",
+				"connections-hitbox",
+				"connections-line",
+			].filter((layerId) => map.getLayer(layerId));
+			const feature = map.queryRenderedFeatures(point, { layers })[0];
+			if (!feature?.properties) return;
+
+			if (feature.properties.route_point_id) {
+				const routePoint = routePointsByIdRef.current.get(
+					feature.properties.route_point_id,
+				);
+				if (routePoint) {
+					openContextMenuForFeature(
+						{ kind: "routePoint", point: routePoint },
+						event.clientX,
+						event.clientY,
+					);
+				}
+				return;
+			}
+
+			if (feature.properties.connection_id) {
+				const route = routesByIdRef.current.get(
+					feature.properties.connection_id,
+				);
+				if (route) {
+					openContextMenuForFeature(
+						{ kind: "route", route },
+						event.clientX,
+						event.clientY,
+					);
+				}
+			}
+		},
+		[openContextMenuForFeature],
+	);
+	const openContextMenuFromNativeEvent = useCallback(
+		(event: MouseEvent) => {
+			const container = containerRef.current;
+			const map = mapRef.current;
+			if (!container || !map) return;
+			if (
+				!(event.target instanceof Node) ||
+				!container.contains(event.target)
+			) {
+				return;
+			}
+
+			event.preventDefault();
+			event.stopPropagation();
+
+			const markerEl =
+				event.target instanceof Element
+					? event.target.closest(".mapboxgl-marker")
+					: null;
+			if (markerEl instanceof HTMLElement) {
+				const lngLat = markersByEqId.current;
+				for (const { outerEl } of lngLat.values()) {
+					if (!markerEl.contains(outerEl)) continue;
+					const element = equipmentRef.current.find(
+						(item) => item.id === outerEl.dataset.elementId,
+					);
+					if (element) {
+						openContextMenuForFeature(
+							{ kind: "element", element },
+							event.clientX,
+							event.clientY,
+						);
+						return;
+					}
+				}
+			}
+
+			const rect = container.getBoundingClientRect();
+			const queryPoint: [number, number] = [
+				event.clientX - rect.left,
+				event.clientY - rect.top,
+			];
+			const layers = [
+				"route-points-circle",
+				"connections-hitbox",
+				"connections-line",
+			].filter((layerId) => map.getLayer(layerId));
+			const feature = map.queryRenderedFeatures(queryPoint, { layers })[0];
+			if (!feature?.properties) return;
+
+			if (feature.properties.route_point_id) {
+				const point = routePointsByIdRef.current.get(
+					feature.properties.route_point_id,
+				);
+				if (point) {
+					openContextMenuForFeature(
+						{ kind: "routePoint", point },
+						event.clientX,
+						event.clientY,
+					);
+				}
+				return;
+			}
+
+			if (feature.properties.connection_id) {
+				const route = routesByIdRef.current.get(
+					feature.properties.connection_id,
+				);
+				if (route) {
+					openContextMenuForFeature(
+						{ kind: "route", route },
+						event.clientX,
+						event.clientY,
+					);
+				}
+			}
+		},
+		[openContextMenuForFeature],
+	);
+	useEffect(() => {
+		const container = containerRef.current;
+		if (!container) return;
+
+		container.addEventListener("contextmenu", openContextMenuFromNativeEvent, {
+			capture: true,
+		});
+		return () => {
+			container.removeEventListener(
+				"contextmenu",
+				openContextMenuFromNativeEvent,
+				{ capture: true },
+			);
+		};
+	}, [openContextMenuFromNativeEvent]);
 	useEffect(() => {
 		function onKeyDown(event: KeyboardEvent) {
 			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -1950,12 +2135,11 @@ export function MapView({
 			el.addEventListener("contextmenu", (e) => {
 				e.preventDefault();
 				e.stopPropagation();
-				setContextMenu({
-					x: e.clientX,
-					y: e.clientY,
-					feature: { kind: "element", element: eq },
-				});
-				setSelected({ kind: "element", element: eq });
+				openContextMenuForFeature(
+					{ kind: "element", element: eq },
+					e.clientX,
+					e.clientY,
+				);
 			});
 			el.addEventListener("dblclick", (e) => {
 				e.stopPropagation();
@@ -1976,6 +2160,7 @@ export function MapView({
 		setMode,
 		setSelected,
 		zoom,
+		openContextMenuForFeature,
 	]);
 
 	// ── Unified visibility: user filters + zoom hierarchy ────────────────────
@@ -2037,8 +2222,9 @@ export function MapView({
 			"connections-casing",
 			"connections-line",
 			"connections-hover",
+			"connections-hitbox",
 		] as const) {
-			map.setFilter(layerId, combined);
+			if (map.getLayer(layerId)) map.setFilter(layerId, combined);
 		}
 
 		if (map.getLayer("route-points-circle")) {
@@ -2274,6 +2460,18 @@ export function MapView({
 			});
 
 			map.addLayer({
+				id: "connections-hitbox",
+				type: "line",
+				source: "connections",
+				layout: { "line-cap": "round", "line-join": "round" },
+				paint: {
+					"line-color": "#ffffff",
+					"line-width": ["interpolate", ["linear"], ["zoom"], 10, 12, 16, 20],
+					"line-opacity": 0.01,
+				},
+			});
+
+			map.addLayer({
 				id: "fiber-draft-line",
 				type: "line",
 				source: "fiber-draft",
@@ -2467,8 +2665,16 @@ export function MapView({
 					return;
 				}
 
+				const routePointType = String(props.type ?? "");
 				const rows: Array<[string, string]> = [
-					["Tipo", ROUTE_POINT_LABEL[props.type] ?? props.type ?? "—"],
+					[
+						"Tipo",
+						ROUTE_POINT_LABEL[
+							routePointType as keyof typeof ROUTE_POINT_LABEL
+						] ??
+							routePointType ??
+							"—",
+					],
 					["Código", props.code ?? "—"],
 					["Calidad", props.location_quality ?? "—"],
 				];
@@ -2566,12 +2772,11 @@ export function MapView({
 				outerEl.addEventListener("contextmenu", (e) => {
 					e.preventDefault();
 					e.stopPropagation();
-					setContextMenu({
-						x: e.clientX,
-						y: e.clientY,
-						feature: { kind: "element", element: eq },
-					});
-					setSelected({ kind: "element", element: eq });
+					openContextMenuForFeature(
+						{ kind: "element", element: eq },
+						e.clientX,
+						e.clientY,
+					);
 				});
 
 				outerEl.addEventListener("dblclick", (e) => {
@@ -2595,16 +2800,42 @@ export function MapView({
 				const route = routesByIdRef.current.get(props.connection_id);
 				if (!route) return;
 				e.preventDefault?.();
-				setContextMenu({
-					x: e.originalEvent.clientX,
-					y: e.originalEvent.clientY,
-					feature: { kind: "route", route },
-				});
-				setSelected({ kind: "route", route });
+				openContextMenuForFeature(
+					{ kind: "route", route },
+					e.originalEvent.clientX,
+					e.originalEvent.clientY,
+				);
+			});
+
+			map.on("contextmenu", "connections-hitbox", (e) => {
+				const props = e.features?.[0]?.properties;
+				if (!props) return;
+				const route = routesByIdRef.current.get(props.connection_id);
+				if (!route) return;
+				e.preventDefault?.();
+				openContextMenuForFeature(
+					{ kind: "route", route },
+					e.originalEvent.clientX,
+					e.originalEvent.clientY,
+				);
+			});
+
+			map.on("contextmenu", "route-points-circle", (e) => {
+				const props = e.features?.[0]?.properties;
+				if (!props) return;
+				const point = routePointsByIdRef.current.get(props.route_point_id);
+				if (!point) return;
+				e.preventDefault?.();
+				openContextMenuForFeature(
+					{ kind: "routePoint", point },
+					e.originalEvent.clientX,
+					e.originalEvent.clientY,
+				);
 			});
 
 			// Click on empty map area → deselect + close cable popup + close context menu
 			map.on("click", (event) => {
+				if (event.originalEvent.button !== 0) return;
 				setContextMenu(null);
 				const tool = activeToolRef.current;
 				if (tool === "select" || tool === "pan") {
@@ -2784,7 +3015,11 @@ export function MapView({
 	return (
 		<ToastProvider>
 			<TooltipProvider>
-				<div className="relative h-full w-full">
+				{/* biome-ignore lint/a11y/noStaticElementInteractions: The Mapbox canvas handles keyboard/mouse semantics; this only intercepts the browser context menu fallback. */}
+				<div
+					className="relative h-full w-full"
+					onContextMenu={openContextMenuFromMapEvent}
+				>
 					<style>{`
         @keyframes gpon-pulse {
           0%   { transform: translate(-50%,-50%) scale(1);   opacity: 0.35; }
@@ -2913,8 +3148,15 @@ export function MapView({
 						<ContextMenu
 							menu={contextMenu}
 							canDelete={canDelete}
+							canShowDiagram={Boolean(onShowDiagram)}
 							onSelect={() => {
 								setSelected(contextMenu.feature);
+								setContextMenu(null);
+							}}
+							onShowDiagram={() => {
+								setSelected(contextMenu.feature);
+								onShowDiagram?.();
+								setStatusMessage("Diagrama lógico abierto.");
 								setContextMenu(null);
 							}}
 							onDelete={() => {
@@ -5413,13 +5655,17 @@ function EditorStatusBar({
 function ContextMenu({
 	menu,
 	canDelete,
+	canShowDiagram,
 	onSelect,
+	onShowDiagram,
 	onDelete,
 	onClose,
 }: {
 	menu: { x: number; y: number; feature: SelectedFeature };
 	canDelete: boolean;
+	canShowDiagram: boolean;
 	onSelect: () => void;
+	onShowDiagram: () => void;
 	onDelete: () => void;
 	onClose: () => void;
 }) {
@@ -5433,11 +5679,11 @@ function ContextMenu({
 					: "Elemento";
 
 	useEffect(() => {
-		const close = () => onClose();
-		window.addEventListener("keydown", (e) => {
-			if (e.key === "Escape") close();
-		});
-		return () => window.removeEventListener("keydown", close);
+		const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+			if (event.key === "Escape") onClose();
+		};
+		window.addEventListener("keydown", closeOnEscape);
+		return () => window.removeEventListener("keydown", closeOnEscape);
 	}, [onClose]);
 
 	return (
@@ -5459,14 +5705,26 @@ function ContextMenu({
 					onClick={onSelect}
 					className="flex w-full items-center gap-2 px-3 py-2 text-xs text-[#d7d7d7] transition-colors hover:bg-white/8"
 				>
+					<Search className="size-3.5" aria-hidden="true" />
 					Ver propiedades
 				</button>
+				{canShowDiagram && (
+					<button
+						type="button"
+						onClick={onShowDiagram}
+						className="flex w-full items-center gap-2 px-3 py-2 text-xs text-[#d7d7d7] transition-colors hover:bg-white/8"
+					>
+						<Network className="size-3.5" aria-hidden="true" />
+						Mostrar diagrama
+					</button>
+				)}
 				{canDelete && (
 					<button
 						type="button"
 						onClick={onDelete}
 						className="flex w-full items-center gap-2 px-3 py-2 text-xs text-[#fb7185] transition-colors hover:bg-[rgba(251,77,109,0.12)]"
 					>
+						<Trash2 className="size-3.5" aria-hidden="true" />
 						Eliminar
 					</button>
 				)}

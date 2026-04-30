@@ -58,6 +58,7 @@ interface LogicalDiagramProps {
 	totalWidth: number;
 	totalHeight: number;
 	selectedId: string | null;
+	selectedRouteId?: string | null;
 	expandedGroups: Set<string>;
 	onSelectElement: (id: string) => void;
 	onToggleGroup: (id: string) => void;
@@ -606,6 +607,7 @@ export function LogicalDiagram({
 	totalWidth,
 	totalHeight,
 	selectedId,
+	selectedRouteId = null,
 	expandedGroups,
 	onSelectElement,
 	onToggleGroup,
@@ -645,6 +647,12 @@ export function LogicalDiagram({
 
 	const { highlightedNodes, highlightedRouteIds } = useMemo(() => {
 		const activeId = hoveredId ?? selectedId;
+		if (!activeId && selectedRouteId) {
+			return {
+				highlightedNodes: null,
+				highlightedRouteIds: new Set([selectedRouteId]),
+			};
+		}
 		if (!activeId) return { highlightedNodes: null, highlightedRouteIds: null };
 
 		const chain = findAncestorChain(roots, activeId);
@@ -653,7 +661,7 @@ export function LogicalDiagram({
 
 		const routeIds = findRouteIdsOnPath(chain, layoutNodes);
 		return { highlightedNodes: chain, highlightedRouteIds: routeIds };
-	}, [hoveredId, selectedId, roots, layoutNodes]);
+	}, [hoveredId, selectedId, selectedRouteId, roots, layoutNodes]);
 
 	const activeSummary = useMemo<ActiveSummary | null>(() => {
 		const activeId = hoveredId ?? selectedId;

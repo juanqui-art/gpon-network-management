@@ -402,6 +402,9 @@ export function DiagramPanel({ isOpen, onToggle }: DiagramPanelProps) {
 								totalWidth={totalWidth}
 								totalHeight={totalHeight}
 								selectedId={selection?.kind === "element" ? selection.id : null}
+								selectedRouteId={
+									selection?.kind === "route" ? selection.id : null
+								}
 								expandedGroups={expandedGroups}
 								onSelectElement={onSelectElement}
 								onToggleGroup={toggleGroup}

@@ -25,6 +25,11 @@ import {
 	TYPE_COLOR,
 } from "@/lib/map/palette";
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_STYLE } from "@/lib/mapbox/config";
+import {
+	ContextMenu,
+	type ContextMenuOption,
+	defaultContextMenuOptions,
+} from "./context-menu";
 import { NapCapacity } from "./nap-capacity";
 import { OpticalBudgetPanel } from "./optical-budget-panel";
 import type {
@@ -449,6 +454,16 @@ type SelectedFeature =
 	| { kind: "route"; route: ConnectionMapItem }
 	| { kind: "routePoint"; point: RoutePoint };
 
+type ContextMenuItem =
+	| { kind: "element"; element: EquipmentMapItem }
+	| { kind: "route"; route: ConnectionMapItem }
+	| { kind: "routePoint"; point: RoutePoint };
+
+interface ContextMenuPosition {
+	x: number;
+	y: number;
+}
+
 type MarkerEntry = {
 	marker: mapboxgl.Marker;
 	outerEl: HTMLElement;
@@ -517,6 +532,9 @@ export function MapViewer({
 	const [filterType, setFilterType] = useState<string>("all");
 	const [filterStatus, setFilterStatus] = useState<string>("all");
 	const [leftTab, setLeftTab] = useState<LeftPanelTab>("filters");
+	const [contextMenuPos, setContextMenuPos] =
+		useState<ContextMenuPosition | null>(null);
+	const [contextItem, setContextItem] = useState<ContextMenuItem | null>(null);
 
 	const incidentByEquipment = Object.fromEntries(
 		incidents.map((inc) => [inc.equipment_id, inc]),
@@ -525,7 +543,9 @@ export function MapViewer({
 	// Compute warnings
 	const mapWarnings: string[] = [];
 
-	// Filter helpers
+	// Filter helpers — O(n) lookup via Map instead of repeated Array.find
+	const equipmentById = new Map(equipment.map((e) => [e.id, e]));
+
 	const visibleEquipment = equipment.filter((eq) => {
 		if (filterType !== "all" && eq.type !== filterType) return false;
 		if (filterStatus !== "all" && eq.status !== filterStatus) return false;
@@ -533,8 +553,8 @@ export function MapViewer({
 	});
 
 	const visibleConnections = connections.filter((conn) => {
-		const fromEq = equipment.find((e) => e.id === conn.from_equipment_id);
-		const toEq = equipment.find((e) => e.id === conn.to_equipment_id);
+		const fromEq = equipmentById.get(conn.from_equipment_id);
+		const toEq = equipmentById.get(conn.to_equipment_id);
 		if (!fromEq || !toEq) return false;
 		if (filterType !== "all") {
 			if (fromEq.type !== filterType && toEq.type !== filterType) return false;
@@ -792,11 +812,46 @@ export function MapViewer({
 			}
 		};
 
+		// Context menu handler — single queryRenderedFeatures call
+		const onContextMenu = (e: mapboxgl.MapMouseEvent) => {
+			e.preventDefault();
+			const pos = { x: e.originalEvent.pageX, y: e.originalEvent.pageY };
+			const features = map.queryRenderedFeatures(e.point);
+
+			for (const f of features) {
+				if (f.source === "routes-source" && f.properties?.connection_id) {
+					const route = visibleConnectionsRef.current.find(
+						(r) => r.id === f.properties?.connection_id,
+					);
+					if (route) {
+						setContextItem({ kind: "route", route });
+						setContextMenuPos(pos);
+						return;
+					}
+				}
+				if (
+					f.source === "route-points-source" &&
+					f.properties?.route_point_id
+				) {
+					const point = routePointsRef.current.find(
+						(p) => p.id === f.properties?.route_point_id,
+					);
+					if (point) {
+						setContextItem({ kind: "routePoint", point });
+						setContextMenuPos(pos);
+						return;
+					}
+				}
+			}
+		};
+
 		map.on("click", onClick);
+		map.on("contextmenu", onContextMenu);
 
 		return () => {
 			map.off("zoom", onZoom);
 			map.off("click", onClick);
+			map.off("contextmenu", onContextMenu);
 			map.remove();
 			mapRef.current = null;
 		};
@@ -823,6 +878,11 @@ export function MapViewer({
 			) as HTMLElement;
 			wrapper?.addEventListener("click", () => {
 				setSelectedFeature({ kind: "element", element: eq });
+			});
+			wrapper?.addEventListener("contextmenu", (e) => {
+				e.preventDefault();
+				setContextItem({ kind: "element", element: eq });
+				setContextMenuPos({ x: e.pageX, y: e.pageY });
 			});
 
 			markersRef.current.set(eq.id, {
@@ -914,8 +974,47 @@ export function MapViewer({
 					onClose={() => setSelectedFeature(null)}
 				/>
 			)}
+
+			{contextItem && (
+				<ContextMenu
+					position={contextMenuPos}
+					options={getContextMenuOptions(
+						contextItem,
+						() => {
+							setSelectedFeature(contextItem);
+							setContextMenuPos(null);
+							setContextItem(null);
+						},
+						() => {
+							// TODO: Implementar acción "Ver diagrama"
+							console.log("Ver diagrama:", contextItem);
+						},
+					)}
+					onClose={() => {
+						setContextMenuPos(null);
+						setContextItem(null);
+					}}
+				/>
+			)}
 		</div>
 	);
+}
+
+function getContextMenuOptions(
+	_item: ContextMenuItem,
+	onViewDetails: () => void,
+	onViewDiagram: () => void,
+): ContextMenuOption[] {
+	return [
+		{
+			...defaultContextMenuOptions.viewDetails,
+			onClick: onViewDetails,
+		},
+		{
+			...defaultContextMenuOptions.viewDiagram,
+			onClick: onViewDiagram,
+		},
+	];
 }
 
 // ── Left Panel ───────────────────────────────────────────────────────────────
