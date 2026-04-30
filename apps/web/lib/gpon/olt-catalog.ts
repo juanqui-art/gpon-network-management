@@ -87,7 +87,7 @@ export const OLT_CATALOG: Record<string, OltModel> = {
 		id: "xgspon_huawei",
 		manufacturer: "Huawei",
 		model: "MA5800-X7 (XGS-PON)",
-		ponStandard: "xgspon",
+		ponStandard: "xgs_pon",
 		opticalClass: "N1",
 		maxPowerDbm: 29,
 		maxPonPorts: 4,

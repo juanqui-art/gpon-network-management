@@ -21,6 +21,7 @@
 		"@turf/helpers": "^7.3.5",
 		"@turf/length": "^7.3.5",
 		"@turf/nearest-point-on-line": "^7.3.5",
+		"@xyflow/react": "^12.10.2",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
 		"lucide-react": "^1.14.0",

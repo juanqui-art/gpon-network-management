@@ -1,4 +1,4 @@
-import { MapView } from "@/components/map/map-view";
+import { MapViewer } from "@/components/map/map-viewer";
 import type {
 	ConnectionMapItem,
 	EquipmentMapItem,
@@ -9,17 +9,11 @@ import type {
 } from "@/components/map/types";
 import { MAPBOX_TOKEN } from "@/lib/mapbox/config";
 import { createClient } from "@/lib/supabase/server";
-import type { UserRole } from "@/lib/types/gpon";
 
 export const metadata = { title: "Mapa GPON" };
 
 export default async function MapPage() {
 	const supabase = await createClient();
-
-	const {
-		data: { user },
-	} = await supabase.auth.getUser();
-	const userRole = (user?.app_metadata?.role ?? null) as UserRole | null;
 
 	const [
 		{ data: elements },
@@ -67,13 +61,12 @@ export default async function MapPage() {
 	});
 
 	return (
-		<MapView
+		<MapViewer
 			token={MAPBOX_TOKEN}
 			equipment={equipment}
 			connections={connections}
 			routePoints={(routePoints ?? []) as RoutePoint[]}
 			incidents={(incidents ?? []) as IncidentMapItem[]}
-			userRole={userRole}
 		/>
 	);
 }

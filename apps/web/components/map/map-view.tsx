@@ -8,8 +8,9 @@ import turfLength from "@turf/length";
 import {
 	AlertTriangle,
 	CheckCircle2,
+	ChevronDown,
+	ChevronRight,
 	Layers,
-	List,
 	MapPin,
 	Network,
 	Route,
@@ -50,11 +51,25 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+	DEFAULT_NAP_PROPERTIES,
+	getNapMode,
+	hasInternalSplitter,
+	NAP_MODE_LABEL,
+	type NapMode,
+	napPropertyLabel,
+} from "@/lib/gpon/nap-config";
+import {
 	formatMapLabel,
 	generateDraftCode,
 	nextSequence,
 	operativeCodeMatches,
 } from "@/lib/gpon/operative-code";
+import { SPLITTER_LOSS_DB } from "@/lib/gpon/optical-budget";
+import {
+	EQUIPMENT_MARKER_SIZE,
+	EQUIPMENT_STATUS_MARK,
+	equipmentSymbolSvg,
+} from "@/lib/gpon/symbology";
 import {
 	CABLE_COLOR,
 	DATA_QUALITY_COLOR,
@@ -234,84 +249,10 @@ function buildRoutePointsGeoJSON(
 
 // ── GPON symbology ───────────────────────────────────────────────────────────
 
-const STATUS_MARK: Record<string, string> = {
-	online: "",
-	active: "",
-	planned: "P",
-	inactive: "–",
-	faulty: "!",
-	retired: "×",
-	alarm: "!",
-	offline: "×",
-	maintenance: "•",
-	decommissioned: "–",
-	unknown: "?",
-};
-
 const ROUTE_POINT_COLOR: Record<string, string> = {
 	crossing: "#d7d7d7",
 	reserve: "#f6c768",
 	splice: "#fb7185",
-};
-
-// ── SVG icons per equipment type ─────────────────────────────────────────────
-
-function markerSVG(type: string, color: string): string {
-	const c = color;
-	switch (type) {
-		case "olt":
-			return `<svg xmlns="http://www.w3.org/2000/svg" width="38" height="38" viewBox="0 0 38 38">
-        <rect x="4" y="5" width="30" height="28" rx="4" fill="${c}"/>
-        <rect x="8" y="9" width="22" height="5" rx="1.5" fill="white" opacity="0.18"/>
-        <rect x="8" y="17" width="22" height="5" rx="1.5" fill="white" opacity="0.18"/>
-        <rect x="8" y="25" width="22" height="4" rx="1.5" fill="white" opacity="0.18"/>
-        <rect x="10" y="11" width="12" height="1.6" rx="0.8" fill="white" opacity="0.88"/>
-        <rect x="10" y="19" width="12" height="1.6" rx="0.8" fill="white" opacity="0.88"/>
-        <rect x="10" y="26.2" width="12" height="1.6" rx="0.8" fill="white" opacity="0.88"/>
-        <circle cx="27" cy="11.8" r="1.5" fill="white" opacity="0.95"/>
-        <circle cx="27" cy="19.8" r="1.5" fill="white" opacity="0.95"/>
-      </svg>`;
-
-		case "splitter":
-			// Triangle pointing right = passive 1:N fan-out.
-			return `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30">
-        <path d="M4 5.5 Q4 4.3 5.1 4.9 L25.4 14 Q27 14.8 25.4 16 L5.1 25.1 Q4 25.7 4 24.5 Z" fill="${c}"/>
-        <circle cx="8.2" cy="15" r="2" fill="white" opacity="0.95"/>
-        <path d="M14 15 H24" stroke="white" stroke-width="1.7" stroke-linecap="round" opacity="0.82"/>
-        <path d="M17 15 L23.2 9" stroke="white" stroke-width="1.7" stroke-linecap="round" opacity="0.62"/>
-        <path d="M17 15 L23.2 21" stroke="white" stroke-width="1.7" stroke-linecap="round" opacity="0.62"/>
-      </svg>`;
-
-		case "nap":
-			// Distribution box with port grid (4 ports = typical NAP 4-16p).
-			return `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
-        <rect x="3" y="5" width="22" height="18" rx="3" fill="${c}"/>
-        <rect x="6" y="8" width="16" height="3" rx="1.2" fill="white" opacity="0.2"/>
-        <rect x="6" y="13" width="4" height="4" rx="1" fill="white" opacity="0.9"/>
-        <rect x="12" y="13" width="4" height="4" rx="1" fill="white" opacity="0.9"/>
-        <rect x="18" y="13" width="4" height="4" rx="1" fill="white" opacity="0.9"/>
-        <rect x="6" y="19" width="7" height="1.8" rx="0.9" fill="white" opacity="0.36"/>
-        <rect x="15" y="19" width="7" height="1.8" rx="0.9" fill="white" opacity="0.36"/>
-      </svg>`;
-
-		default: // ont — small gateway with wifi arc (customer-side terminal)
-			return `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22">
-        <rect x="3" y="8" width="16" height="11" rx="2.5" fill="${c}"/>
-        <path d="M6.5 6.2 Q11 2.9 15.5 6.2" stroke="white" stroke-width="1.45" fill="none" stroke-linecap="round" opacity="0.75"/>
-        <path d="M8.3 8 Q11 6.1 13.7 8" stroke="white" stroke-width="1.35" fill="none" stroke-linecap="round" opacity="0.9"/>
-        <circle cx="7.2" cy="13.5" r="1.1" fill="white" opacity="0.95"/>
-        <circle cx="11" cy="13.5" r="1.1" fill="white" opacity="0.95"/>
-        <circle cx="14.8" cy="13.5" r="1.1" fill="white" opacity="0.95"/>
-        <rect x="6" y="16.4" width="10" height="1.4" rx="0.7" fill="white" opacity="0.26"/>
-      </svg>`;
-	}
-}
-
-const MARKER_SIZE: Record<string, number> = {
-	olt: 38,
-	splitter: 30,
-	nap: 28,
-	ont: 22,
 };
 
 function interpolateZoomScale(
@@ -396,7 +337,7 @@ function createMarkerEl(
 ): HTMLElement {
 	const typeColor = TYPE_COLOR[eq.type] ?? TYPE_COLOR.unknown;
 	const statusColor = STATUS_COLOR[eq.status] ?? STATUS_COLOR.unknown;
-	const size = MARKER_SIZE[eq.type] ?? 22;
+	const size = EQUIPMENT_MARKER_SIZE[eq.type] ?? 22;
 	const ringSize = size + 8;
 	const showStatusBadge = eq.status !== "online";
 
@@ -488,7 +429,8 @@ function createMarkerEl(
       font-family: system-ui, sans-serif;
       line-height: 1;
     `;
-		statusBadge.textContent = STATUS_MARK[eq.status] ?? STATUS_MARK.unknown;
+		statusBadge.textContent =
+			EQUIPMENT_STATUS_MARK[eq.status] ?? EQUIPMENT_STATUS_MARK.unknown;
 		wrapper.appendChild(statusBadge);
 	}
 
@@ -533,7 +475,9 @@ function createMarkerEl(
     transition: filter 0.15s ease;
     filter: drop-shadow(0 0 5px rgba(0,0,0,0.65));
   `;
-	inner.innerHTML = markerSVG(eq.type, typeColor);
+	inner.innerHTML = equipmentSymbolSvg(eq.type, typeColor, {
+		hasInternalSplitter: hasInternalSplitter(eq),
+	});
 
 	if (eq.status === "alarm") {
 		const pulse = document.createElement("div");
@@ -621,7 +565,7 @@ type MarkerEntry = {
 };
 
 type EditorMode = "view" | "design" | "edit";
-type LeftPanelTab = "layers" | "elements" | "tree" | "quality";
+type LeftPanelTab = "tree" | "layers" | "quality";
 type SelectedFeature =
 	| { kind: "element"; element: EquipmentMapItem }
 	| { kind: "route"; route: ConnectionMapItem }
@@ -650,11 +594,13 @@ type DraftElementPatch = Partial<
 		| "code"
 		| "name"
 		| "location_quality"
+		| "optical_class"
 		| "total_pon_ports"
 		| "split_ratio"
 		| "insertion_loss_db"
 		| "total_ports"
 		| "address_reference"
+		| "properties"
 		| "selectedZone"
 		| "notes"
 	>
@@ -937,12 +883,17 @@ function createDraftElement(
 		pon_standard: type === "olt" ? "gpon" : null,
 		total_pon_ports: type === "olt" ? 8 : null,
 		optical_class: null,
-		split_ratio: type === "splitter" ? "1:8" : null,
-		insertion_loss_db: type === "splitter" ? 10.5 : null,
-		total_ports: type === "nap" ? 8 : null,
+		split_ratio: type === "splitter" ? "1:8" : type === "nap" ? "1:16" : null,
+		insertion_loss_db:
+			type === "splitter"
+				? SPLITTER_LOSS_DB["1:8"]
+				: type === "nap"
+					? SPLITTER_LOSS_DB["1:16"]
+					: null,
+		total_ports: type === "nap" ? 16 : null,
 		ports_used: null,
 		ports_reserved: null,
-		properties: {},
+		properties: type === "nap" ? { ...DEFAULT_NAP_PROPERTIES } : {},
 		notes: null,
 		created_by: null,
 		updated_by: null,
@@ -1153,7 +1104,7 @@ export function MapView({
 	const [internalActiveTool, setInternalActiveTool] =
 		useState<EditorTool>("select");
 	const [internalMode, setInternalMode] = useState<EditorMode>("view");
-	const [leftTab, setLeftTab] = useState<LeftPanelTab>("layers");
+	const [leftTab, setLeftTab] = useState<LeftPanelTab>("tree");
 	const [commandOpen, setCommandOpen] = useState(false);
 	const [toastOpen, setToastOpen] = useState(false);
 	const [toastMessage, setToastMessage] = useState(
@@ -1308,6 +1259,13 @@ export function MapView({
 			if (eq.type === "splitter" && !eq.split_ratio) {
 				warnings.push(`${eq.code}: sin ratio de división`);
 			}
+			if (
+				eq.type === "nap" &&
+				getNapMode(eq) === "with_splitter" &&
+				!eq.split_ratio
+			) {
+				warnings.push(`${eq.code}: NAP con PLC sin ratio`);
+			}
 			if (eq.type === "nap" && eq.total_ports) {
 				const used = eq.ports_used ?? 0;
 				if (used >= eq.total_ports) warnings.push(`${eq.code}: NAP saturada`);
@@ -1322,15 +1280,10 @@ export function MapView({
 		}
 		return warnings;
 	})();
-	const visibleEquipment = equipment.filter((eq) => {
-		const typeOk = filterType === "all" || eq.type === filterType;
-		const statusOk = filterStatus === "all" || eq.status === filterStatus;
-		return typeOk && statusOk;
-	});
 	const focusEquipment = useCallback(
 		(eq: EquipmentMapItem) => {
 			setSelected({ kind: "element", element: eq });
-			setLeftTab("elements");
+			setLeftTab("tree");
 			mapRef.current?.flyTo({
 				center: [eq.lng, eq.lat],
 				zoom: Math.max(mapRef.current.getZoom(), 16),
@@ -1412,9 +1365,11 @@ export function MapView({
 							location_quality: draft.location_quality,
 							pon_standard: draft.pon_standard,
 							total_pon_ports: draft.total_pon_ports,
+							optical_class: draft.optical_class,
 							split_ratio: draft.split_ratio,
 							insertion_loss_db: draft.insertion_loss_db,
 							total_ports: draft.total_ports,
+							properties: draft.properties,
 							address_reference: draft.address_reference,
 							notes: draft.notes,
 						});
@@ -1901,14 +1856,15 @@ export function MapView({
 					const badge = document.createElement("div");
 					badge.dataset.role = "status-badge";
 					badge.style.cssText = `position:absolute;left:-5px;bottom:-5px;width:14px;height:14px;border-radius:50%;background:${statusColor};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#1b1c1d;border:1.5px solid #1b1c1d;z-index:10;pointer-events:none;font-family:system-ui,sans-serif;line-height:1;`;
-					badge.textContent = STATUS_MARK[eq.status] ?? STATUS_MARK.unknown;
+					badge.textContent =
+						EQUIPMENT_STATUS_MARK[eq.status] ?? EQUIPMENT_STATUS_MARK.unknown;
 					wrapper.appendChild(badge);
 				} else if (!showBadge && existingBadge) {
 					existingBadge.remove();
 				} else if (showBadge && existingBadge) {
 					existingBadge.style.background = statusColor;
 					existingBadge.textContent =
-						STATUS_MARK[eq.status] ?? STATUS_MARK.unknown;
+						EQUIPMENT_STATUS_MARK[eq.status] ?? EQUIPMENT_STATUS_MARK.unknown;
 				}
 
 				// Update pulse
@@ -2894,7 +2850,6 @@ export function MapView({
 						tab={leftTab}
 						onTabChange={setLeftTab}
 						mode={mode}
-						equipment={visibleEquipment}
 						allEquipment={equipment}
 						connections={connections}
 						routePointCount={routePointCount}
@@ -3342,7 +3297,6 @@ function InfrastructurePanel({
 	tab,
 	onTabChange,
 	mode,
-	equipment,
 	allEquipment,
 	connections,
 	routePointCount,
@@ -3358,7 +3312,6 @@ function InfrastructurePanel({
 	tab: LeftPanelTab;
 	onTabChange: (tab: LeftPanelTab) => void;
 	mode: EditorMode;
-	equipment: EquipmentMapItem[];
 	allEquipment: EquipmentMapItem[];
 	connections: ConnectionMapItem[];
 	routePointCount: number;
@@ -3371,15 +3324,31 @@ function InfrastructurePanel({
 	onSelectEquipment: (eq: EquipmentMapItem) => void;
 	onOpenCommand: () => void;
 }) {
-	const [search, setSearch] = useState("");
-	const q = search.trim().toLowerCase();
-	const filteredElements = q
-		? equipment.filter(
-				(eq) =>
-					eq.name?.toLowerCase().includes(q) ||
-					operativeCodeMatches(eq.code, q),
-			)
-		: equipment;
+	const [expandedTreeItems, setExpandedTreeItems] = useState<Set<string>>(
+		() =>
+			new Set(
+				allEquipment
+					.filter((element) => element.type === "olt")
+					.map((element) => element.id),
+			),
+	);
+	const toggleTreeItem = (id: string) => {
+		setExpandedTreeItems((current) => {
+			const next = new Set(current);
+			if (next.has(id)) next.delete(id);
+			else next.add(id);
+			return next;
+		});
+	};
+	useEffect(() => {
+		setExpandedTreeItems((current) => {
+			const next = new Set(current);
+			for (const element of allEquipment) {
+				if (element.type === "olt") next.add(element.id);
+			}
+			return next;
+		});
+	}, [allEquipment]);
 
 	// Network stats for header
 	const olts = allEquipment.filter((e) => e.type === "olt").length;
@@ -3392,9 +3361,8 @@ function InfrastructurePanel({
 			e.type === "nap" && e.total_ports && (e.ports_used ?? 0) >= e.total_ports,
 	).length;
 	const tabs = [
-		{ value: "layers", label: "Capas", icon: Layers },
-		{ value: "elements", label: "Equipos", icon: List },
 		{ value: "tree", label: "Árbol", icon: Network },
+		{ value: "layers", label: "Capas", icon: Layers },
 		{ value: "quality", label: "Alertas", icon: Siren },
 	] as const;
 
@@ -3445,7 +3413,7 @@ function InfrastructurePanel({
 						</kbd>
 					</Button>
 
-					<TabsList className="grid w-full grid-cols-4 bg-[rgba(164,164,164,0.05)]">
+					<TabsList className="grid w-full grid-cols-3 bg-[rgba(164,164,164,0.05)]">
 						{tabs.map(({ value, label, icon: Icon }) => (
 							<TabsTrigger
 								key={value}
@@ -3494,80 +3462,22 @@ function InfrastructurePanel({
 					</ScrollArea>
 				</TabsContent>
 
-				<TabsContent value="elements" className="overflow-hidden">
-					<div className="flex h-full min-h-0 flex-col overflow-hidden">
-						<div className="px-3 pt-3 pb-2">
-							<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-								Equipos visibles
-							</p>
-							<div className="relative">
-								<Search
-									className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-									aria-hidden="true"
-								/>
-								<Input
-									type="search"
-									placeholder="Filtrar equipos visibles…"
-									value={search}
-									onChange={(e) => setSearch(e.target.value)}
-									className="h-8 bg-[rgba(27,28,29,0.82)] pl-8 text-xs"
-								/>
-							</div>
-							<p className="mt-1.5 text-right text-[10px] text-[#777879]">
-								{filteredElements.length} de {equipment.length}
-							</p>
-						</div>
-						<ScrollArea className="min-h-0 flex-1 px-3 pb-3">
-							<div className="space-y-1.5">
-								{filteredElements.length === 0 ? (
-									<p className="py-4 text-center text-[11px] text-[#5c5d5f]">
-										Sin resultados
-									</p>
-								) : null}
-								{filteredElements.map((eq) => (
-									<button
-										key={eq.id}
-										type="button"
-										onClick={() => onSelectEquipment(eq)}
-										className="flex w-full items-center justify-between gap-3 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.05)] px-2.5 py-2 text-left transition-colors hover:border-[rgba(164,164,164,0.24)] hover:bg-[rgba(164,164,164,0.1)]"
-									>
-										<span className="flex min-w-0 items-center gap-2">
-											<span
-												className="h-2.5 w-2.5 shrink-0 rounded-full"
-												style={{
-													backgroundColor:
-														TYPE_COLOR[eq.type] ?? TYPE_COLOR.unknown,
-												}}
-											/>
-											<span className="min-w-0">
-												<span className="block truncate text-xs font-medium text-[#d7d7d7]">
-													{eq.name}
-												</span>
-												<span className="block text-[10px] uppercase tracking-wide text-[#777879]">
-													{eq.type}
-												</span>
-											</span>
-										</span>
-										<span
-											className="h-2 w-2 shrink-0 rounded-full"
-											style={{
-												backgroundColor:
-													STATUS_COLOR[eq.status] ?? STATUS_COLOR.unknown,
-											}}
-										/>
-									</button>
-								))}
-							</div>
-						</ScrollArea>
-					</div>
-				</TabsContent>
-
 				<TabsContent value="tree" className="overflow-hidden">
 					<ScrollArea className="h-full px-3 py-3">
 						<div className="space-y-2">
 							<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879] mb-2">
 								Topología OLT → Splitter → NAP
 							</p>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={onOpenCommand}
+								className="mb-3 h-8 w-full justify-start border-[rgba(164,164,164,0.14)] bg-[rgba(164,164,164,0.05)] text-xs text-[#a4a4a4]"
+							>
+								<Search className="size-3.5" aria-hidden="true" />
+								Buscar equipo por código o cliente
+							</Button>
 							{allEquipment.filter((e) => e.type === "olt").length === 0 ? (
 								<p className="text-[11px] text-[#5c5d5f] text-center py-4">
 									Sin elementos en la red
@@ -3590,110 +3500,179 @@ function InfrastructurePanel({
 														r.to_element_id === e.id,
 												),
 										);
+										const isOltExpanded = expandedTreeItems.has(olt.id);
 										return (
 											<div
 												key={olt.id}
 												className="rounded-md border border-[rgba(56,189,248,0.2)] bg-[rgba(56,189,248,0.05)] p-2"
 											>
-												<button
-													type="button"
-													onClick={() => onSelectEquipment(olt)}
-													className="flex w-full items-center gap-2 text-left hover:opacity-80"
-												>
-													<span className="h-2.5 w-2.5 rounded-full bg-[#38bdf8] shrink-0" />
-													<span className="text-xs font-semibold text-[#e6e6e6] truncate">
-														{olt.name ?? olt.code}
-													</span>
-													{olt.total_pon_ports && (
-														<span className="ml-auto text-[10px] text-[#777879] shrink-0">
-															{olt.total_pon_ports}P
+												<div className="flex items-center gap-1.5">
+													<button
+														type="button"
+														onClick={() => toggleTreeItem(olt.id)}
+														aria-label={
+															isOltExpanded
+																? `Contraer ${olt.name ?? olt.code}`
+																: `Expandir ${olt.name ?? olt.code}`
+														}
+														aria-expanded={isOltExpanded}
+														className="flex size-6 shrink-0 items-center justify-center rounded-md text-[#a4a4a4] transition-colors hover:bg-white/10 hover:text-[#e6e6e6]"
+													>
+														{isOltExpanded ? (
+															<ChevronDown
+																className="size-3.5"
+																aria-hidden="true"
+															/>
+														) : (
+															<ChevronRight
+																className="size-3.5"
+																aria-hidden="true"
+															/>
+														)}
+													</button>
+													<button
+														type="button"
+														onClick={() => onSelectEquipment(olt)}
+														className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-80"
+													>
+														<span className="h-2.5 w-2.5 rounded-full bg-[#38bdf8] shrink-0" />
+														<span className="truncate text-xs font-semibold text-[#e6e6e6]">
+															{olt.name ?? olt.code}
 														</span>
-													)}
-												</button>
-												{connectedSplitters.map((spl) => {
-													const distRoutes = connections.filter(
-														(c) =>
-															c.from_element_id === spl.id ||
-															c.to_element_id === spl.id,
-													);
-													const connectedNaps = allEquipment.filter(
-														(e) =>
-															e.type === "nap" &&
-															distRoutes.some(
-																(r) =>
-																	r.from_element_id === e.id ||
-																	r.to_element_id === e.id,
-															),
-													);
-													return (
-														<div
-															key={spl.id}
-															className="ml-3 mt-1.5 border-l border-[rgba(167,139,250,0.3)] pl-2.5"
-														>
-															<button
-																type="button"
-																onClick={() => onSelectEquipment(spl)}
-																className="flex w-full items-center gap-2 text-left hover:opacity-80"
+														<span className="ml-auto shrink-0 text-[10px] text-[#777879]">
+															{connectedSplitters.length} splitters
+														</span>
+														{olt.total_pon_ports && (
+															<span className="shrink-0 text-[10px] text-[#777879]">
+																{olt.total_pon_ports}P
+															</span>
+														)}
+													</button>
+												</div>
+												{isOltExpanded &&
+													connectedSplitters.map((spl) => {
+														const distRoutes = connections.filter(
+															(c) =>
+																c.from_element_id === spl.id ||
+																c.to_element_id === spl.id,
+														);
+														const connectedNaps = allEquipment.filter(
+															(e) =>
+																e.type === "nap" &&
+																distRoutes.some(
+																	(r) =>
+																		r.from_element_id === e.id ||
+																		r.to_element_id === e.id,
+																),
+														);
+														const isSplitterExpanded = expandedTreeItems.has(
+															spl.id,
+														);
+														return (
+															<div
+																key={spl.id}
+																className="ml-3 mt-1.5 border-l border-[rgba(167,139,250,0.3)] pl-2.5"
 															>
-																<span className="h-2 w-2 rounded-full bg-[#a78bfa] shrink-0" />
-																<span className="text-[11px] text-[#d7d7d7] truncate">
-																	{spl.name ?? spl.code}
-																</span>
-																{spl.split_ratio && (
-																	<span className="ml-auto text-[10px] text-[#777879] shrink-0">
-																		{spl.split_ratio}
-																	</span>
-																)}
-															</button>
-															{connectedNaps.map((nap) => {
-																const pct = nap.total_ports
-																	? (nap.ports_used ?? 0) / nap.total_ports
-																	: 0;
-																const napColor =
-																	pct >= 0.9
-																		? "#fb4d6d"
-																		: pct >= 0.7
-																			? "#f59e0b"
-																			: "#34d399";
-																return (
-																	<div
-																		key={nap.id}
-																		className="ml-3 mt-1 border-l border-[rgba(245,158,11,0.2)] pl-2.5"
+																<div className="flex items-center gap-1.5">
+																	<button
+																		type="button"
+																		onClick={() => toggleTreeItem(spl.id)}
+																		aria-label={
+																			isSplitterExpanded
+																				? `Contraer ${spl.name ?? spl.code}`
+																				: `Expandir ${spl.name ?? spl.code}`
+																		}
+																		aria-expanded={isSplitterExpanded}
+																		className="flex size-5 shrink-0 items-center justify-center rounded text-[#858585] transition-colors hover:bg-white/10 hover:text-[#d7d7d7]"
 																	>
-																		<button
-																			type="button"
-																			onClick={() => onSelectEquipment(nap)}
-																			className="flex w-full items-center gap-1.5 text-left hover:opacity-80"
-																		>
-																			<span
-																				className="h-1.5 w-1.5 rounded-full shrink-0"
-																				style={{ background: napColor }}
+																		{isSplitterExpanded ? (
+																			<ChevronDown
+																				className="size-3"
+																				aria-hidden="true"
 																			/>
-																			<span className="text-[10px] text-[#a4a4a4] truncate">
-																				{nap.name ?? nap.code}
+																		) : (
+																			<ChevronRight
+																				className="size-3"
+																				aria-hidden="true"
+																			/>
+																		)}
+																	</button>
+																	<button
+																		type="button"
+																		onClick={() => onSelectEquipment(spl)}
+																		className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-80"
+																	>
+																		<span className="h-2 w-2 rounded-full bg-[#a78bfa] shrink-0" />
+																		<span className="truncate text-[11px] text-[#d7d7d7]">
+																			{spl.name ?? spl.code}
+																		</span>
+																		<span className="ml-auto shrink-0 text-[10px] text-[#777879]">
+																			{connectedNaps.length} NAPs
+																		</span>
+																		{spl.split_ratio && (
+																			<span className="shrink-0 text-[10px] text-[#777879]">
+																				{spl.split_ratio}
 																			</span>
-																			{nap.total_ports && (
-																				<span
-																					className="ml-auto text-[9px] shrink-0"
-																					style={{ color: napColor }}
+																		)}
+																	</button>
+																</div>
+																{isSplitterExpanded &&
+																	connectedNaps.map((nap) => {
+																		const pct = nap.total_ports
+																			? (nap.ports_used ?? 0) / nap.total_ports
+																			: 0;
+																		const napColor =
+																			pct >= 0.9
+																				? "#fb4d6d"
+																				: pct >= 0.7
+																					? "#f59e0b"
+																					: "#34d399";
+																		return (
+																			<div
+																				key={nap.id}
+																				className="ml-3 mt-1 border-l border-[rgba(245,158,11,0.2)] pl-2.5"
+																			>
+																				<button
+																					type="button"
+																					onClick={() => onSelectEquipment(nap)}
+																					className="flex w-full items-center gap-1.5 text-left hover:opacity-80"
 																				>
-																					{nap.ports_used ?? 0}/
-																					{nap.total_ports}
-																				</span>
-																			)}
-																		</button>
-																	</div>
-																);
-															})}
-															{connectedNaps.length === 0 && (
-																<p className="ml-3 text-[10px] text-[#5c5d5f] mt-0.5">
-																	Sin NAPs conectadas
-																</p>
-															)}
-														</div>
-													);
-												})}
-												{connectedSplitters.length === 0 && (
+																					<span
+																						className="h-1.5 w-1.5 rounded-full shrink-0"
+																						style={{ background: napColor }}
+																					/>
+																					<span className="text-[10px] text-[#a4a4a4] truncate">
+																						{nap.name ?? nap.code}
+																					</span>
+																					{nap.total_ports && (
+																						<span
+																							className="ml-auto text-[9px] shrink-0"
+																							style={{ color: napColor }}
+																						>
+																							{nap.ports_used ?? 0}/
+																							{nap.total_ports}
+																						</span>
+																					)}
+																					{hasInternalSplitter(nap) &&
+																						nap.split_ratio && (
+																							<span className="shrink-0 text-[9px] text-[#777879]">
+																								{nap.split_ratio}
+																							</span>
+																						)}
+																				</button>
+																			</div>
+																		);
+																	})}
+																{isSplitterExpanded &&
+																	connectedNaps.length === 0 && (
+																		<p className="ml-3 text-[10px] text-[#5c5d5f] mt-0.5">
+																			Sin NAPs conectadas
+																		</p>
+																	)}
+															</div>
+														);
+													})}
+												{isOltExpanded && connectedSplitters.length === 0 && (
 													<p className="ml-3 mt-1 text-[10px] text-[#5c5d5f]">
 														Sin splitters conectados
 													</p>
@@ -4216,6 +4195,7 @@ function SelectedFeatureProperties({
 
 	if (selectedFeature.kind === "draftElement") {
 		const draft = selectedFeature.element;
+		const draftNapMode = draft.type === "nap" ? getNapMode(draft) : null;
 		const selectedZone = draft.selectedZone ?? "Z05";
 		const zoneOptions: Array<[value: string, label: string]> =
 			zones.length > 0
@@ -4305,6 +4285,8 @@ function SelectedFeatureProperties({
 							onChange={(split_ratio) =>
 								onDraftChange({
 									split_ratio: split_ratio as DraftElement["split_ratio"],
+									insertion_loss_db:
+										SPLITTER_LOSS_DB[split_ratio] ?? draft.insertion_loss_db,
 								})
 							}
 						/>
@@ -4319,12 +4301,92 @@ function SelectedFeatureProperties({
 					</>
 				)}
 				{draft.type === "nap" && (
-					<DraftNumberField
-						label="Puertos"
-						value={draft.total_ports}
-						error={getFieldError(draft.id, "capacity")}
-						onChange={(total_ports) => onDraftChange({ total_ports })}
-					/>
+					<>
+						<DraftSelectField
+							label="Tipo de NAP"
+							value={draftNapMode ?? "with_splitter"}
+							options={[
+								["terminal", NAP_MODE_LABEL.terminal],
+								["with_splitter", NAP_MODE_LABEL.with_splitter],
+								["prepared", NAP_MODE_LABEL.prepared],
+							]}
+							onChange={(mode) => {
+								const napMode = mode as NapMode;
+								onDraftChange({
+									properties: {
+										...draft.properties,
+										nap_mode: napMode,
+									},
+									split_ratio:
+										napMode === "with_splitter"
+											? (draft.split_ratio ?? "1:16")
+											: null,
+									insertion_loss_db:
+										napMode === "with_splitter"
+											? (SPLITTER_LOSS_DB[draft.split_ratio ?? "1:16"] ??
+												draft.insertion_loss_db)
+											: null,
+								});
+							}}
+						/>
+						<DraftSelectField
+							label="Conector"
+							value={napPropertyLabel(draft, "connector_type", "SC/APC")}
+							options={[
+								["SC/APC", "SC/APC"],
+								["SC/UPC", "SC/UPC"],
+								["Mini SC/APC", "Mini SC/APC"],
+							]}
+							onChange={(connectorType) =>
+								onDraftChange({
+									properties: {
+										...draft.properties,
+										connector_type: connectorType,
+									},
+								})
+							}
+						/>
+						<DraftSelectField
+							label="Protección"
+							value={napPropertyLabel(draft, "protection_rating", "IP65")}
+							options={[
+								["IP65", "IP65"],
+								["IP68", "IP68"],
+							]}
+							onChange={(protectionRating) =>
+								onDraftChange({
+									properties: {
+										...draft.properties,
+										protection_rating: protectionRating,
+									},
+								})
+							}
+						/>
+						{draftNapMode === "with_splitter" && (
+							<DraftSelectField
+								label="Splitter interno"
+								value={draft.split_ratio ?? "1:16"}
+								options={[
+									["1:8", "1:8"],
+									["1:16", "1:16"],
+									["1:32", "1:32"],
+								]}
+								onChange={(split_ratio) =>
+									onDraftChange({
+										split_ratio: split_ratio as DraftElement["split_ratio"],
+										insertion_loss_db:
+											SPLITTER_LOSS_DB[split_ratio] ?? draft.insertion_loss_db,
+									})
+								}
+							/>
+						)}
+						<DraftNumberField
+							label="Puertos"
+							value={draft.total_ports}
+							error={getFieldError(draft.id, "capacity")}
+							onChange={(total_ports) => onDraftChange({ total_ports })}
+						/>
+					</>
 				)}
 				<DraftTextField
 					label="Referencia"
@@ -4685,6 +4747,15 @@ function ExistingElementPanel({
 		(patch[key] !== undefined
 			? patch[key]
 			: element[key]) as EquipmentMapItem[K];
+	const currentElement = { ...element, ...patch };
+	const currentNapMode =
+		element.type === "nap" ? getNapMode(currentElement) : null;
+	const setProperty = (key: string, value: string) => {
+		field("properties", {
+			...currentElement.properties,
+			[key]: value,
+		});
+	};
 
 	if (mode !== "edit") {
 		// View / design → read-only
@@ -4713,6 +4784,30 @@ function ExistingElementPanel({
 				)}
 				{element.type === "splitter" && (
 					<PropertyRow label="Ratio" value={element.split_ratio ?? "—"} />
+				)}
+				{element.type === "nap" && (
+					<>
+						<PropertyRow
+							label="Tipo de NAP"
+							value={NAP_MODE_LABEL[getNapMode(element)]}
+						/>
+						<PropertyRow
+							label="Conector"
+							value={napPropertyLabel(element, "connector_type", "SC/APC")}
+						/>
+						<PropertyRow
+							label="Protección"
+							value={napPropertyLabel(element, "protection_rating", "IP65")}
+						/>
+						<PropertyRow
+							label="Splitter interno"
+							value={
+								getNapMode(element) === "with_splitter"
+									? (element.split_ratio ?? "Sin ratio")
+									: "No instalado"
+							}
+						/>
+					</>
 				)}
 				{element.type === "nap" && element.total_ports != null && (
 					<NapCapacity element={element} size="sm" />
@@ -4819,13 +4914,84 @@ function ExistingElementPanel({
 				/>
 			)}
 			{element.type === "nap" && (
-				<DraftNumberField
-					label="Puertos totales"
-					value={currentValue("total_ports") as number | null}
-					onChange={(v) =>
-						field("total_ports", v as EquipmentMapItem["total_ports"])
-					}
-				/>
+				<>
+					<DraftSelectField
+						label="Tipo de NAP"
+						value={currentNapMode ?? "with_splitter"}
+						options={[
+							["terminal", NAP_MODE_LABEL.terminal],
+							["with_splitter", NAP_MODE_LABEL.with_splitter],
+							["prepared", NAP_MODE_LABEL.prepared],
+						]}
+						onChange={(v) => {
+							const napMode = v as NapMode;
+							setProperty("nap_mode", napMode);
+							field(
+								"split_ratio",
+								(napMode === "with_splitter"
+									? ((currentValue("split_ratio") as string | null) ?? "1:16")
+									: null) as EquipmentMapItem["split_ratio"],
+							);
+							field(
+								"insertion_loss_db",
+								(napMode === "with_splitter"
+									? (SPLITTER_LOSS_DB[
+											(currentValue("split_ratio") as string | null) ?? "1:16"
+										] ?? null)
+									: null) as EquipmentMapItem["insertion_loss_db"],
+							);
+						}}
+					/>
+					<DraftSelectField
+						label="Conector"
+						value={napPropertyLabel(currentElement, "connector_type", "SC/APC")}
+						options={[
+							["SC/APC", "SC/APC"],
+							["SC/UPC", "SC/UPC"],
+							["Mini SC/APC", "Mini SC/APC"],
+						]}
+						onChange={(v) => setProperty("connector_type", v)}
+					/>
+					<DraftSelectField
+						label="Protección"
+						value={napPropertyLabel(
+							currentElement,
+							"protection_rating",
+							"IP65",
+						)}
+						options={[
+							["IP65", "IP65"],
+							["IP68", "IP68"],
+						]}
+						onChange={(v) => setProperty("protection_rating", v)}
+					/>
+					{currentNapMode === "with_splitter" && (
+						<DraftSelectField
+							label="Splitter interno"
+							value={(currentValue("split_ratio") as string | null) ?? "1:16"}
+							options={[
+								["1:8", "1:8"],
+								["1:16", "1:16"],
+								["1:32", "1:32"],
+							]}
+							onChange={(v) => {
+								field("split_ratio", v as EquipmentMapItem["split_ratio"]);
+								field(
+									"insertion_loss_db",
+									(SPLITTER_LOSS_DB[v] ??
+										null) as EquipmentMapItem["insertion_loss_db"],
+								);
+							}}
+						/>
+					)}
+					<DraftNumberField
+						label="Puertos totales"
+						value={currentValue("total_ports") as number | null}
+						onChange={(v) =>
+							field("total_ports", v as EquipmentMapItem["total_ports"])
+						}
+					/>
+				</>
 			)}
 			<DraftTextField
 				label="Referencia"

@@ -75,9 +75,11 @@ export interface CreateElementInput {
 	location_quality: DataQuality;
 	pon_standard: PonStandard | null;
 	total_pon_ports: number | null;
+	optical_class: string | null;
 	split_ratio: SplitRatio | null;
 	insertion_loss_db: number | null;
 	total_ports: number | null;
+	properties: Record<string, unknown>;
 	address_reference: string | null;
 	notes: string | null;
 }
@@ -98,9 +100,11 @@ export async function createInfrastructureElement(
 			p_location_quality: input.location_quality,
 			p_pon_standard: input.pon_standard,
 			p_total_pon_ports: input.total_pon_ports,
+			p_optical_class: input.optical_class,
 			p_split_ratio: input.split_ratio,
 			p_insertion_loss_db: input.insertion_loss_db,
 			p_total_ports: input.total_ports,
+			p_properties: input.properties,
 			p_address_reference: input.address_reference,
 			p_notes: input.notes,
 		},
@@ -197,6 +201,8 @@ export async function updateInfrastructureElement(input: {
 	patch: Partial<EquipmentMapItem>;
 }): Promise<InfrastructureElement> {
 	const { element, patch } = input;
+	const hasPatch = <K extends keyof EquipmentMapItem>(key: K): boolean =>
+		Object.hasOwn(patch, key);
 	const supabase = createClient();
 	const { data, error } = await supabase.rpc("update_infrastructure_element", {
 		p_id: element.id,
@@ -207,10 +213,15 @@ export async function updateInfrastructureElement(input: {
 		p_lng: patch.lng ?? element.lng,
 		p_lat: patch.lat ?? element.lat,
 		p_total_pon_ports: patch.total_pon_ports ?? element.total_pon_ports,
-		p_split_ratio: patch.split_ratio ?? element.split_ratio,
-		p_insertion_loss_db: patch.insertion_loss_db ?? element.insertion_loss_db,
+		p_split_ratio: hasPatch("split_ratio")
+			? patch.split_ratio
+			: element.split_ratio,
+		p_insertion_loss_db: hasPatch("insertion_loss_db")
+			? patch.insertion_loss_db
+			: element.insertion_loss_db,
 		p_total_ports: patch.total_ports ?? element.total_ports,
 		p_optical_class: patch.optical_class ?? element.optical_class,
+		p_properties: patch.properties ?? element.properties,
 		p_address_reference: patch.address_reference ?? element.address_reference,
 		p_notes: patch.notes ?? element.notes,
 	});

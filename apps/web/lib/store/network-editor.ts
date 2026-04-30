@@ -438,9 +438,13 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 							p_lat: el.lat,
 							p_status: el.status,
 							p_location_quality: el.location_quality,
+							p_pon_standard: el.pon_standard,
 							p_total_pon_ports: el.total_pon_ports,
+							p_optical_class: el.optical_class,
 							p_split_ratio: el.split_ratio,
+							p_insertion_loss_db: el.insertion_loss_db,
 							p_total_ports: el.total_ports,
+							p_properties: el.properties,
 							p_notes: el.notes,
 						});
 					}

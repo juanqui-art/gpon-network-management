@@ -75,7 +75,7 @@ export interface InfrastructureElement {
 	location_quality: DataQuality;
 	address_reference: string | null;
 
-	// type-specific (nullable; only filled for matching type)
+	// type-specific (nullable; split fields apply to standalone splitters or NAPs with internal splitter)
 	pon_standard: PonStandard | null;
 	total_pon_ports: number | null;
 	split_ratio: SplitRatio | null;
