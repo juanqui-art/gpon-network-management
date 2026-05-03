@@ -221,6 +221,210 @@ Después de instalar cualquier topología:
 
 ---
 
+## 🚀 FUTURE-PROOF: COMPATIBILIDAD CON XGS-PON (2026-2030)
+
+### El Cambio Tecnológico: GPON → XGS-PON
+
+La transición hacia XGS-PON (10 Gbps simétrico) es inevitable, pero **NO requiere cambios en la infraestructura física**. Splitters, fibra y topología se mantienen. Solo cambia la electrónica.
+
+```
+GPON (2026)                          XGS-PON (2027+)
+├─ Velocidad: 2.5 Gbps down         ├─ Velocidad: 10 Gbps down
+├─ Wavelength: 1490/1310 nm         ├─ Wavelength: 1577/1270 nm
+├─ Clase: B+, C+, C++, C+++         ├─ Clase: N1, N2, E1, E2
+└─ Coexistencia: WDM en mismo cable └─ (Ambas viajan juntas por la fibra)
+```
+
+### Cómo Funciona la Coexistencia (WDM)
+
+La **Multiplexación por División de Longitud de Onda (WDM)** permite que GPON y XGS-PON viajen simultáneamente en el **mismo hilo de fibra óptica**:
+
+```
+┌─────────────────────────────────────────────────────┐
+│  1 FIBRA COMPARTIDA (G.652D)                       │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  GPON (1490 nm downstream + 1310 nm upstream)      │
+│  ││││││││││││││││││││││││││││││││││││││││││││││││││  
+│                                                     │
+│  XGS-PON (1577 nm downstream + 1270 nm upstream)   │
+│  ││││││││││││││││││││││││││││││││││││││││││││││││││  
+│                                                     │
+│  Filtro WDM en la OLT separa las longitudes de onda│
+│  (GPON ONTs solo ven 1490/1310 nm)                 │
+│  (XGS-PON ONTs solo ven 1577/1270 nm)              │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+**Ventaja para operadores:** Migrar cliente por cliente sin reemplazar infraestructura.
+
+### Compatibilidad de Cada Topología con XGS-PON
+
+| Topología | GPON (Hoy) | XGS-PON (Futuro) | Estrategia Migración |
+|-----------|-----------|-----------------|----------------------|
+| **Star 1:16** | ✅ Viable | ✅ Viable (puerto sigue 1:16) | Cambiar ONTs, mantener splitters |
+| **Cascada 1:2→1:4→1:8** | ✅ **RECOMENDADO** | ✅ **ÓPTIMO** | Cambiar ONTs y SFP OLT solo |
+| **Excepcional 1:32** | ⚠️ Marginal | ❌ No recomendado | Rediseñar si se expande |
+
+**Conclusión:** La **Cascada es la topología más future-proof**. Permite migración fluida sin cambios arquitectónicos.
+
+---
+
+## 📅 HOJA DE RUTA: GPON → XGS-PON (2026-2030)
+
+Basada en investigación de despliegues reales en Ecuador.
+
+### FASE 1: Optimización GPON (2025-2026) — ACTUAL
+
+**Estado:** 🟢 Activa
+
+**Objetivo:**
+- Maximizar uso de OLTs GPON existentes
+- Segmentar ratios de división sobrepoblados (1:64 → 1:32)
+- Preparar clientes premium para migración a XGS-PON
+
+**Acciones:**
+- Mantener topología Cascada 1:2→1:4→1:8
+- Margen óptico recomendado: **4-5 dB** (NO 3 dB)
+  - Compensar humedad tropical, UV, reparaciones futuras
+- Planes GPON hasta 1 Gbps con overselling 2:1
+- Identificar usuarios candidatos para XGS-PON (alto consumo)
+
+**Parámetros de Diseño:**
+```
+├─ Split ratio máximo: 1:32 (NO 1:64)
+├─ Clientes por puerto: 16-20 (NO 32)
+├─ Presupuesto mínimo: C+ (31 dB)
+├─ Margen de seguridad: 4 dB (tropical)
+└─ Clase óptica: B+ o C+
+```
+
+---
+
+### FASE 2: Introducción XGS-PON Híbrida (2026-2028) — INICIANDO
+
+**Estado:** 🟡 Iniciando en zonas premium
+
+**Objetivo:**
+- Desplegar capacidad 10 Gbps en segmentos de alto valor
+- Coexistir GPON + XGS-PON en infraestructura compartida
+- Lanzar planes 2-5 Gbps para diferenciación comercial
+
+**Acciones:**
+- Instalar **tarjetas Combo PON** en OLT (emiten 1490/1310 nm + 1577/1270 nm)
+- Mantener **mismos splitters** (1:2, 1:4, 1:8, 1:16) — NO reemplazo
+- Reemplazar ONTs de clientes premium por ONTs XGS-PON
+- Filtros WDM para evitar interferencia entre wavelengths
+
+**Parámetros de Diseño:**
+```
+├─ Topología: MISMA Cascada 1:2→1:4→1:8
+├─ Splitters: Compatibles con ambas wavelengths
+├─ Fibra: G.652D / G.657A1 (no cambio)
+├─ Presupuesto XGS-PON: Clase N2 (31 dB, similar a B+)
+├─ Margen de seguridad: 4 dB (mismo que GPON)
+└─ Planes: GPON ≤1 Gbps, XGS-PON 2-5 Gbps
+```
+
+**Coexistencia en el Mismo Cable:**
+```
+Feeder OLT → Splitter 1:2
+            ├─ Rama A (GPON): Splitter 1:4 → Splitter 1:8 → NAPs GPON
+            │  (1490/1310 nm viajen por fibra)
+            │
+            └─ Rama B (XGS-PON): Splitter 1:4 → Splitter 1:8 → NAPs XGS-PON
+               (1577/1270 nm viajan por misma fibra, sin interferencia)
+```
+
+---
+
+### FASE 3: Dominancia XGS-PON (2028-2030) — CONSOLIDACIÓN
+
+**Estado:** 🔵 Planificada
+
+**Objetivo:**
+- Estandarizar la red en XGS-PON
+- Retirar progresivamente OLTs GPON puras
+- Ofrecer planes multi-gigabit como estándar
+
+**Acciones:**
+- Migración total de ONTs GPON a XGS-PON (precio se igualó por economía de escala)
+- Retiro ordenado de SFPs GPON de la OLT
+- Consolidación de todas las ONTs bajo la plataforma 10G
+- Planes estándar 5-10 Gbps
+
+**Parámetros de Diseño:**
+```
+├─ Topología: MISMA Cascada 1:2→1:4→1:8
+├─ Tecnología: XGS-PON puro (GPON completamente retirado)
+├─ Split ratio: 1:32-1:64 (permitido por mayor presupuesto)
+├─ Clientes por puerto: Hasta 32-40 con baja contención
+├─ Presupuesto: Clase E1/E2 (33-35 dB)
+├─ Margen de seguridad: 4 dB (mismo)
+└─ Planes: 5-10 Gbps como estándar
+```
+
+---
+
+## 🎯 MARGEN ÓPTICO RECOMENDADO PARA CLIMA TROPICAL
+
+**Crítico:** Ecuador requiere margen **4-5 dB mínimo**, NO 3 dB.
+
+### Por qué más margen en Ecuador:
+
+1. **Humedad Relativa (60-90%)**
+   - Infiltración en cajas de empalme → +0.5-1.0 dB pérdida
+   - Corrosión en conectores → +0.3-0.5 dB por evento
+
+2. **Radiación UV (Línea ecuatorial)**
+   - Degradación de jackets de cable drop → fragilidad mecánica
+   - Micro-microbends por contracción térmica → +0.2-0.5 dB
+
+3. **Ciclos Térmicos (0-45°C en sierra)**
+   - Dilatación/contracción de fibra → micro-curvaturas
+   - Cada ciclo añade ~0.05-0.1 dB acumulativo
+
+4. **Reparaciones Acumuladas**
+   - Cada empalme de fusión: 0.05-0.1 dB
+   - Tercera reparación: +0.3 dB total
+   - Sin margen de 4 dB, cliente queda fuera
+
+**Regla de Oro:**
+```
+Presupuesto total (dB) = Pérdidas + Margen de Seguridad
+                       = 20 dB + 4 dB = 24 dB MÍNIMO
+
+Para Clase B+:     28 dB presupuesto → Margen resultante = 4 dB ✅
+Para Clase C+:     31 dB presupuesto → Margen resultante = 7 dB ✅✅
+Para Clase N2 (XGS-PON): 31 dB presupuesto → Margen resultante = 7 dB ✅✅
+```
+
+---
+
+## 📋 DECISIÓN FINAL: RECOMENDACIÓN GLOBAL
+
+**Para proyectos nuevos en Ecuador (2026 en adelante):**
+
+```
+✅ USAR TOPOLOGÍA CASCADA (1:2 → 1:4 → 1:8)
+
+Razones:
+├─ Distribuye riesgo en 3 niveles (robusto)
+├─ Compatible con GPON HOY
+├─ Compatible con XGS-PON en FUTURO (sin cambios físicos)
+├─ Margen óptico seguro 4-5 dB
+├─ Escalable de 16 a 64 NAPs sin rediseño
+└─ Migración gradual puerto por puerto en OLT
+
+GPON (2026):        XGS-PON (2027+):
+16-32 NAPs          32-64 NAPs
+16-20 clientes      32-40 clientes
+Planes 1 Gbps       Planes 5-10 Gbps
+```
+
+---
+
 ## Ejemplo: Generar Star (1:16) en Quito
 
 ```typescript
@@ -239,33 +443,70 @@ const topology = generateTopology("star", -78.5249, -0.2194);
 
 ## Criterio de migración y evolución
 
-### Recomendación para Ecuador: EMPEZAR CON CASCADA
+### Recomendación para Ecuador: EMPEZAR CON CASCADA (Future-Proof)
 
 **Por qué:**
 - Es la topología más robusta operacionalmente
 - Escala sin perder margen óptico
 - Tolera mejor las reparaciones de campo
 - Es lo que operadores reales usan (Casos 3, 4, 6)
+- **✅ Compatible con GPON HOY y XGS-PON MAÑANA** (sin cambios físicos)
 
 **Flujo recomendado:**
 
 ```
-Fase 1 (MVP):     1 OLT → 1 Splitter 1:16 → 8-16 NAPs (Star simple)
+Fase 1 (MVP 2026):     
+  1 OLT GPON → 1 Splitter 1:16 → 8-16 NAPs (Star simple)
+  Tecnología: GPON 2.5 Gbps
+  Planes: Hasta 1 Gbps
                   ↓
-Fase 2 (Expansión): 1 OLT → 1 Splitter 1:2 → 2 Splitters 1:8 → 16 NAPs (Cascada 1:2→1:8)
+Fase 2 (Expansión 2026-2027): 
+  1 OLT DUAL (GPON + XGS-PON) → 1 Splitter 1:2 → 2 Splitters 1:8 → 16 NAPs
+  Tecnología: Híbrida (GPON + XGS-PON coexistentes)
+  Planes: GPON 1 Gbps + XGS-PON 2-5 Gbps
                   ↓
-Fase 3 (Escala):  1 OLT → 1 Splitter 1:2 → 2 Splitters 1:4 → 8 Splitters 1:8 → 32+ NAPs
+Fase 3 (Consolidación 2028-2030):
+  1 OLT XGS-PON → 1 Splitter 1:2 → 2 Splitters 1:4 → 8 Splitters 1:8 → 32-64 NAPs
+  Tecnología: XGS-PON 10 Gbps
+  Planes: 5-10 Gbps estándar
 ```
 
-### Migración de Star a Cascada
+### Migración GPON → XGS-PON (Sin Cambios de Infraestructura)
 
-Si empiezas con Star 1:16:
+**Escenario:** Tienes una red Cascada 1:2→1:4→1:8 con GPON, quieres migrar a XGS-PON.
+
+**Pasos:**
+
+1. ✅ **Splitters y fibra:** NO cambien. Son compatibles con ambas tecnologías
+2. ✅ **Topología:** Mantiene exactamente la misma (Cascada 1:2→1:4→1:8)
+3. ⚠️ **OLT:** Instala tarjeta Combo PON (emite 1490/1310 nm GPON + 1577/1270 nm XGS-PON)
+4. ⚠️ **ONTs:** Reemplaza gradualmente ONTs GPON por ONTs XGS-PON
+5. ✅ **Cable:** La misma fibra G.652D transporta ambas longitudes de onda (WDM)
+
+**Resultado:**
+```
+ANTES (GPON):
+Cascada 1:2→1:4→1:8 + ONTs GPON (2.5 Gbps) = 16-20 clientes/puerto
+
+DESPUÉS (Híbrido 2026-2028):
+Cascada 1:2→1:4→1:8 + ONTs GPON + ONTs XGS-PON = 16+8 clientes/puerto
+
+FUTURO (XGS-PON 2028-2030):
+Cascada 1:2→1:4→1:8 + ONTs XGS-PON (10 Gbps) = 32-40 clientes/puerto
+```
+
+**Ventaja clave:** Migrar cliente por cliente sin parar de servir a los demás.
+
+### Migración de Star a Cascada (Opcionalidad)
+
+Si empiezas con Star 1:16 y necesitas expandir:
 
 1. Mantén OLT existente
 2. Coloca un Splitter 1:2 primario después de feeder
 3. Divide las 16 rutas de distribución en 2 grupos de 8
-4. Agrupa cada grupo bajo un Splitter 1:8 secundario
-5. Resultado: Cascada 1:2 → 1:8 (total 1:16 efectivo)
+4. Agrupa cada grupo bajo un Splitter 1:4 o 1:8 secundario
+5. Resultado: Cascada 1:2 → 1:8 (o 1:2 → 1:4 si escalas más)
 6. Margen sigue siendo robusto
+7. **Listo para XGS-PON sin cambios adicionales**
 
-→ **Se recomienda planificar Cascada desde el inicio** si la zona tiene potencial de crecer >2 km.
+→ **Se recomienda planificar Cascada desde el inicio** si la zona tiene potencial de crecer >2 km y se anticipa migración a XGS-PON.
