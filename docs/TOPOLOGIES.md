@@ -35,14 +35,16 @@ Este documento describe las tres topologías pre-configuradas en el sistema, bas
 
 ### Presupuesto óptico típico
 - Fibra feeder: ~2 km → 0.60 dB @ 1490nm
-- Splitter 1:16: 13.5 dB
-- Conectores (2): 0.5 dB
+- Splitter 1:16: 13.8 dB
+- Conectores (4): 2.0 dB
 - Margen: 3-5 dB
-- **Total:** ~18 dB — bien dentro de B+
+- **Total:** ~19.4 dB — bien dentro de B+
 
 ---
 
-## 2. Árbol Balanceado (1:32)
+## 2. Urbano Muy Denso (1:32 centralizado) — EXCEPCIONAL
+
+⚠️ **Nota:** Esta topología existe teóricamente pero **rara vez se deplega en Ecuador**. Los despliegues reales prefieren cascadas 1:2→1:8 o 1:4→1:8. Se incluye como referencia histórica, no como opción de diseño.
 
 ```
                     OLT
@@ -57,25 +59,32 @@ Este documento describe las tres topologías pre-configuradas en el sistema, bas
 
 ### Características
 - **Arquitectura:** 1 OLT → 4 Splitters 1:4 → 8 Splitters 1:8 → 32 NAPs
-- **Cobertura:** 3-5 km² urbano/periférico
-- **Fibra estimada:** 80-120 km
+- **Cobertura:** 1-2 km² urbano **extremadamente denso**
+- **Fibra estimada:** 40-80 km
 - **Puertos NAP:** 8 puertos c/u
+- **Caso de uso real:** Edificios residenciales MDU (Multi-Dwelling Unit)
 
-### Cuándo usar
-✅ Expansiones urbanas  
-✅ Zonas residenciales medianas  
-✅ Balance entre CAPEX y redundancia  
-✅ Capacidad media de crecimiento  
+### Cuándo usar (raramente)
+⚠️ Solo edificios o conjuntos cerrados con:
+- Muy alta densidad de apartamentos (>300 unidades en <1 km²)
+- Cableado vertical subterráneo
+- Punto único de concentración conocido
 
-### Ventajas
-- Mejor distribución de puntos de falla
-- Presupuesto óptico más holgado (~32 dB, Clase C+)
-- Escalable a 64 NAPs con otro nivel
+### Por qué casi nunca se usa en Ecuador
+- Presupuesto óptico muy apretado (margen <2 dB)
+- Múltiples puntos de falla en cascada
+- Difícil de mantener y diagnosticar
+- **Los operadores reales prefieren: 1:2→1:8 (Cascada) o 1:16 (Star simple)**
 
-### Desventajas
-- Más complejo que estrella
-- Mayor cantidad de splitters = más mantenimiento
-- Requiere mejor planificación de rutas
+### Ventajas (teóricas)
+- Teóricamente escalable a 32 NAPs
+- Un solo feeder principal
+
+### Desventajas (reales)
+- Presupuesto óptico muy justo (~28-30 dB, límite de B+)
+- 4 niveles de cascada = 4 puntos de falla
+- Mayor complejidad sin beneficio operativo real
+- Riesgo de margen insuficiente tras reparaciones
 
 ### Presupuesto óptico típico
 - Fibra feeder (primario): ~2 km → 0.60 dB
@@ -84,11 +93,13 @@ Este documento describe las tres topologías pre-configuradas en el sistema, bas
 - Splitter secundario 1:8: 10.5 dB
 - Conectores (4): 1.0 dB
 - Margen: 3-5 dB
-- **Total:** ~23 dB — cómodo en C+
+- **Total:** ~23 dB — **AMARILLO** (al límite de B+, no recomendado)
 
 ---
 
-## 3. Cascada Balanceada (1:64)
+## 3. Cascada Balanceada (1:2→1:4→1:8) — ESTÁNDAR EN ECUADOR
+
+✅ **Esta es la topología real más común en Ecuador** para periurbano y rural. Aparece en Caso 3, 4, 6 de la investigación de campo.
 
 ```
                         OLT
@@ -99,31 +110,34 @@ Este documento describe las tres topologías pre-configuradas en el sistema, bas
               /    |    \     /    |    \
            SPL1  SPL2 ... SPL8  ... (Nivel 3, 1:8 c/u)
            /|\   /|\      /|\
-         NAP.. NAP.. ... NAP.. (64 NAPs totales)
+         NAP.. NAP.. ... NAP.. (teórico máx: 64 NAPs)
 ```
 
 ### Características
-- **Arquitectura:** 1 OLT → 2 Splitters 1:4 → 4 Splitters 1:8 → 64 NAPs
-- **Cobertura:** 5-10 km² rural/suburbano
-- **Fibra estimada:** 150-220 km
+- **Arquitectura:** 1 OLT → 1 Splitter 1:2 → 4 Splitters 1:4 → 8 Splitters 1:8
+- **Escala práctica:** 16-32 NAPs efectivos (no 64)
+- **Cobertura:** 3-10 km² periurbano/rural
+- **Fibra estimada:** 80-150 km
 - **Puertos NAP:** 8 puertos c/u
+- **Split ratio final:** Aproximadamente 1:32 efectivo (2 × 4 × 8 = 64, pero se usa 1:16-1:32 operacionalmente)
 
-### Cuándo usar
-✅ Zonas rurales  
-✅ Expansiones suburbanas  
-✅ Máxima cobertura con CAPEX moderado  
-✅ Requiere cálculo óptico cuidadoso  
+### Cuándo usar (ESTÁNDAR)
+✅ **Periurbano:** 3-5 km de distancia, densidad media  
+✅ **Rural:** 5-15 km, población dispersa  
+✅ **Expansiones suburbanas con geografía lineal**  
+✅ **Zonas con topografía complicada** (valles, laderas)  
 
-### Ventajas
-- Máxima escala en una sola red
-- Buen presupuesto óptico si se calcula bien
-- Flexibilidad en expansión (64 NAPs)
+### Ventajas (REALES en Ecuador)
+- **Distribuye el riesgo:** Si un splitter falla, solo afecta ~8 NAPs (no 16-32)
+- **Presupuesto óptico robusto:** 20-24 dB con margen confortable
+- **Escalable sin perder margen:** Puedes agregar NAPs sin rediseñar
+- **Mantenimiento en campo:** Splitters 1:4 y 1:8 son equipos estándar, bajo costo
+- **Flexibilidad geográfica:** Splitters pueden reubicarse fácilmente
 
-### Desventajas
-- Presupuesto óptico apretado (~32-35 dB, Clase C+/C++)
-- Requiere mediciones ópticas precisas
-- Complejidad operativa alta
-- Múltiples puntos de falla
+### Desventajas (manejables)
+- Tres niveles de cascada vs. uno en Star
+- Más cableado feeder pero mejor distribuido
+- Requiere planificación de rutas (pero es más realista)
 
 ### Presupuesto óptico típico
 - Fibra feeder (nivel 1): ~2 km → 0.60 dB
@@ -138,37 +152,56 @@ Este documento describe las tres topologías pre-configuradas en el sistema, bas
 
 ---
 
-## Matriz de decisión
+## Matriz de decisión — BASADA EN CASOS REALES ECUATORIANOS
 
-| Aspecto | Star (1:16) | Tree (1:32) | Cascade (1:64) |
+| Aspecto | Star (1:16) | Excepcional 1:32 | Cascada (1:2→1:4→1:8) |
 |---------|-----------|-----------|------------|
-| **Zona típica** | Urbano denso | Urbano/periférico | Rural/suburbano |
-| **NAPs** | 16 | 32 | 64 |
-| **Fibra (km)** | 40-60 | 80-120 | 150-220 |
-| **Presupuesto óptico** | B+ (~28dB) | C+ (~32dB) | C+/C++ (~35dB) |
-| **Redundancia** | Baja | Media | Alta |
-| **Mantenimiento** | Simple | Medio | Complejo |
-| **Costo OLT** | Bajo | Bajo | Bajo |
-| **Costo Splitters** | ~1 equipo | ~5 equipos | ~7 equipos |
-| **CAPEX por NAP** | Alto | Medio | Bajo |
+| **Zona típica** | Urbano denso | Edificios MDU | Periurbano/Rural ✅ |
+| **NAPs efectivos** | 12-16 | 28-32 | 16-32 |
+| **Fibra (km)** | 40-80 | 40-80 | 80-150 |
+| **Presupuesto óptico** | B+ (20-23 dB) ✅ | B+ (margen <2dB) ⚠️ | C+ (20-24 dB) ✅ |
+| **Puntos de falla** | 1 splitter | 4 splitters | 2-3 splitters |
+| **Robustez ante reparaciones** | Baja | Muy baja | Media-Alta ✅ |
+| **Mantenimiento** | Simple | Complejo | Medio ✅ |
+| **Costo SFP OLT** | Bajo (B+) | Bajo (B+) | Medio (C+) |
+| **Costo Splitters** | ~1 equipo | ~4-5 equipos | ~3-5 equipos |
+| **CAPEX por NAP** | Alto | Muy alto | Bajo ✅ |
+| **Frecuencia en Ecuador** | Común en centros | Raro | MUY COMÚN ✅ |
+| **Casos reales** | Caso 1 (edificios) | Solo teoría | Casos 3, 4, 6 |
 
 ---
 
-## Notas técnicas
+## Notas técnicas — ALINEADAS A PRÁCTICA ECUATORIANA
 
-### Clase óptica recomendada por topología
+### Splitters reales usados en Ecuador
 
-**Star (1:16)**: B+ (13-28 dB)
-- Margen: holgado
-- Valores conservadores suficientes
+**NO son comunes los 1:32 centralizados.** Los reales son:
 
-**Tree (1:32)**: C+ (17-32 dB)
-- Margen: modesto
-- Validar upstream + downstream
+| Splitter | Dónde se usa | Frecuencia | Observación |
+|----------|-------------|-----------|------------|
+| **1:16** | Feeder principal (Caso 2, urbano estándar) | ✅ Muy común | Estándar de la industria |
+| **1:8** | Distribución / NAP interno (Casos 3, 4, 6) | ✅ Muy común | Flexible y manejable |
+| **1:4** | Cascada nivel 2 (Caso 6) | ✅ Común en cascada | Para distribuir geográficamente |
+| **1:2** | Cascada nivel 1 (Caso 6) | ✅ Común en cascada | Divide feeder en dos ramas |
+| **1:32** | Centralizado (Caso 1 solo MDU) | ❌ Raro | Solo edificios extremadamente densos |
+| **1:64** | Teórico | ❌ Casi nunca | No hay casos reales en Ecuador |
 
-**Cascade (1:64)**: C+/C++ (20-35 dB)
-- Margen: apretado
-- **Obligatorio:** cálculo óptico preciso, OTDR en campo
+### Clase óptica recomendada por topología (REAL)
+
+**Star (1:16)**: B+ (20-23 dB)
+- Margen: holgado ✅
+- Aplicar cuando: distancia <2 km, zona urbana densa
+- Validación: ascendente y descendente
+
+**Excepcional 1:32**: B+ (margen <2 dB) ⚠️
+- Margen: MUY apretado, NO RECOMENDADO
+- Aplicar solo en: edificios MDU con punto único
+- Riesgo: Una reparación invalida el margen
+
+**Cascada (1:2→1:4→1:8)**: C+ (20-24 dB) ✅ RECOMENDADO ECUADOR
+- Margen: cómodo, con resiliencia
+- Aplicar cuando: periurbano/rural >2 km
+- Validación: **CRÍTICA en upstream (1310 nm)** por distancia
 
 ### Materiales recomendados
 
@@ -204,13 +237,35 @@ const topology = generateTopology("star", -78.5249, -0.2194);
 
 ---
 
-## Criterio de migración
+## Criterio de migración y evolución
 
-Si empiezas con Star y necesitas crecer a Tree:
+### Recomendación para Ecuador: EMPEZAR CON CASCADA
 
-1. Mantienes OLT existente
-2. Divides el Splitter 1:16 en una cascada 1:4 → 1:4
-3. Migas algunas NAPs existentes a nuevos splitters
-4. Agregas fibra nueva (relativamente poco)
+**Por qué:**
+- Es la topología más robusta operacionalmente
+- Escala sin perder margen óptico
+- Tolera mejor las reparaciones de campo
+- Es lo que operadores reales usan (Casos 3, 4, 6)
 
-→ Se recomienda planificar desde el inicio cuál será la topología final.
+**Flujo recomendado:**
+
+```
+Fase 1 (MVP):     1 OLT → 1 Splitter 1:16 → 8-16 NAPs (Star simple)
+                  ↓
+Fase 2 (Expansión): 1 OLT → 1 Splitter 1:2 → 2 Splitters 1:8 → 16 NAPs (Cascada 1:2→1:8)
+                  ↓
+Fase 3 (Escala):  1 OLT → 1 Splitter 1:2 → 2 Splitters 1:4 → 8 Splitters 1:8 → 32+ NAPs
+```
+
+### Migración de Star a Cascada
+
+Si empiezas con Star 1:16:
+
+1. Mantén OLT existente
+2. Coloca un Splitter 1:2 primario después de feeder
+3. Divide las 16 rutas de distribución en 2 grupos de 8
+4. Agrupa cada grupo bajo un Splitter 1:8 secundario
+5. Resultado: Cascada 1:2 → 1:8 (total 1:16 efectivo)
+6. Margen sigue siendo robusto
+
+→ **Se recomienda planificar Cascada desde el inicio** si la zona tiene potencial de crecer >2 km.
