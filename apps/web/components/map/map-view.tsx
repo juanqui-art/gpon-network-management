@@ -10,9 +10,13 @@ import {
 	CheckCircle2,
 	ChevronDown,
 	ChevronRight,
+	Compass,
+	Crosshair,
 	Layers,
 	MapPin,
+	Minus,
 	Network,
+	Plus,
 	Route,
 	Save,
 	Search,
@@ -106,6 +110,13 @@ import {
 	canDeleteInfrastructure,
 	canWriteInfrastructure,
 } from "@/lib/types/gpon";
+import {
+	addEquipmentSourceAndLayers,
+	buildEquipmentGeoJson,
+	setEquipmentLayersFilter,
+	setEquipmentLayersVisibility,
+} from "./equipment-layers";
+import { FIBER_RENDER_COLOR, hideNoisyMapLabels } from "./mapbox-shared-style";
 import { NapCapacity } from "./nap-capacity";
 import { OpticalBudgetPanel } from "./optical-budget-panel";
 import type {
@@ -277,16 +288,16 @@ function markerScaleForZoom(type: string, zoom: number) {
 	const stops: Array<[number, number]> =
 		type === "ont"
 			? [
-					[13, 1],
-					[15, 1.06],
-					[17, 1.14],
-					[19, 1.22],
+					[10, 0.92],
+					[14, 1.06],
+					[16, 1.18],
+					[18, 1.32],
 				]
 			: [
-					[13, 1],
-					[15, 1.12],
-					[17, 1.26],
-					[19, 1.36],
+					[10, 1.08],
+					[14, 1.32],
+					[16, 1.54],
+					[18, 1.76],
 				];
 
 	return interpolateZoomScale(zoom, stops);
@@ -379,7 +390,8 @@ function createMarkerEl(
     height: ${ringSize}px;
     border-radius: 999px;
     border: 2px solid ${statusColor};
-    opacity: ${eq.status === "online" ? "0.42" : "0.85"};
+    opacity: ${eq.status === "online" ? "0.26" : "0.72"};
+    background: rgba(17,18,19,0.18);
     transform: translate(-50%, -50%);
     pointer-events: none;
   `;
@@ -399,7 +411,7 @@ function createMarkerEl(
     height: ${qualityRingSize}px;
     border-radius: 999px;
     border: 1.5px dashed ${qualityColor};
-    opacity: 0.65;
+    opacity: 0.42;
     transform: translate(-50%, -50%);
     pointer-events: none;
   `;
@@ -472,7 +484,7 @@ function createMarkerEl(
     align-items: center;
     justify-content: center;
     transition: filter 0.15s ease;
-    filter: drop-shadow(0 0 5px rgba(0,0,0,0.65));
+    filter: drop-shadow(0 0 7px rgba(0,0,0,0.75));
   `;
 	inner.innerHTML = equipmentSymbolSvg(eq.type, typeColor, {
 		hasInternalSplitter: hasInternalSplitter(eq),
@@ -522,9 +534,9 @@ function createMarkerEl(
     transform: translate(-50%, -2px);
     border: 1px solid rgba(164,164,164,0.18);
     border-radius: 5px;
-    background: rgba(27,28,29,0.88);
+    background: rgba(15,23,42,0.74);
     padding: 2px 5px;
-    color: #e6e6e6;
+    color: ${typeColor};
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
     font-size: 10px;
     font-weight: 700;
@@ -536,23 +548,12 @@ function createMarkerEl(
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.15s ease, transform 0.15s ease;
-    box-shadow: 0 6px 16px rgba(0,0,0,0.28);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.32);
   `;
 	outer.appendChild(label);
 	return outer;
 }
-
-// Basemap layer categories to silence (common across Mapbox styles)
-const NOISE_LAYERS = [
-	"poi-label",
-	"transit-label",
-	"airport-label",
-	"natural-point-label",
-	"settlement-subdivision-label",
-	"waterway-label",
-	"road-label",
-	"path-pedestrian-label",
-];
 
 function getContextMenuPosition(
 	container: HTMLElement | null,
@@ -1943,6 +1944,16 @@ export function MapView({
 
 	useEffect(() => {
 		const map = mapRef.current;
+		if (!map?.getSource("editor-equipment")) return;
+		const src = map.getSource("editor-equipment") as mapboxgl.GeoJSONSource;
+		const incidentMap = Object.fromEntries(
+			incidents.map((i) => [i.equipment_id, i]),
+		);
+		src.setData(buildEquipmentGeoJson(equipment, incidentMap));
+	}, [equipment, incidents]);
+
+	useEffect(() => {
+		const map = mapRef.current;
 		if (!map?.getSource("route-points")) return;
 		const src = map.getSource("route-points") as mapboxgl.GeoJSONSource;
 		src.setData(buildRoutePointsGeoJSON(routePoints));
@@ -2099,6 +2110,7 @@ export function MapView({
 		for (const eq of equipment) {
 			if (markersByEqId.current.has(eq.id)) continue;
 			const el = createMarkerEl(eq, incidentMap[eq.id] ?? null);
+			el.style.opacity = modeRef.current === "view" ? "0" : "1";
 			const marker = new mapboxgl.Marker({
 				element: el,
 				anchor: "center",
@@ -2170,13 +2182,30 @@ export function MapView({
 		const zoomT = filterType !== "all" ? null : zoomTypes(zoom);
 		const zoomC = filterType !== "all" ? null : zoomCableTypes(zoom);
 
+		const map = mapRef.current;
+		const equipmentLayerFilters: mapboxgl.FilterSpecification[] = [];
+		if (filterType !== "all") {
+			equipmentLayerFilters.push(["==", "type", filterType]);
+		} else if (zoomT !== null) {
+			equipmentLayerFilters.push(["in", "type", ...zoomT]);
+		}
+		if (filterStatus !== "all") {
+			equipmentLayerFilters.push(["==", "status", filterStatus]);
+		}
+		if (map?.getSource("editor-equipment")) {
+			setEquipmentLayersVisibility(map, "editor", mode === "view");
+			setEquipmentLayersFilter(map, "editor", equipmentLayerFilters);
+		}
+
 		// Markers
 		for (const { marker, type, status } of markersByEqId.current.values()) {
 			const visible =
 				(filterType === "all" || type === filterType) &&
 				(filterStatus === "all" || status === filterStatus) &&
 				(zoomT === null || zoomT.has(type));
-			marker.getElement().style.display = visible ? "" : "none";
+			const markerEl = marker.getElement();
+			markerEl.style.display = visible ? "" : "none";
+			markerEl.style.opacity = mode === "view" ? "0" : "1";
 		}
 
 		setSelectedFeature((prev) => {
@@ -2192,7 +2221,6 @@ export function MapView({
 		});
 
 		// Cable layers
-		const map = mapRef.current;
 		if (!map?.getLayer("connections-line")) return;
 
 		const parts: mapboxgl.FilterSpecification[] = [];
@@ -2290,12 +2318,7 @@ export function MapView({
 		});
 
 		map.on("load", () => {
-			// Silence noisy basemap label layers
-			for (const id of NOISE_LAYERS) {
-				if (map.getLayer(id)) {
-					map.setLayoutProperty(id, "visibility", "none");
-				}
-			}
+			hideNoisyMapLabels(map);
 
 			// ── Fiber connections ──────────────────────────────────────────────
 			map.addSource("connections", {
@@ -2314,12 +2337,12 @@ export function MapView({
 				"match",
 				["get", "cable_type"],
 				"feeder",
-				1.7,
+				2,
 				"distribution",
-				1.25,
+				1.7,
 				"drop",
-				0.85,
-				0.85,
+				1.4,
+				1.6,
 			];
 
 			// Status opacity — only applied to the main line, not the casing.
@@ -2334,8 +2357,8 @@ export function MapView({
 				0.92,
 			];
 
-			// Light casing keeps fibers legible on the dark Mapbox style while the
-			// colored core still communicates cable type.
+			// Dark casing separates the fiber from the basemap without washing out
+			// the cable color. This mirrors the readonly map styling.
 			map.addLayer({
 				id: "connections-casing",
 				type: "line",
@@ -2345,31 +2368,55 @@ export function MapView({
 					"line-join": "round",
 				},
 				paint: {
-					"line-color": [
-						"match",
-						["get", "cable_type"],
-						"feeder",
-						"rgba(56,189,248,0.55)",
-						"distribution",
-						"rgba(167,139,250,0.55)",
-						"drop",
-						"rgba(52,211,153,0.55)",
-						"rgba(164,164,164,0.55)",
-					] as mapboxgl.ExpressionSpecification,
+					"line-color": "rgba(3,7,10,0.95)",
 					"line-width": [
 						"interpolate",
 						["linear"],
 						["zoom"],
 						10,
-						["*", cableWidthByType, 2.1],
+						["*", cableWidthByType, 2.45],
 						14,
-						["*", cableWidthByType, 4.2],
+						["*", cableWidthByType, 3.05],
 						18,
-						["*", cableWidthByType, 8.4],
+						["*", cableWidthByType, 3.75],
 					],
-					"line-opacity": 1,
-					"line-blur": 2.2,
-					"line-emissive-strength": 0.35,
+					"line-opacity": 0.78,
+					"line-blur": 0.4,
+					"line-emissive-strength": 0.18,
+				},
+			});
+
+			map.addLayer({
+				id: "connections-glow",
+				type: "line",
+				source: "connections",
+				layout: { "line-cap": "round", "line-join": "round" },
+				paint: {
+					"line-color": [
+						"match",
+						["get", "cable_type"],
+						"feeder",
+						FIBER_RENDER_COLOR.feeder,
+						"distribution",
+						FIBER_RENDER_COLOR.distribution,
+						"drop",
+						FIBER_RENDER_COLOR.drop,
+						FIBER_RENDER_COLOR.default,
+					],
+					"line-width": [
+						"interpolate",
+						["linear"],
+						["zoom"],
+						10,
+						["*", cableWidthByType, 1.55],
+						14,
+						["*", cableWidthByType, 2.15],
+						18,
+						["*", cableWidthByType, 2.85],
+					],
+					"line-opacity": 0.38,
+					"line-blur": 1.2,
+					"line-emissive-strength": 0.7,
 				},
 			});
 
@@ -2394,23 +2441,23 @@ export function MapView({
 						"match",
 						["get", "cable_type"],
 						"feeder",
-						CABLE_COLOR.feeder,
+						FIBER_RENDER_COLOR.feeder,
 						"distribution",
-						CABLE_COLOR.distribution,
+						FIBER_RENDER_COLOR.distribution,
 						"drop",
-						CABLE_COLOR.drop,
-						CABLE_COLOR.default,
+						FIBER_RENDER_COLOR.drop,
+						FIBER_RENDER_COLOR.default,
 					],
 					"line-width": [
 						"interpolate",
 						["linear"],
 						["zoom"],
 						10,
-						["*", cableWidthByType, 1.05],
+						["*", cableWidthByType, 0.82],
 						14,
-						["*", cableWidthByType, 2.1],
+						["*", cableWidthByType, 1.28],
 						18,
-						["*", cableWidthByType, 4.2],
+						["*", cableWidthByType, 1.78],
 					],
 					"line-opacity": [
 						"interpolate",
@@ -2424,11 +2471,13 @@ export function MapView({
 					"line-dasharray": [
 						"match",
 						["get", "cable_type"],
+						"distribution",
+						["literal", [2.2, 1.15]],
 						"drop",
-						["literal", [4, 3]],
-						["literal", [1]],
+						["literal", [1.2, 1.25]],
+						["literal", [1, 0]],
 					],
-					"line-emissive-strength": 0.65,
+					"line-emissive-strength": 0.82,
 				},
 			});
 
@@ -2553,6 +2602,14 @@ export function MapView({
 					"text-halo-width": 0.5,
 				},
 				filter: ["==", ["get", "route_point_id"], ""],
+			});
+
+			void addEquipmentSourceAndLayers({
+				map,
+				sourceId: "editor-equipment",
+				layerPrefix: "editor",
+				data: buildEquipmentGeoJson(equipment, incidentByEquipment),
+				visible: modeRef.current === "view",
 			});
 
 			// ── Cable mouse interactions ───────────────────────────────────────
@@ -2735,6 +2792,7 @@ export function MapView({
 			// ── Equipment HTML markers ─────────────────────────────────────────
 			for (const eq of equipment) {
 				const outerEl = createMarkerEl(eq, incidentByEquipment[eq.id] ?? null);
+				outerEl.style.opacity = modeRef.current === "view" ? "0" : "1";
 
 				const marker = new mapboxgl.Marker({
 					element: outerEl,
@@ -3032,6 +3090,7 @@ export function MapView({
       `}</style>
 
 					<div ref={containerRef} className="h-full w-full" />
+					<div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-gradient-to-b from-[#1b1c1d]/70 to-transparent" />
 
 					{/* Mode indicator border — green in design, amber in edit */}
 					{isActive && (
@@ -3042,20 +3101,6 @@ export function MapView({
 								boxShadow: isEditing
 									? "inset 0 0 0 2px rgba(245,158,11,0.55)"
 									: "inset 0 0 0 2px rgba(52,211,153,0.45)",
-							}}
-						/>
-					)}
-
-					{canEdit && (
-						<EditorTopBar
-							activeToolLabel={activeToolLabel}
-							mode={mode}
-							onModeChange={(nextMode) => {
-								setMode(nextMode);
-								// Reset to default tool for each mode
-								if (nextMode === "view") setActiveTool("select");
-								if (nextMode === "design") setActiveTool("olt");
-								if (nextMode === "edit") setActiveTool("select");
 							}}
 						/>
 					)}
@@ -3200,62 +3245,6 @@ export function MapView({
 				</div>
 			</TooltipProvider>
 		</ToastProvider>
-	);
-}
-
-function EditorTopBar({
-	activeToolLabel,
-	mode,
-	onModeChange,
-}: {
-	activeToolLabel: string;
-	mode: EditorMode;
-	onModeChange: (mode: EditorMode) => void;
-}) {
-	return (
-		<div className="absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.9)] p-1 shadow-2xl backdrop-blur-md">
-			<div className="flex rounded-md bg-[rgba(164,164,164,0.06)] p-0.5">
-				{(
-					[
-						["view", "Vista", "#38bdf8"],
-						["design", "Crear", "#34d399"],
-						["edit", "Editar", "#f59e0b"],
-					] as const
-				).map(([value, label, accent]) => (
-					<button
-						key={value}
-						type="button"
-						aria-pressed={mode === value}
-						onClick={() => onModeChange(value)}
-						className="rounded px-3 py-1.5 text-[11px] font-medium transition-colors"
-						style={{
-							background: mode === value ? `${accent}28` : "transparent",
-							color: mode === value ? accent : "#a4a4a4",
-						}}
-					>
-						{label}
-					</button>
-				))}
-			</div>
-			{mode !== "view" && (
-				<span
-					className="rounded-md border px-2.5 py-1.5 text-[11px] transition-colors"
-					style={{
-						borderColor:
-							mode === "edit"
-								? "rgba(245,158,11,0.4)"
-								: "rgba(52,211,153,0.35)",
-						background:
-							mode === "edit"
-								? "rgba(245,158,11,0.12)"
-								: "rgba(52,211,153,0.1)",
-						color: mode === "edit" ? "#fbbf24" : "#34d399",
-					}}
-				>
-					{activeToolLabel}
-				</span>
-			)}
-		</div>
 	);
 }
 
@@ -5554,16 +5543,16 @@ function MapControls({
 			className={`absolute z-20 flex flex-col overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md ${mode !== "view" ? "bottom-28" : "bottom-16"} ${hasRightPanel ? "right-86" : "right-4"}`}
 		>
 			<MapControlButton label="Acercar" onClick={onZoomIn}>
-				+
+				<Plus className="size-4" />
 			</MapControlButton>
 			<MapControlButton label="Alejar" onClick={onZoomOut}>
-				-
+				<Minus className="size-4" />
 			</MapControlButton>
 			<MapControlButton label="Centrar red" onClick={onFit}>
-				□
+				<Crosshair className="size-4" />
 			</MapControlButton>
 			<MapControlButton label="Reset norte" onClick={onResetNorth}>
-				N
+				<Compass className="size-4" />
 			</MapControlButton>
 		</div>
 	);
@@ -5584,7 +5573,7 @@ function MapControlButton({
 			aria-label={label}
 			title={label}
 			onClick={onClick}
-			className="flex h-9 w-9 items-center justify-center border-b border-[rgba(164,164,164,0.12)] font-mono text-xs font-semibold text-[#d7d7d7] transition-colors last:border-b-0 hover:bg-white/10"
+			className="grid h-9 w-9 place-items-center border-b border-[rgba(164,164,164,0.12)] text-[#d7d7d7] transition-colors last:border-b-0 hover:bg-white/10"
 		>
 			{children}
 		</button>
