@@ -242,6 +242,10 @@ export async function updateFiberRoute(input: {
 		p_type: patch.type ?? route.type,
 		p_status: patch.status ?? route.status,
 		p_route_quality: patch.route_quality ?? route.route_quality,
+		p_geojson_coordinates: {
+			type: "LineString",
+			coordinates: patch.geojson_coordinates ?? route.geojson_coordinates,
+		},
 		p_installation_type: patch.installation_type ?? route.installation_type,
 		p_fiber_type: patch.fiber_type ?? route.fiber_type,
 		p_fiber_count: patch.fiber_count ?? route.fiber_count,

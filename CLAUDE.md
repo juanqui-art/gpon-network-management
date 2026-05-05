@@ -208,10 +208,18 @@ Matriz de RLS en MVP:
 
 ## Calculadora óptica (lib/gpon/optical-budget.ts)
 ```
-Pérdida total = pérdida_fibra + pérdida_splitter + pérdida_conectores
+Pérdida total =
+  pérdida_fibra
+  + pérdida_splitters
+  + pérdida_conectores
+  + pérdida_empalmes
+  + margen_seguridad
 ```
 Valores conservadores para Ecuador (UV, humedad, reparaciones frecuentes).
+Parámetros activos: longitud GIS * 1.02, conector 0.5 dB, empalme 0.1 dB,
+margen de seguridad 3.0 dB, downstream base 1490 nm.
 Semáforo: verde (>3dB margen) / ámbar (1-3dB) / rojo (<1dB) / gris (sin clase óptica del OLT).
+Referencia canónica: `docs/GPON_FTTH_ECUADOR_RESEARCH.md#presupuesto-optico-consolidado`.
 
 ## Códigos operativos (lib/gpon/operative-code.ts)
 ```

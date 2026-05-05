@@ -4,12 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { DiagramPanel } from "@/components/map/logical-diagram";
-import { MapView } from "@/components/map/map-view";
-import type { InfrastructureElement as MapInfrastructureElement } from "@/components/map/types";
+import { NetworkEditorMap } from "@/components/map/network-editor-map";
 import { MAPBOX_TOKEN } from "@/lib/mapbox/config";
 import {
 	fetchNetworkEditorData,
-	fetchNetworkZones,
 	networkEditorKeys,
 } from "@/lib/queries/network-editor";
 import {
@@ -43,10 +41,13 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 		selection,
 		select,
 		deselect,
-		setActiveDraft,
-		clearActiveDraft,
 		statusMessage,
 		setStatusMessage,
+		updateElement,
+		updateRoute,
+		insertRouteVertex,
+		moveRouteVertex,
+		moveElement,
 		isDirty,
 		isSaving,
 		validationErrors,
@@ -64,21 +65,21 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 		queryFn: () => fetchNetworkEditorData(networkId),
 	});
 
-	const zonesQuery = useQuery({
-		queryKey: networkEditorKeys.zones(networkId),
-		queryFn: () => fetchNetworkZones(networkId),
-	});
-
 	useEffect(() => {
 		if (networkQuery.data) {
 			hydrateNetwork(networkId, networkQuery.data);
 		}
 	}, [networkId, networkQuery.data, hydrateNetwork]);
 
+	useEffect(() => {
+		if (mode === "design") setActiveTool("olt");
+		else setActiveTool("select");
+	}, [mode, setActiveTool]);
+
 	const modes: EditorMode[] = canEdit ? ["view", "design", "edit"] : ["view"];
 
 	return (
-		<div className="flex h-full flex-col">
+		<div className="flex h-full min-h-0 flex-col">
 			{/* Editor topbar */}
 			<div className="flex h-11 shrink-0 items-center justify-between border-b border-[rgba(164,164,164,0.14)] bg-[#1e1f20] px-4 gap-4">
 				{/* Left: breadcrumb + modes */}
@@ -131,7 +132,10 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 				{/* Right: diagram toggle + dirty indicator + save */}
 				<div className="flex items-center gap-3">
 					{validationErrors.length > 0 && (
-						<span className="text-xs text-[#f59e0b]">
+						<span
+							className="max-w-52 truncate rounded-md border border-[rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.08)] px-2 py-1 text-xs text-[#f59e0b]"
+							title={statusMessage}
+						>
 							{validationErrors.length} advertencia
 							{validationErrors.length > 1 ? "s" : ""}
 						</span>
@@ -146,7 +150,7 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 					{isDirty && (
 						<>
 							<span className="text-xs text-[#777879]">
-								● Cambios sin guardar
+								Cambios sin guardar
 							</span>
 							<button
 								type="button"
@@ -170,50 +174,31 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 			</div>
 
 			{/* Map editor — full remaining height with min-h-0 */}
-			<div className="min-h-0 flex-1">
+			<div className="relative min-h-0 flex-1 overflow-hidden">
 				{networkQuery.isError && (
 					<div className="absolute left-1/2 top-16 z-30 -translate-x-1/2 rounded-md border border-[rgba(251,77,109,0.35)] bg-[rgba(34,35,36,0.94)] px-3 py-2 text-xs text-[#fb7185] shadow-xl">
 						No se pudo cargar la red.
 					</div>
 				)}
-				<MapView
+				<NetworkEditorMap
 					token={MAPBOX_TOKEN}
 					equipment={getElementsArray()}
 					connections={getRoutesArray()}
 					routePoints={getRoutePointsArray()}
-					validationErrors={validationErrors}
-					onSaveDraftElement={(draft) => {
-						useNetworkEditorStore.getState().addElement({
-							...draft,
-							pon_standard: draft.pon_standard ?? null,
-							optical_class: null,
-							ports_used: null,
-							ports_reserved: null,
-							properties: draft.properties ?? {},
-							created_by: null,
-							updated_by: null,
-						} as MapInfrastructureElement);
+					mode={mode}
+					activeTool={activeTool}
+					selection={selection}
+					onSelectionChange={(nextSelection) => {
+						if (nextSelection) {
+							select(nextSelection.id, nextSelection.kind);
+						} else deselect();
 					}}
-					incidents={[]}
-					zones={zonesQuery.data ?? []}
-					userRole={userRole}
-					editorMode={mode}
-					onEditorModeChange={setMode}
-					editorTool={activeTool}
-					onEditorToolChange={setActiveTool}
-					editorSelection={selection}
-					onEditorSelectionChange={(nextSelection) => {
-						if (nextSelection) select(nextSelection.id, nextSelection.kind);
-						else deselect();
-					}}
-					onEditorDraftChange={(nextDraft) => {
-						if (nextDraft) setActiveDraft(nextDraft);
-						else clearActiveDraft();
-					}}
-					editorStatusMessage={statusMessage}
-					onEditorStatusMessageChange={setStatusMessage}
-					networkId={networkId}
-					onShowDiagram={() => setDiagramOpen(true)}
+					onStatusMessageChange={setStatusMessage}
+					onUpdateElement={canEdit ? updateElement : undefined}
+					onUpdateRoute={canEdit ? updateRoute : undefined}
+					onInsertRouteVertex={canEdit ? insertRouteVertex : undefined}
+					onMoveRouteVertex={canEdit ? moveRouteVertex : undefined}
+					onMoveElement={canEdit ? moveElement : undefined}
 				/>
 			</div>
 

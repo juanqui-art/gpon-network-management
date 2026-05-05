@@ -9,6 +9,33 @@ import type {
 	InfrastructureElement,
 	RoutePoint,
 } from "@/components/map/types";
+import {
+	calculateRouteLengthMeters,
+	insertRouteVertex,
+	moveRouteVertex,
+	type RouteCoordinate,
+	removeRouteVertex,
+} from "@/lib/map/route-geometry-editor";
+
+function getSaveErrorMessage(error: unknown) {
+	if (error instanceof Error && error.message) return error.message;
+	if (typeof error === "object" && error !== null) {
+		const record = error as Record<string, unknown>;
+		const message =
+			record.message ?? record.details ?? record.hint ?? record.code;
+		if (typeof message === "string" && message.length > 0) return message;
+		try {
+			return JSON.stringify(record);
+		} catch {
+			return "Error desconocido";
+		}
+	}
+	return String(error);
+}
+
+function addUniqueId(ids: string[], id: string) {
+	return ids.includes(id) ? ids : [...ids, id];
+}
 
 // ── Editor modes ──────────────────────────────────────────────────────────────
 
@@ -92,6 +119,8 @@ export interface NetworkEditorStore extends TemporalState {
 	isDirty: boolean;
 	isSaving: boolean;
 	validationErrors: ValidationError[];
+	modifiedElementIds: string[];
+	modifiedRouteIds: string[];
 
 	// ── Local mutations (instant, no DB) ─────────────────────────────────────
 
@@ -110,6 +139,17 @@ export interface NetworkEditorStore extends TemporalState {
 
 	addRoute: (route: FiberRoute) => void;
 	updateRoute: (id: string, patch: Partial<FiberRoute>) => void;
+	insertRouteVertex: (
+		id: string,
+		afterIndex: number,
+		coordinate: RouteCoordinate,
+	) => void;
+	moveRouteVertex: (
+		id: string,
+		vertexIndex: number,
+		coordinate: RouteCoordinate,
+	) => void;
+	removeRouteVertex: (id: string, vertexIndex: number) => void;
 	removeRoute: (id: string) => void;
 
 	addRoutePoint: (point: RoutePoint) => void;
@@ -159,6 +199,8 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 			isDirty: false,
 			isSaving: false,
 			validationErrors: [],
+			modifiedElementIds: [],
+			modifiedRouteIds: [],
 
 			// ── Session ────────────────────────────────────────────────────────
 
@@ -192,6 +234,7 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 							},
 						},
 						isDirty: true,
+						modifiedElementIds: addUniqueId(s.modifiedElementIds, id),
 					};
 				}),
 
@@ -199,12 +242,65 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 				set((s) => {
 					const el = s.elements[id];
 					if (!el) return s;
+					const now = new Date().toISOString();
+					const nextCoordinate: [number, number] = [lng, lat];
+					const changedRouteIds: string[] = [];
+					const routes = Object.fromEntries(
+						Object.entries(s.routes).map(([routeId, route]) => {
+							const coordinates = route.geojson_coordinates;
+							if (coordinates.length === 0) return [routeId, route];
+
+							if (route.from_element_id === id) {
+								const geojsonCoordinates = [
+									nextCoordinate,
+									...coordinates.slice(1),
+								];
+								changedRouteIds.push(routeId);
+								return [
+									routeId,
+									{
+										...route,
+										geojson_coordinates: geojsonCoordinates,
+										length_meters:
+											calculateRouteLengthMeters(geojsonCoordinates),
+										updated_at: now,
+									},
+								];
+							}
+
+							if (route.to_element_id === id) {
+								const geojsonCoordinates = [
+									...coordinates.slice(0, -1),
+									nextCoordinate,
+								];
+								changedRouteIds.push(routeId);
+								return [
+									routeId,
+									{
+										...route,
+										geojson_coordinates: geojsonCoordinates,
+										length_meters:
+											calculateRouteLengthMeters(geojsonCoordinates),
+										updated_at: now,
+									},
+								];
+							}
+
+							return [routeId, route];
+						}),
+					);
 					return {
 						elements: {
 							...s.elements,
-							[id]: { ...el, lng, lat, updated_at: new Date().toISOString() },
+							[id]: { ...el, lng, lat, updated_at: now },
 						},
+						routes,
 						isDirty: true,
+						modifiedElementIds: addUniqueId(s.modifiedElementIds, id),
+						modifiedRouteIds: changedRouteIds.reduce(
+							(ids, routeId) => addUniqueId(ids, routeId),
+							s.modifiedRouteIds,
+						),
 					};
 				}),
 
@@ -232,6 +328,81 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 							[id]: { ...r, ...patch, updated_at: new Date().toISOString() },
 						},
 						isDirty: true,
+						modifiedRouteIds: addUniqueId(s.modifiedRouteIds, id),
+					};
+				}),
+
+			insertRouteVertex: (id, afterIndex, coordinate) =>
+				set((s) => {
+					const route = s.routes[id];
+					if (!route) return s;
+					const geojsonCoordinates = insertRouteVertex(
+						route.geojson_coordinates,
+						afterIndex,
+						coordinate,
+					);
+					if (geojsonCoordinates === route.geojson_coordinates) return s;
+					return {
+						routes: {
+							...s.routes,
+							[id]: {
+								...route,
+								geojson_coordinates: geojsonCoordinates,
+								length_meters: calculateRouteLengthMeters(geojsonCoordinates),
+								updated_at: new Date().toISOString(),
+							},
+						},
+						isDirty: true,
+						modifiedRouteIds: addUniqueId(s.modifiedRouteIds, id),
+					};
+				}),
+
+			moveRouteVertex: (id, vertexIndex, coordinate) =>
+				set((s) => {
+					const route = s.routes[id];
+					if (!route) return s;
+					const geojsonCoordinates = moveRouteVertex(
+						route.geojson_coordinates,
+						vertexIndex,
+						coordinate,
+					);
+					if (geojsonCoordinates === route.geojson_coordinates) return s;
+					return {
+						routes: {
+							...s.routes,
+							[id]: {
+								...route,
+								geojson_coordinates: geojsonCoordinates,
+								length_meters: calculateRouteLengthMeters(geojsonCoordinates),
+								updated_at: new Date().toISOString(),
+							},
+						},
+						isDirty: true,
+						modifiedRouteIds: addUniqueId(s.modifiedRouteIds, id),
+					};
+				}),
+
+			removeRouteVertex: (id, vertexIndex) =>
+				set((s) => {
+					const route = s.routes[id];
+					if (!route) return s;
+					const geojsonCoordinates = removeRouteVertex(
+						route.geojson_coordinates,
+						vertexIndex,
+					);
+					if (geojsonCoordinates === route.geojson_coordinates) return s;
+					return {
+						routes: {
+							...s.routes,
+							[id]: {
+								...route,
+								geojson_coordinates: geojsonCoordinates,
+								length_meters: calculateRouteLengthMeters(geojsonCoordinates),
+								updated_at: new Date().toISOString(),
+							},
+						},
+						isDirty: true,
+						modifiedRouteIds: addUniqueId(s.modifiedRouteIds, id),
 					};
 				}),
 
@@ -321,6 +492,7 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 					routePoints: toRecord(data.routePoints),
 					isDirty: false,
 					validationErrors: [],
+					modifiedElementIds: [],
 				});
 
 				useNetworkEditorStore.temporal.getState().clear();
@@ -348,6 +520,7 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 					routePoints: toRecord(routePoints as RoutePoint[]),
 					isDirty: false,
 					validationErrors: [],
+					modifiedElementIds: [],
 				});
 
 				// Reset undo history after load
@@ -416,93 +589,82 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 			},
 
 			save: async () => {
-				const { elements, routes, routePoints, networkId, validate } = get();
+				const { modifiedElementIds, modifiedRouteIds, networkId, validate } =
+					get();
 				if (!networkId) return;
 
 				const errors = validate();
-				if (errors.length > 0) return;
+				if (errors.length > 0) {
+					set({
+						statusMessage: errors.map((error) => error.message).join(" · "),
+					});
+				}
 
 				set({ isSaving: true });
 
 				try {
-					const { createClient } = await import("@/lib/supabase/client");
-					const supabase = createClient();
+					const { updateFiberRoute, updateInfrastructureElement } =
+						await import("@/lib/queries/network-editor");
 
-					// Upsert elements
-					for (const el of Object.values(elements)) {
-						await supabase.rpc("create_infrastructure_element_draft", {
-							p_type: el.type,
-							p_code: el.code,
-							p_name: el.name,
-							p_lng: el.lng,
-							p_lat: el.lat,
-							p_status: el.status,
-							p_location_quality: el.location_quality,
-							p_pon_standard: el.pon_standard,
-							p_total_pon_ports: el.total_pon_ports,
-							p_optical_class: el.optical_class,
-							p_split_ratio: el.split_ratio,
-							p_insertion_loss_db: el.insertion_loss_db,
-							p_total_ports: el.total_ports,
-							p_properties: el.properties,
-							p_notes: el.notes,
+					for (const id of modifiedElementIds) {
+						const element = get()
+							.getElementsArray()
+							.find((item) => item.id === id);
+						if (!element) continue;
+						await updateInfrastructureElement({
+							element,
+							patch: element,
 						});
 					}
 
-					// Upsert routes
-					for (const r of Object.values(routes)) {
-						await supabase.rpc("create_fiber_route_draft", {
-							p_code: r.code,
-							p_type: r.type,
-							p_status: r.status,
-							p_from_element_id: r.from_element_id,
-							p_to_element_id: r.to_element_id,
-							p_geojson_coordinates: r.geojson_coordinates as unknown,
-							p_route_quality: r.route_quality,
-							p_installation_type: r.installation_type,
-							p_fiber_type: r.fiber_type,
-							p_fiber_count: r.fiber_count,
-							p_length_meters: r.length_meters,
-							p_attenuation_db_per_km: r.attenuation_db_per_km,
-							p_splice_loss_db: r.splice_loss_db,
-							p_connector_loss_db: r.connector_loss_db,
-							p_notes: r.notes,
+					for (const id of modifiedRouteIds) {
+						const route = get()
+							.getRoutesArray()
+							.find((item) => item.id === id);
+						if (!route) continue;
+						const savedRoute = await updateFiberRoute({
+							route,
+							patch: route,
 						});
+						set((s) => ({
+							routes: {
+								...s.routes,
+								[id]: savedRoute,
+							},
+						}));
 					}
 
-					// Save route points
-					const { createRoutePoint } = await import(
-						"@/lib/queries/network-editor"
-					);
-					for (const rp of Object.values(routePoints)) {
-						await createRoutePoint({
-							fiber_route_id: rp.fiber_route_id,
-							type: rp.type,
-							lng: rp.lng,
-							lat: rp.lat,
-							code: rp.code,
-							location_quality: rp.location_quality,
-							crossing_type: rp.crossing_type,
-							risk_level: rp.risk_level,
-							reserve_length_m: rp.reserve_length_m,
-							splice_loss_db: rp.splice_loss_db,
-							reference_text: rp.reference_text,
-							notes: rp.notes,
-						});
-					}
-
-					set({ isDirty: false, isSaving: false });
+					set({
+						isDirty: false,
+						isSaving: false,
+						validationErrors: [],
+						modifiedElementIds: [],
+						modifiedRouteIds: [],
+						statusMessage: "Cambios guardados.",
+					});
 					useNetworkEditorStore.temporal.getState().clear();
 				} catch (error) {
-					set({ isSaving: false });
-					console.error("Save failed:", error);
+					const errorMessage = getSaveErrorMessage(error);
+					set({
+						isSaving: false,
+						statusMessage: `No se pudo guardar: ${errorMessage}`,
+					});
+					console.error("Save failed:", errorMessage, error);
 				}
 			},
 
 			discard: () => {
 				const { networkId, loadNetwork } = get();
 				if (networkId) loadNetwork(networkId);
-				else set({ elements: {}, routes: {}, routePoints: {}, isDirty: false });
+				else
+					set({
+						elements: {},
+						routes: {},
+						routePoints: {},
+						isDirty: false,
+						modifiedElementIds: [],
+						modifiedRouteIds: [],
+					});
 				useNetworkEditorStore.temporal.getState().clear();
 			},
 		}),
