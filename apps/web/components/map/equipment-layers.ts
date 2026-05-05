@@ -313,9 +313,11 @@ export function setEquipmentLayersFilter(
 	}
 }
 
-export function readonlyEquipmentZoomFilters(zoom: number) {
+export function readonlyEquipmentZoomFilters(zoom: number, filterType = "all") {
 	const filters: mapboxgl.FilterSpecification[] = [];
-	if (zoom < EQUIPMENT_ZOOM_SPLITTER) filters.push(["!=", "type", "splitter"]);
-	if (zoom < EQUIPMENT_ZOOM_NAP) filters.push(["!=", "type", "nap"]);
+	if (zoom < EQUIPMENT_ZOOM_SPLITTER && filterType !== "splitter")
+		filters.push(["!=", "type", "splitter"]);
+	if (zoom < EQUIPMENT_ZOOM_NAP && filterType !== "nap")
+		filters.push(["!=", "type", "nap"]);
 	return filters;
 }

@@ -4,12 +4,8 @@ import {
 	AlertTriangle,
 	ChevronDown,
 	ChevronRight,
-	Compass,
-	Crosshair,
 	Layers,
-	Minus,
 	Network,
-	Plus,
 	Siren,
 	X,
 } from "lucide-react";
@@ -27,7 +23,15 @@ import {
 } from "@/components/map/context-menu";
 import { LogicalDiagram } from "@/components/map/logical-diagram/diagram";
 import { layoutTree } from "@/components/map/logical-diagram/layout-engine";
+import { OpticalPowerBudgetChart } from "@/components/map/logical-diagram/optical-power-budget-chart";
 import { buildNetworkTree } from "@/components/map/logical-diagram/tree-builder";
+import {
+	DetailSection,
+	Property,
+	RouteMetric,
+	TextBlock,
+} from "@/components/map/map-inspector-primitives";
+import { MapInspectorShell } from "@/components/map/map-inspector-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -37,6 +41,7 @@ import {
 	type NapMode,
 	napPropertyLabel,
 } from "@/lib/gpon/nap-config";
+import { propertyNumber, propertyString } from "@/lib/gpon/olt-properties";
 import {
 	OPTICAL_STATUS_BG,
 	OPTICAL_STATUS_COLOR,
@@ -46,7 +51,6 @@ import {
 	CABLE_LABEL,
 	ROUTE_POINT_COLOR,
 	ROUTE_POINT_LABEL,
-	STATUS_COLOR,
 	TYPE_COLOR,
 } from "@/lib/map/palette";
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_STYLE } from "@/lib/mapbox/config";
@@ -57,6 +61,7 @@ import {
 	readonlyEquipmentZoomFilters,
 	setEquipmentLayersFilter,
 } from "./equipment-layers";
+import { MapControls, MapLegend, MapStatChip } from "./map-overlay-components";
 import { FIBER_RENDER_COLOR, hideNoisyMapLabels } from "./mapbox-shared-style";
 import { NapCapacity } from "./nap-capacity";
 import { OpticalBudgetPanel } from "./optical-budget-panel";
@@ -94,14 +99,11 @@ const TYPE_FILTERS = [
 
 const STATUS_FILTERS = [
 	{ value: "all", label: "Todos", color: undefined },
-	{ value: "online", label: "En línea", color: STATUS_COLOR.online },
-	{ value: "alarm", label: "Alarma", color: STATUS_COLOR.alarm },
-	{ value: "offline", label: "Fuera de línea", color: STATUS_COLOR.offline },
-	{
-		value: "maintenance",
-		label: "Mantenimiento",
-		color: STATUS_COLOR.maintenance,
-	},
+	{ value: "active", label: "Activo", color: "#34d399" },
+	{ value: "planned", label: "Planificado", color: "#38bdf8" },
+	{ value: "faulty", label: "Con falla", color: "#fb4d6d" },
+	{ value: "inactive", label: "Inactivo", color: "#858585" },
+	{ value: "retired", label: "Retirado", color: "#5c5d5f" },
 ];
 
 const TYPE_LABEL: Record<string, string> = {
@@ -176,7 +178,9 @@ export function ReadonlyMapViewer({
 		useState<SelectedFeature | null>(null);
 	const [filterType, setFilterType] = useState("all");
 	const [filterStatus, setFilterStatus] = useState("all");
-	const [leftTab, setLeftTab] = useState<LeftPanelTab>("layers");
+	const filterTypeRef = useRef(filterType);
+	filterTypeRef.current = filterType;
+	const [leftTab, setLeftTab] = useState<LeftPanelTab>("tree");
 	const [selectedDiagramRoot, setSelectedDiagramRoot] =
 		useState<EquipmentMapItem | null>(null);
 	const [contextMenu, setContextMenu] = useState<{
@@ -504,7 +508,7 @@ export function ReadonlyMapViewer({
 			});
 		});
 
-		const onZoom = () => updateMapVisibility(map);
+		const onZoom = () => updateMapVisibility(map, filterTypeRef.current);
 		const onClick = (event: mapboxgl.MapMouseEvent) => {
 			setContextMenu(null);
 			const layers = [
@@ -611,8 +615,8 @@ export function ReadonlyMapViewer({
 		source?.setData(
 			buildEquipmentGeoJson(visibleEquipment, incidentsByEquipment),
 		);
-		updateMapVisibility(mapRef.current);
-	}, [incidentsByEquipment, isMapReady, visibleEquipment]);
+		updateMapVisibility(mapRef.current, filterType);
+	}, [filterType, incidentsByEquipment, isMapReady, visibleEquipment]);
 
 	return (
 		<div className="gpon-readonly-map fixed inset-x-0 bottom-0 top-12 overflow-hidden bg-[#1b1c1d]">
@@ -652,7 +656,7 @@ export function ReadonlyMapViewer({
 			</div>
 
 			<div className="absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2">
-				<Legend />
+				<MapLegend />
 				<MapControls
 					onZoomIn={() => mapRef.current?.zoomIn()}
 					onZoomOut={() => mapRef.current?.zoomOut()}
@@ -951,7 +955,7 @@ function ReadonlyUnifilarPanel({
 					</Button>
 				</div>
 			</header>
-			<div className="grid min-h-0 flex-1 grid-cols-1 gap-2.5 bg-[#151617] p-2.5 lg:grid-cols-[minmax(0,1fr)_280px]">
+			<div className="grid min-h-0 flex-1 grid-cols-1 gap-2.5 bg-[#151617] p-2.5 lg:grid-cols-[minmax(0,1fr)_420px]">
 				{roots.length === 0 ? (
 					<div className="flex h-full items-center justify-center rounded-md border border-dashed border-white/12 bg-white/[0.025] px-6 text-center lg:col-span-2">
 						<div className="max-w-lg">
@@ -975,6 +979,7 @@ function ReadonlyUnifilarPanel({
 								totalWidth={totalWidth}
 								totalHeight={totalHeight}
 								selectedId={selectedId}
+								showActivePanel={false}
 								expandedGroups={expandedGroups}
 								onSelectElement={setSelectedId}
 								onToggleGroup={toggleGroup}
@@ -1040,8 +1045,12 @@ function UnifilarSelectionPanel({
 						value={formatMeters(node?.budget.cumulativeLengthMeters)}
 					/>
 					<DiagramMetric
-						label="Pérdida"
-						value={formatDb(node?.budget.totalLoss)}
+						label="Rx estim."
+						value={
+							node?.budget.rxPowerDbm == null
+								? "N/D"
+								: `${node.budget.rxPowerDbm.toFixed(1)} dBm`
+						}
 					/>
 				</div>
 				<div className="rounded-md border border-white/8 bg-white/[0.03] p-2.5 text-xs">
@@ -1113,21 +1122,53 @@ function UnifilarOpticalBudgetSummary({
 				</span>
 			</div>
 			<div className="space-y-1">
-				<BudgetMiniRow label="Fibra" value={formatDb(budget.fiberLoss)} />
-				<BudgetMiniRow
-					label="Splitters"
-					value={formatDb(budget.splitterLoss)}
+				<OpticalPowerBudgetChart
+					budget={budget}
+					className="mb-2"
+					height={240}
 				/>
-				<BudgetMiniRow label="Empalmes" value={formatDb(budget.spliceLoss)} />
 				<BudgetMiniRow
-					label="Conectores"
-					value={formatDb(budget.connectorLoss)}
+					label="Pérdida física"
+					value={formatDb(budget.physicalLoss)}
+					bold
 				/>
-				<BudgetMiniRow label="Reserva" value={formatDb(budget.safetyMargin)} />
+				<BudgetMiniRow
+					label="Tx OLT"
+					value={
+						budget.txPowerDbm == null
+							? "N/D"
+							: `${budget.txPowerDbm.toFixed(1)} dBm`
+					}
+				/>
+				<BudgetMiniRow
+					label="Rx estimado"
+					value={
+						budget.rxPowerDbm == null
+							? "N/D"
+							: `${budget.rxPowerDbm.toFixed(1)} dBm`
+					}
+					color={accent}
+				/>
+				<BudgetMiniRow
+					label="Sensibilidad"
+					value={
+						budget.rxSensitivityDbm == null
+							? "N/D"
+							: `${budget.rxSensitivityDbm.toFixed(1)} dBm`
+					}
+				/>
 				<div className="my-1 h-px bg-white/10" />
-				<BudgetMiniRow label="Total" value={formatDb(budget.totalLoss)} bold />
 				<BudgetMiniRow
-					label="Margen"
+					label="Margen real"
+					value={
+						budget.powerMarginDb == null
+							? "N/D"
+							: formatDb(budget.powerMarginDb)
+					}
+					color={accent}
+				/>
+				<BudgetMiniRow
+					label="Margen diseño"
 					value={budget.margin == null ? "Sin clase" : formatDb(budget.margin)}
 					bold
 					color={accent}
@@ -1188,7 +1229,9 @@ function buildPathBudgetWarnings(
 ) {
 	const warnings: string[] = [];
 	if (node.budget.margin == null) {
-		warnings.push("Define la clase óptica de la OLT para calcular margen.");
+		warnings.push(
+			"Define clase óptica, Tx y sensibilidad Rx para calcular margen.",
+		);
 	}
 	if (node.budget.margin != null && node.budget.margin < 3) {
 		warnings.push("Margen menor a 3 dB: ruta sensible a degradación.");
@@ -1369,10 +1412,14 @@ function buildRoutePointsGeoJson(
 	};
 }
 
-function updateMapVisibility(map: mapboxgl.Map) {
+function updateMapVisibility(map: mapboxgl.Map, filterType = "all") {
 	const zoom = map.getZoom();
 
-	setEquipmentLayersFilter(map, "readonly", readonlyEquipmentZoomFilters(zoom));
+	setEquipmentLayersFilter(
+		map,
+		"readonly",
+		readonlyEquipmentZoomFilters(zoom, filterType),
+	);
 
 	if (map.getLayer("readonly-route-points")) {
 		map.setLayoutProperty(
@@ -1484,14 +1531,22 @@ function LeftPanel({
 			>
 				<div className="border-b border-[rgba(164,164,164,0.12)] px-3 py-2.5">
 					<div className="mb-2.5 grid grid-cols-4 gap-1.5">
-						<StatChip label="OLT" value={counts.olts} color={TYPE_COLOR.olt} />
-						<StatChip
+						<MapStatChip
+							label="OLT"
+							value={counts.olts}
+							color={TYPE_COLOR.olt}
+						/>
+						<MapStatChip
 							label="SPL"
 							value={counts.splitters}
 							color={TYPE_COLOR.splitter}
 						/>
-						<StatChip label="NAP" value={counts.naps} color={TYPE_COLOR.nap} />
-						<StatChip
+						<MapStatChip
+							label="NAP"
+							value={counts.naps}
+							color={TYPE_COLOR.nap}
+						/>
+						<MapStatChip
 							label="km"
 							value={counts.totalKm.toFixed(1)}
 							color="#a4a4a4"
@@ -1538,7 +1593,10 @@ function LeftPanel({
 							onStatusChange={onStatusChange}
 						/>
 						<div className="mt-4 space-y-1.5 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.04)] p-2.5 text-xs">
-							<StatRow label="ONT" value={counts.onts} />
+							<StatRow
+								label="Elementos"
+								value={counts.olts + counts.splitters + counts.naps}
+							/>
 							<StatRow label="Rutas" value={counts.routes} />
 							<StatRow label="Puntos de ruta" value={counts.routePoints} />
 						</div>
@@ -1591,27 +1649,6 @@ function LeftPanel({
 					</ScrollArea>
 				</TabsContent>
 			</Tabs>
-		</div>
-	);
-}
-
-function StatChip({
-	label,
-	value,
-	color,
-}: {
-	label: string;
-	value: number | string;
-	color: string;
-}) {
-	return (
-		<div className="rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)] px-2 py-1.5 text-center">
-			<p className="font-mono text-xs font-bold" style={{ color }}>
-				{value}
-			</p>
-			<p className="text-[9px] font-semibold uppercase text-[#777879]">
-				{label}
-			</p>
 		</div>
 	);
 }
@@ -1703,7 +1740,10 @@ function NetworkTree({
 	connections: ConnectionMapItem[];
 	onSelectEquipment?: (el: EquipmentMapItem) => void;
 }) {
-	const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+	const [expandedItems, setExpandedItems] = useState<Set<string>>(() => {
+		const firstOlt = equipment.find((e) => e.type === "olt");
+		return firstOlt ? new Set([firstOlt.id]) : new Set();
+	});
 	const toggleItem = (id: string) => {
 		setExpandedItems((prev) => {
 			const next = new Set(prev);
@@ -1915,49 +1955,30 @@ function RightPanel({
 				: (routePointColor(feature.point.type) ?? "#d7d7d7");
 
 	return (
-		<aside className="absolute bottom-4 right-4 top-4 z-20 flex w-80 flex-col overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md">
-			<div className="h-1" style={{ backgroundColor: accent }} />
-			<header className="flex items-start justify-between gap-3 border-b border-[rgba(164,164,164,0.12)] px-4 py-3">
-				<div className="min-w-0">
-					<p className="truncate text-sm font-semibold text-[#e6e6e6]">
-						{featureTitle(feature)}
-					</p>
-					<p className="mt-0.5 text-xs text-[#777879]">
-						{featureSubtitle(feature)}
-					</p>
-				</div>
-				<Button
-					type="button"
-					variant="ghost"
-					size="icon-sm"
-					aria-label="Cerrar panel"
-					onClick={onClose}
-				>
-					<X className="size-4" />
-				</Button>
-			</header>
-			<ScrollArea className="min-h-0 flex-1">
-				<div className="p-4 pr-5">
-					{feature.kind === "element" && (
-						<ElementDetails
-							element={feature.element}
-							connections={connections}
-							equipmentById={equipmentById}
-						/>
-					)}
-					{feature.kind === "route" && (
-						<RouteDetails
-							route={feature.route}
-							equipmentById={equipmentById}
-							connections={connections}
-						/>
-					)}
-					{feature.kind === "routePoint" && (
-						<RoutePointDetails point={feature.point} />
-					)}
-				</div>
-			</ScrollArea>
-		</aside>
+		<MapInspectorShell
+			accent={accent}
+			onClose={onClose}
+			subtitle={featureSubtitle(feature)}
+			title={featureTitle(feature)}
+		>
+			{feature.kind === "element" && (
+				<ElementDetails
+					element={feature.element}
+					connections={connections}
+					equipmentById={equipmentById}
+				/>
+			)}
+			{feature.kind === "route" && (
+				<RouteDetails
+					route={feature.route}
+					equipmentById={equipmentById}
+					connections={connections}
+				/>
+			)}
+			{feature.kind === "routePoint" && (
+				<RoutePointDetails point={feature.point} />
+			)}
+		</MapInspectorShell>
 	);
 }
 
@@ -2466,6 +2487,10 @@ function OltDetails({
 					value={STATUS_LABEL[element.status] ?? element.status}
 				/>
 				<Property
+					label="Modelo"
+					value={propertyString(element.properties, "olt_model", "Sin modelo")}
+				/>
+				<Property
 					label="Estandar PON"
 					value={element.pon_standard?.toUpperCase() ?? "Sin dato"}
 				/>
@@ -2480,6 +2505,63 @@ function OltDetails({
 				<Property
 					label="Clase optica"
 					value={element.optical_class ?? "Sin definir"}
+				/>
+			</DetailSection>
+
+			<DetailSection title="Capacidad OLT">
+				<Property
+					label="Tarjetas servicio"
+					value={`${propertyNumber(element.properties, "service_cards_installed") ?? "-"} / ${propertyNumber(element.properties, "service_slots_total") ?? "-"}`}
+				/>
+				<Property
+					label="PON por tarjeta"
+					value={String(
+						propertyNumber(element.properties, "pon_ports_per_card") ?? "-",
+					)}
+				/>
+				<Property
+					label="Split diseño"
+					value={propertyString(element.properties, "design_split_ratio", "-")}
+				/>
+				<Property
+					label="Clientes estimados"
+					value={
+						propertyNumber(
+							element.properties,
+							"estimated_subscribers",
+						)?.toLocaleString("es-EC") ?? "-"
+					}
+				/>
+			</DetailSection>
+
+			<DetailSection title="Cabecera optica">
+				<Property
+					label="Perdida cabecera"
+					value={`${propertyNumber(element.properties, "headend_loss_db")?.toFixed(1) ?? "-"} dB`}
+				/>
+				<Property
+					label="Puerto PON"
+					value={propertyString(
+						element.properties,
+						"pon_port_connector_type",
+						"-",
+					)}
+				/>
+				<Property
+					label="ODF / feeder"
+					value={propertyString(
+						element.properties,
+						"odf_feeder_connector_type",
+						"-",
+					)}
+				/>
+				<Property
+					label="Patchcord"
+					value={propertyString(
+						element.properties,
+						"headend_patchcord_type",
+						"-",
+					)}
 				/>
 			</DetailSection>
 
@@ -2836,47 +2918,6 @@ function RoutePointDetails({ point }: { point: RoutePoint }) {
 	);
 }
 
-function DetailSection({
-	title,
-	children,
-}: {
-	title: string;
-	children: ReactNode;
-}) {
-	return (
-		<div className="border-t border-[rgba(164,164,164,0.12)] pt-3">
-			<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-				{title}
-			</p>
-			<div className="space-y-2">{children}</div>
-		</div>
-	);
-}
-
-function RouteMetric({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(27,28,29,0.42)] px-2 py-2">
-			<p className="text-[10px] uppercase tracking-wider text-[#777879]">
-				{label}
-			</p>
-			<p className="mt-1 truncate font-mono text-[12px] font-semibold text-[#e6e6e6]">
-				{value}
-			</p>
-		</div>
-	);
-}
-
-function Property({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="flex items-center justify-between gap-3">
-			<span className="text-[#777879]">{label}</span>
-			<span className="truncate text-right font-mono text-[#d7d7d7]">
-				{value}
-			</span>
-		</div>
-	);
-}
-
 function PropertiesBlock({
 	properties,
 }: {
@@ -2902,17 +2943,6 @@ function PropertiesBlock({
 				</p>
 			)}
 		</DetailSection>
-	);
-}
-
-function TextBlock({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="border-t border-[rgba(164,164,164,0.12)] pt-3">
-			<p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-				{label}
-			</p>
-			<p className="leading-relaxed text-[#d7d7d7]">{value}</p>
-		</div>
 	);
 }
 
@@ -3006,93 +3036,6 @@ function formatPropertyValue(value: unknown): string {
 		return JSON.stringify(value);
 	}
 	return String(value);
-}
-
-function Legend() {
-	return (
-		<div className="w-44 rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.9)] p-3 text-xs text-[#d7d7d7] shadow-2xl backdrop-blur-md">
-			<p className="mb-2 font-semibold uppercase tracking-widest text-[#777879]">
-				Fibra
-			</p>
-			{(["feeder", "distribution", "drop"] as const).map((type) => (
-				<div key={type} className="mb-1.5 flex items-center gap-2">
-					<span
-						className="h-px w-7"
-						style={{
-							borderTop:
-								type === "feeder"
-									? `2px solid ${FIBER_RENDER_COLOR[type]}`
-									: `2px dashed ${FIBER_RENDER_COLOR[type]}`,
-						}}
-					/>
-					<span>{CABLE_LABEL[type]}</span>
-				</div>
-			))}
-			<p className="mb-2 mt-3 font-semibold uppercase tracking-widest text-[#777879]">
-				Elementos
-			</p>
-			{(["olt", "splitter", "nap"] as const).map((type) => (
-				<div key={type} className="mb-1.5 flex items-center gap-2">
-					<span
-						className="size-2.5 rounded-full"
-						style={{ backgroundColor: TYPE_COLOR[type] }}
-					/>
-					<span>{TYPE_LABEL[type]}</span>
-				</div>
-			))}
-		</div>
-	);
-}
-
-function MapControls({
-	onZoomIn,
-	onZoomOut,
-	onFit,
-	onResetNorth,
-}: {
-	onZoomIn: () => void;
-	onZoomOut: () => void;
-	onFit: () => void;
-	onResetNorth: () => void;
-}) {
-	return (
-		<div className="flex overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md">
-			<IconControl label="Acercar" onClick={onZoomIn}>
-				<Plus className="size-4" />
-			</IconControl>
-			<IconControl label="Alejar" onClick={onZoomOut}>
-				<Minus className="size-4" />
-			</IconControl>
-			<IconControl label="Centrar red" onClick={onFit}>
-				<Crosshair className="size-4" />
-			</IconControl>
-			<IconControl label="Reset norte" onClick={onResetNorth}>
-				<Compass className="size-4" />
-			</IconControl>
-		</div>
-	);
-}
-
-function IconControl({
-	label,
-	onClick,
-	children,
-}: {
-	label: string;
-	onClick: () => void;
-	children: ReactNode;
-}) {
-	return (
-		<button
-			type="button"
-			aria-label={label}
-			title={label}
-			onClick={onClick}
-			className="grid size-9 place-items-center border-r border-[rgba(164,164,164,0.12)] text-[#d7d7d7] transition-colors last:border-r-0 hover:bg-white/10"
-		>
-			{children}
-		</button>
-	);
 }
 
 function routePointLabel(type: string) {
