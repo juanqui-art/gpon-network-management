@@ -61,11 +61,27 @@ apps/web/
 ├── components/
 │   ├── map/
 │   │   ├── map-view.tsx                  # Editor Mapbox (~4500 líneas)
+│   │   ├── map-viewer.tsx                # Viewer read-only (modo consulta)
+│   │   ├── network-editor-map.tsx        # Contenedor del mapa en el editor
+│   │   ├── readonly-map-viewer.tsx       # Viewer para reportes/previews
+│   │   ├── equipment-layers.ts           # GeoJSON + gestión de capas Mapbox centralizadas
+│   │   ├── mapbox-shared-style.ts        # Constantes de estilo compartidas (colores fibra, labels)
+│   │   ├── context-menu.tsx              # Menú contextual del diagrama
+│   │   ├── olt-model-selector.tsx        # Selector de modelo OLT (clase óptica)
 │   │   ├── data-quality-badge.tsx        # Badge de calidad de datos
 │   │   ├── nap-capacity.tsx              # Barra de capacidad NAP
 │   │   ├── optical-budget-panel.tsx      # Calculadora óptica con semáforo
 │   │   ├── equipment-panel.tsx           # Panel detalle equipo (ONT enriquecido)
-│   │   └── types.ts                      # Tipos de mapa
+│   │   ├── types.ts                      # Tipos de mapa
+│   │   └── logical-diagram/              # Diagrama lógico unifilar
+│   │       ├── index.tsx                 # Entry point + panel colapsable
+│   │       ├── diagram.tsx               # Canvas SVG del diagrama
+│   │       ├── nodes.tsx                 # Nodos OLT/Splitter/NAP
+│   │       ├── edges.tsx                 # Aristas con pérdidas ópticas
+│   │       ├── layout-engine.ts          # Algoritmo de posicionamiento
+│   │       ├── tree-builder.ts           # Construcción del árbol jerárquico
+│   │       ├── path-utils.ts             # Utilidades de rutas SVG
+│   │       └── types.ts                  # Tipos del diagrama
 │   └── topology/
 │       └── topology-picker.tsx           # Selector de topología (Star/Tree/Cascade)
 ├── lib/
@@ -73,7 +89,9 @@ apps/web/
 │   ├── types/
 │   │   ├── gpon.ts                       # Tipos TS MVP (tablas + ENUMs + helpers)
 │   │   └── network.ts                    # Tipos Network, NetworkSummary, topologías
-│   ├── map/palette.ts                    # Colores (TYPE_COLOR, STATUS_COLOR, DATA_QUALITY_COLOR…)
+│   ├── map/
+│   │   ├── palette.ts                    # Colores (TYPE_COLOR, STATUS_COLOR, DATA_QUALITY_COLOR…)
+│   │   └── route-geometry-editor.ts      # Dibujo de rutas, snap de vértices, validación geométrica
 │   ├── gpon/
 │   │   ├── optical-budget.ts             # Calculadora presupuesto óptico GPON/XGS-PON
 │   │   ├── operative-code.ts             # Generador códigos operativos (PIC-UIO-Z05-NAP-128)
@@ -89,7 +107,7 @@ apps/web/
 ├── biome.json
 └── package.json
 
-database/migrations/                      # ✅ 001-008 APLICADAS en Supabase
+database/migrations/                      # ✅ 001-013 APLICADAS en Supabase (014-017 pendientes aplicar)
 ├── 001_initial_schema.sql                # 3 tablas + 13 ENUMs + indices + trigger
 ├── 002_rls_policies.sql                  # RLS para 5 roles + get_user_role()
 ├── 003_seed_dev.sql                      # Red mínima Quito (8 elementos, 7 rutas, 3 puntos)
@@ -97,21 +115,43 @@ database/migrations/                      # ✅ 001-008 APLICADAS en Supabase
 ├── 005_editor_mutations.sql              # create_infrastructure_element_draft, create_fiber_route_draft
 ├── 006_route_point_and_delete_rpcs.sql   # create_route_point_draft + delete_*
 ├── 007_fix_role_app_metadata.sql         # Rol en app_metadata
-└── 008_update_rpcs.sql                   # update_infrastructure_element + update_fiber_route
+├── 008_update_rpcs.sql                   # update_infrastructure_element + update_fiber_route
+├── 009_nap_internal_splitter.sql         # NAP con splitter PLC interno (split_ratio + insertion_loss_db)
+├── 009_restrict_infrastructure_write_roles.sql  # outside_plant → solo verificación, no write directo
+├── 010_network_zones.sql                 # Zonas geográficas por red ({ZONA} en códigos operativos)
+├── 011_network_zones_rpc.sql             # RPC: network_zones_for_network()
+├── 012_audit_logs.sql                    # Tabla audit_logs para trazabilidad
+├── 013_nap_properties.sql                # Propiedades NAP: nap_mode (terminal/with_splitter/prepared)
+├── 014_seed_cuenca.sql                   # Red Cuenca — Star 1:16, El Ejido/San Sebastián
+├── 015_fix_update_infrastructure_element_ambiguous_id.sql  # Fix columna id ambigua en RPC
+├── 016_fix_update_fiber_route_ambiguous_id.sql             # Fix columna id ambigua en RPC
+└── 017_use_geometry_length_for_fiber_routes.sql            # Longitud desde geometría GIS
 
 docs/
-├── MVP_SCOPE.md
-├── INFRASTRUCTURE_EDITOR_PLAN.md
-├── OPERATIONAL_ROLES.md
-├── EDITOR_UI_UX_SPEC.md
-├── GPON_SYMBOLOGY.md
-├── TOPOLOGIES.md                         # Guía topologías Star/Tree/Cascade Ecuador
-├── NAP_CAPACITY.md                       # Gestión de capacidad NAP
-├── GPON_FTTH_ECUADOR_RESEARCH.md         # Investigación técnica consolidada
-└── adr/
-    ├── 0001-single-tenant-mvp.md
-    ├── 0002-no-port-tracking.md
-    └── 0003-operational-tables-phase-4.md
+├── MVP_SCOPE.md                          # Alcance y criterios de cierre del MVP
+├── MVP_TASKS.md                          # Checklist de tareas (puede estar desactualizado)
+├── INFRASTRUCTURE_EDITOR_PLAN.md         # Plan del editor (precede ADR 0001; ver conflicto org_id)
+├── OPERATIONAL_ROLES.md                  # Roles y permisos (admin/engineer/outside_plant/…)
+├── OPERATIONAL_ROLE_RESEARCH.md          # Fuente de investigación de roles (solapado con anterior)
+├── EDITOR_UI_UX_SPEC.md                  # Especificación UX del editor por modo/zoom/herramienta
+├── NETWORK_MAP_UX_FLOW.md                # Flujo UX del mapa: vista/edición/zoom
+├── WORKFLOW_ANALYSIS.md                  # Flujo operador: entrar → ver → buscar → editar → guardar
+├── CREATION_FLOW_TEST.md                 # Plan de prueba del flujo de creación (puede estar desactualizado)
+├── GPON_SYMBOLOGY.md                     # Colores e iconos por tipo/estado/calidad
+├── TOPOLOGIES.md                         # Guía topologías Star/Tree/Cascade/Bus Ecuador + XGS-PON
+├── NAP_CAPACITY.md                       # Gestión de capacidad NAP (contadores + umbrales)
+├── GPON_FTTH_ECUADOR_RESEARCH.md         # Investigación técnica consolidada — referencia canónica
+├── UNIFILAR_EJEMPLO_REAL.md              # Ejemplo real de diagrama unifilar con presupuesto óptico
+├── OLT_REFERENCE.md                      # Specs técnicas OLT: Huawei MA5800, ZTE Titan, Nokia
+├── OLT_OPERATIONS.md                     # Guía operación OLT — Fase 4
+├── OLT_INTEGRATION_GUIDE.md              # Integración SNMP/telemetría OLT — Fase 4
+├── OLT_DEPLOYMENT.md                     # Runbook despliegue OLT — Fase 4
+├── adr/
+│   ├── 0001-single-tenant-mvp.md
+│   ├── 0002-no-port-tracking.md
+│   └── 0003-operational-tables-phase-4.md
+└── research-sources/
+    └── ANALISIS_TECNICO.md               # Whitepaper original GPON Ecuador (fuente de GPON_FTTH_ECUADOR_RESEARCH.md)
 ```
 
 ## Estado del editor (map-view.tsx)
@@ -162,7 +202,7 @@ docs/
 12. Monitoreo SNMP, TR-069, APIs de OLT
 
 ## Base de datos (Supabase)
-- **Proyecto:** `ybijrwyenlfemjjueopo` — migraciones 001-008 aplicadas
+- **Proyecto:** `ybijrwyenlfemjjueopo` — migraciones 001-013 aplicadas (014-017 pendientes aplicar)
 - **Tablas MVP (4):** `networks`, `infrastructure_elements`, `fiber_routes`, `route_points`
 - **ENUMs (13):** `user_role`, `element_type`, `element_status`, `data_quality`, `pon_standard`, `split_ratio`, `route_type`, `route_status`, `installation_type`, `fiber_type`, `route_point_type`, `crossing_type`, `risk_level`
 - **Seed dev:** 1 OLT, 2 splitters, 5 NAPs, 7 rutas (2 feeder + 5 distribution), 3 puntos (1 cruce, 1 reserva, 1 empalme)
@@ -217,7 +257,7 @@ Pérdida total =
 ```
 Valores conservadores para Ecuador (UV, humedad, reparaciones frecuentes).
 Parámetros activos: longitud GIS * 1.02, conector 0.5 dB, empalme 0.1 dB,
-margen de seguridad 3.0 dB, downstream base 1490 nm.
+margen de seguridad 4.0 dB (tropical Ecuador: UV, humedad, reparaciones), downstream base 1490 nm.
 Semáforo: verde (>3dB margen) / ámbar (1-3dB) / rojo (<1dB) / gris (sin clase óptica del OLT).
 Referencia canónica: `docs/GPON_FTTH_ECUADOR_RESEARCH.md#presupuesto-optico-consolidado`.
 
