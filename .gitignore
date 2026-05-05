@@ -26,3 +26,7 @@ Thumbs.db
 
 # MCP config (contains secrets)
 .mcp.json
+
+# Claude Code skills
+.agents/
+skills-lock.json
