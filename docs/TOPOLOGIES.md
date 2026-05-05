@@ -497,6 +497,293 @@ Cascada 1:2→1:4→1:8 + ONTs XGS-PON (10 Gbps) = 32-40 clientes/puerto
 
 **Ventaja clave:** Migrar cliente por cliente sin parar de servir a los demás.
 
+---
+
+## 4. Topología Bus — Red Desbalanceada (Asimétrica)
+
+⚠️ **Especializada:** Esta topología es apropiada para casos MUY ESPECÍFICOS en Ecuador. NO es la opción por defecto.
+
+```
+                        OLT
+                         |
+                  [Splitter Primario]
+                   /    |     |    \
+              TAP 1   TAP 2  TAP 3  TAP 4
+             (10/90) (10/90)(10/90)(10/90)
+              |       |      |      |
+            NAP1    NAP2   NAP3   NAP4 ... NAP16
+```
+
+### Qué es Tecnología Bus Desbalanceada
+
+**Bus Desbalanceado (Asymmetric Splitter Network):** Utiliza splitters de razones **asimétricas** (5/95, 10/90, 20/80, 30/70) para crear una topología de bus donde una rama transporta la mayoría del tráfico (rama 95%) y otras toman pequeñas derivaciones (rama 5%).
+
+**Principio físico:**
+- Cada TAP (derivación) usa un splitter asimétrico FBT (Fused Biconical Taper)
+- Fibra principal de **baja pérdida** en la rama 95%
+- La rama 5% se termina en NAP local (clientes cercanos)
+- Se repite a lo largo de ~10-20 km de corredor lineal
+
+**Pérdida de inserción por ratio:**
+```
+Ratio 5/95:   IL ≈ 13 dB rama 5%, 0.2 dB rama 95%
+Ratio 10/90:  IL ≈ 10 dB rama 10%, 0.4 dB rama 90%
+Ratio 20/80:  IL ≈ 7 dB rama 20%, 0.9 dB rama 80%
+Ratio 30/70:  IL ≈ 5.2 dB rama 30%, 1.5 dB rama 70%
+```
+
+### Arquitectura Real Bus 10/90 (Caso Ecuador)
+
+```
+OLT (Central Office)
+│
+├─ Fibra principal G.652D (baja pérdida en rama 90%)
+│  Longitud total: 20-30 km (corredor lineal: ruta, carretera, río)
+│
+├─ @km 0.0: TAP 1 (10/90)
+│  ├─ Rama 10% → NAP-UIO-Z05-BUS-001 (8 clientes)
+│  └─ Rama 90% → continúa fibra principal
+│
+├─ @km 5.5: TAP 2 (10/90)
+│  ├─ Rama 10% → NAP-UIO-Z05-BUS-002 (8 clientes)
+│  └─ Rama 90% → continúa fibra principal
+│
+├─ @km 11.0: TAP 3 (10/90)
+│  ├─ Rama 10% → NAP-UIO-Z05-BUS-003 (8 clientes)
+│  └─ Rama 90% → continúa fibra principal
+│
+└─ ... (hasta 12-16 TAPs en 20-30 km)
+
+TOTAL: 96-128 clientes en una sola fibra (sin splitter primario centralizado)
+```
+
+### Características
+
+- **Arquitectura:** 1 OLT → Fibra principal lineal → N TAPs asimétricos → N NAPs
+- **Cobertura:** 10-30 km corredor lineal
+- **Fibra estimada:** 40-50 km (fibra principal larga + pocos drops cortos)
+- **Puertos NAP:** 8 puertos c/u (típico)
+- **Distancia diferencial:** Máx 20 km (OLT a último cliente = ~30 km)
+- **Split ratio efectivo:** 1:12-1:16 por NAP (no 1:128 total)
+
+### Cuándo usar (Casos ESPECÍFICOS)
+
+✅ **Corredores lineales rurales:**
+- Carreteras con clientes dispersos (2-5 km entre clientes)
+- Rutas fluviales con comunidades en la orilla
+- Líneas de ferrocarril o tuberías con accesos dispersos
+- Longitud >15 km; densidad baja y lineal
+
+✅ **Zonas con topografía restrictiva:**
+- Valles angostos (solo una ruta de fibra viable)
+- Montañas donde splitters centralizados son difíciles de mantener
+- Terreno donde divergir ramales de fibra es caro
+
+✅ **Minimizar puntos de falla:**
+- NO hay splitter primario centralizado (evita punto único de falla)
+- Si un TAP falla, solo ~8 clientes; otros 120 no se afectan
+
+❌ **NO usar en:**
+- Zonas urbanas densas (usa Star 1:16)
+- Periurbano con clientes en todas direcciones (usa Cascada)
+- Geometría tipo árbol (usa Cascada)
+- Clientes que requieren redundancia (bus es punto de falla lineal)
+
+### Ventajas (REALES en corredor lineal)
+
+1. **Escalabilidad lineal:** Agrega TAPs sin rediseñar topología
+2. **Robustez contra splitter:** NO hay splitter primario centralizado
+3. **Baja pérdida en rama principal:** Rama 90% con ~0.4 dB/km (vs. 0.3 dB/km base)
+4. **Económico para terreno restrictivo:** Una sola ruta de fibra principal
+5. **Mantenimiento operativo:** TAPs son equipos estándar, bajo costo
+
+### Desventajas (CRÍTICAS)
+
+1. **Distancia diferencial limitada:** Máx 20 km entre primer y último cliente
+   - OLT a Cliente-1: 0.5 km
+   - OLT a Cliente-16: 30 km
+   - Diferencia: 29.5 km ❌ EXCEDE 20 km máximo TDMA
+   - **Solución:** Usar FEC (Forward Error Correction) o regeneradores
+
+2. **Pérdida acumulada en rama 10%:**
+   - TAP entrada: 10 dB rama 10%
+   - Fibra distribution (1 km): 0.3 dB
+   - Conectores: 1.0 dB
+   - **Total en peor caso:** 11.3 dB + splitter NAP 1:8 (10.5 dB) = **21.8 dB**
+   - **Margen si clase B+:** 28 - 21.8 = 6.2 dB ✅ Aceptable
+
+3. **Complejidad operativa:**
+   - Requiere disciplina en documentación (dónde está cada TAP)
+   - Difícil de diagnosticar si hay problema en rama 90%
+   - Cambios en árbol óptico complejos
+
+4. **Congestión en rama principal:**
+   - Todas 16 ONTs comparten la fibra principal
+   - Pérdida en rama 90% afecta a todos los demás
+   - Si hay corte, toda la red se cae
+
+5. **No es estándar de industria:**
+   - Operadores prefieren topologías simétricas (Star, Cascada)
+   - Menos documentación disponible
+   - Equipo técnico necesita capacitación especial
+
+### Presupuesto óptico típico — Bus 10/90
+
+**Peor caso: Cliente en TAP más lejano (30 km del OLT)**
+
+```
+├─ OLT TX:                              +3.0 dBm (B+)
+├─ Fibra feeder (30 km):                -9.0 dB  (30 km × 0.30 dB/km)
+├─ Connectors OLT/Splitter (2):         -1.0 dB
+├─ Splitter TAP 10/90 (rama 10%):       -10.0 dB ← CRÍTICO
+├─ Fibra distribution (1 km):           -0.3 dB
+├─ Connectores (2):                     -1.0 dB
+├─ Splitter NAP 1:8:                    -10.5 dB
+├─ Fibra drop (150 m):                  -0.05 dB
+├─ Connectores drop (2):                -1.0 dB
+├─ Margen de seguridad:                 -4.0 dB
+├─────────────────────────────────────────────
+└─ TOTAL PÉRDIDA:                        -36.85 dB ❌ EXCEDE B+ (28 dB)
+```
+
+**Solución:** Usar Clase C+ (31 dB) o C++ (35 dB)
+
+```
+Con Clase C++:
+  Presupuesto 35 dB - Pérdida 30.85 dB = Margen 4.15 dB ✅
+```
+
+**Mejor caso: Cliente en TAP cercano (1 km del OLT)**
+
+```
+├─ OLT TX:                              +3.0 dBm
+├─ Fibra feeder (1 km):                 -0.3 dB
+├─ Connectors (2):                      -1.0 dB
+├─ Splitter TAP 10/90 (rama 10%):       -10.0 dB
+├─ Fibra distribution (0.5 km):         -0.15 dB
+├─ Connectores (2):                     -1.0 dB
+├─ Splitter NAP 1:8:                    -10.5 dB
+├─ Fibra drop (150 m):                  -0.05 dB
+├─ Connectores drop (2):                -1.0 dB
+├─ Margen seguridad:                    -4.0 dB
+├─────────────────────────────────────────────
+└─ TOTAL PÉRDIDA:                        -27.95 dB ✅ Dentro de C+ (31 dB)
+```
+
+**Conclusión:** Bus 10/90 requiere **Clase C++ como mínimo** para corredor >15 km.
+
+### Comparativa: Bus vs. Star vs. Cascada
+
+| Aspecto | Star 1:16 | Cascada 1:2→1:4→1:8 | **Bus 10/90** |
+|---------|-----------|-----------|------------|
+| **Geometría ideal** | Urbano denso | Periurbano radial | **Corredor lineal** ✅ |
+| **Rango operativo** | 0-2 km | 0-15 km | **0-30 km** ✅ |
+| **Cobertura típica** | 1-2 km² | 5-10 km² | **10-30 km lineal** ✅ |
+| **NAPs por red** | 12-16 | 16-32 | **12-16** |
+| **Presupuesto óptico** | B+ (20-23 dB) | C+ (20-24 dB) | **C++ (31-35 dB)** |
+| **Splitter central** | 1 splitter 1:16 | 1 splitter 1:2 | **NINGUNO** ✅ |
+| **Puntos de falla** | 1 (splitter) | 2-3 (splitters) | **N TAPs** |
+| **Escalabilidad** | Fija (16 NAPs) | Flexible | **Flexible** ✅ |
+| **Distancia diferencial** | <2 km | <10 km | **<20 km** ✅ |
+| **Mantenimiento** | Simple | Medio | **Complejo** ⚠️ |
+| **Uso en Ecuador** | Común urbano | **MUY COMÚN** | **Raro** |
+| **Compatibilidad XGS-PON** | ✅ Viable | ✅ Óptima | ✅ Viable |
+
+### Decisión de Diseño: Cuándo Elegir Bus en Ecuador
+
+**Usar Bus 10/90 SOLO si TODOS estos criterios se cumplen:**
+
+```
+✅ Geometría: Línea recta >15 km
+✅ Densidad: Clientes espaciados 3-5 km (no urbano)
+✅ Topografía: Corredor único (río, ruta, ferrocarril)
+✅ Operación: Equipo capacitado en TAPs asimétricos
+✅ Coste: Ahorro de splitter central compensa complejidad
+✅ SLA: Clientes aceptan que fallo de fibra = toda la red cae
+❌ Si FALTAN criterios: USAR CASCADA (es más robusto)
+```
+
+### Cascada vs. Bus: Matriz de Decisión FINAL
+
+| Decisión | Cascada ✅ | Bus ⚠️ |
+|----------|-----------|---------|
+| Tienes control de una ruta lineal de 20+ km | NO → Cascada | SÍ → Evalúa Bus |
+| Clientes dispersos pero radiales (no lineales) | SÍ → Cascada | NO → No Bus |
+| Necesitas redundancia o convergencia | SÍ → Cascada | NO → Bus puede servir |
+| Equipo técnico capacitado en TAPs | NO → Cascada | SÍ → Bus viable |
+| Presupuesto permite SFP Clase C++ | NO → Cascada | SÍ → Bus viable |
+| **RESULTADO FINAL** | **CASCADA** | **BUS** |
+
+### Implementación Bus en app (Futuro)
+
+Cuando se implemente UI para Bus en network-editor.tsx:
+
+```typescript
+// Nuevo topology template
+generateTopology("bus-linear", center_lng, center_lat, {
+  distance_km: 25,
+  num_taps: 12,
+  tap_ratio: "10/90",
+  tap_interval_km: 2.0
+})
+
+// Genera:
+// - 1 OLT en punto de inicio
+// - 1 ruta fibra principal 25 km
+// - 12 TAPs en (0, 2, 4, 6, ... 22) km
+// - 12 NAPs (1 por TAP)
+// - Códigos: PIC-UIO-Z05-BUS-001, BUS-002, etc.
+// - Presupuesto óptico: Mínimo C++
+```
+
+---
+
+## Matriz de Decisión ACTUALIZADA (4 Topologías)
+
+| Aspecto | Star (1:16) | Excepcional 1:32 | **Cascada (1:2→1:4→1:8)** | **Bus 10/90** |
+|---------|-----------|-----------|------------|------------|
+| **Zona típica** | Urbano denso | Edificios MDU | **Periurbano/Rural** ✅ | **Corredor lineal** |
+| **NAPs efectivos** | 12-16 | 28-32 | **16-32** | 12-16 |
+| **Fibra (km)** | 40-80 | 40-80 | **80-150** | 40-50 |
+| **Presupuesto óptico** | B+ (20-23 dB) | B+ (margen <2dB) ⚠️ | **C+ (20-24 dB)** ✅ | C++ (31-35 dB) |
+| **Puntos de falla** | 1 splitter | 4 splitters | **2-3 splitters** | N TAPs |
+| **Robustez** | Baja | Muy baja | **Media-Alta** ✅ | Media (lineal) |
+| **Mantenimiento** | Simple | Complejo | **Medio** ✅ | Complejo |
+| **Escalabilidad** | Fija | Limitada | **Flexible** ✅ | Flexible |
+| **CAPEX por NAP** | Alto | Muy alto | **Bajo** ✅ | Bajo |
+| **Frecuencia en Ecuador** | Común urbano | Raro | **MUY COMÚN** ✅ | Raro |
+| **Compatibilidad XGS-PON** | ✅ Viable | ❌ No recomendado | **✅ Óptima** | ✅ Viable |
+| **Recomendación 2026** | Urbano solo | No usar | **✅ ESTÁNDAR** | Corredor especializado |
+
+---
+
+## 🎯 RESUMEN FINAL: RECOMENDACIÓN POR CASO DE USO
+
+Para nuevos despliegues en Ecuador (2026):
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ PREGUNTA 1: ¿Cuál es tu geometría?                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│ Urbano denso (MDU, edificios)                              │
+│   → Usa STAR 1:16 (Clase B+)                               │
+│                                                             │
+│ Periurbano / Rural radial (clientes en todas direcciones)  │
+│   → Usa CASCADA 1:2→1:4→1:8 (Clase C+) ✅ RECOMENDADO     │
+│                                                             │
+│ Corredor lineal >15 km (ruta, río, ferrocarril)           │
+│   → Evalúa BUS 10/90 (Clase C++)                           │
+│   → PERO: Usa CASCADA si equipo no está capacitado         │
+│                                                             │
+│ Mega-densidad >300 apts (raro)                             │
+│   → Evita 1:32, usa Cascada dividido en 2 OLTs             │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Default para 2026:** CASCADA. Es future-proof, operacionalmente probado, y escala sin rediseño.
+
 ### Migración de Star a Cascada (Opcionalidad)
 
 Si empiezas con Star 1:16 y necesitas expandir:

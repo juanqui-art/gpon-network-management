@@ -519,8 +519,12 @@ cerrar el primer producto usable.
 
 ## Presupuesto optico en MVP
 
-El MVP debe preparar el modelo para presupuesto optico, pero no necesita cerrar
-el calculo completo extremo a extremo.
+El MVP ya calcula una primera version del presupuesto optico en rutas y en el
+diagrama unifilar readonly. El calculo extremo a extremo hasta ONT/drop queda
+para la fase de distribucion, pero la base de ingenieria debe mantenerse desde
+ahora.
+
+Referencia canonica: `docs/GPON_FTTH_ECUADOR_RESEARCH.md#presupuesto-optico-consolidado`.
 
 Campos que se guardan desde ahora:
 
@@ -535,6 +539,16 @@ infrastructure_elements.insertion_loss_db
 route_points.splice_loss_db
 ```
 
+Valores activos en la calculadora:
+
+```txt
+factor_longitud = 1.02x
+conector = 0.5 dB
+empalme = 0.1 dB
+margen_seguridad = 3.0 dB
+longitud_onda_base = 1490 nm
+```
+
 Perdidas de referencia para splitters:
 
 ```txt
@@ -542,14 +556,18 @@ Perdidas de referencia para splitters:
 1:4  -> ~7.2 dB
 1:8  -> ~10.5 dB
 1:16 -> ~13.8 dB
-1:32 -> ~17.1 dB
+1:32 -> ~17.0 dB
 1:64 -> ~20.5 dB
 ```
 
 Rango operativo GPON de referencia:
 
 ```txt
--8 dBm a -28 dBm
+Saturacion: > -8 dBm
+Optimo:     -15 a -22 dBm
+Aceptable:  -23 a -26 dBm
+Critico:    -27 a -28 dBm
+LOS:        < -29 dBm
 ```
 
 ## Orden de implementacion

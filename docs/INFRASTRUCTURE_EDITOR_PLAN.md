@@ -401,12 +401,25 @@ El analisis tecnico del proyecto confirma que el presupuesto optico es una parte
 Formula base:
 
 ```txt
-P_recibida =
-P_transmitida
-- perdida_fibra
-- perdida_splitters
-- perdida_empalmes
-- perdida_conectores
+Perdida total =
+  perdida_fibra
+  + perdida_splitters
+  + perdida_conectores
+  + perdida_empalmes
+  + margen_seguridad
+```
+
+La referencia canonica y los valores de ingenieria se consolidan en
+`docs/GPON_FTTH_ECUADOR_RESEARCH.md#presupuesto-optico-consolidado`.
+
+Valores activos en la calculadora:
+
+```txt
+factor_longitud = 1.02x
+conector = 0.5 dB
+empalme = 0.1 dB
+margen_seguridad = 3.0 dB
+longitud_onda_base = 1490 nm
 ```
 
 Campos necesarios:
@@ -428,14 +441,18 @@ Perdidas de referencia para splitters:
 1:4  -> ~7.2 dB
 1:8  -> ~10.5 dB
 1:16 -> ~13.8 dB
-1:32 -> ~17.1 dB
+1:32 -> ~17.0 dB
 1:64 -> ~20.5 dB
 ```
 
 Rango operativo GPON mencionado en la investigacion:
 
 ```txt
--8 dBm a -28 dBm
+Saturacion: > -8 dBm
+Optimo:     -15 a -22 dBm
+Aceptable:  -23 a -26 dBm
+Critico:    -27 a -28 dBm
+LOS:        < -29 dBm
 ```
 
 ## Factibilidad de cliente futura
