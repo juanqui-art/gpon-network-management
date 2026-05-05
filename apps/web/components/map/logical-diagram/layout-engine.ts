@@ -3,6 +3,8 @@ import {
 	ATTENUATION_DB_PER_KM,
 	type OpticalStatus,
 	PON_CLASS_BUDGET,
+	SAFETY_MARGIN_DB,
+	SPLICE_LOSS_DB,
 	SPLITTER_LOSS_DB,
 } from "@/lib/gpon/optical-budget";
 import type { LayoutNode, PathBudget, TreeNode } from "./types";
@@ -10,7 +12,7 @@ import type { LayoutNode, PathBudget, TreeNode } from "./types";
 // ── Visual constants ──────────────────────────────────────────────────────────
 
 export const NODE_WIDTH = 196;
-export const NODE_HEIGHT = 92;
+export const NODE_HEIGHT = 108;
 export const COL_GAP = 112; // horizontal gap between columns
 export const ROW_GAP = 18; // minimum vertical gap between sibling nodes
 export const LEAF_SLOT = NODE_HEIGHT + ROW_GAP;
@@ -111,13 +113,13 @@ function buildBudgets(
 
 		if (node.routeFromParent) {
 			if (node.routeFromParent.length_meters) {
-				segLength = node.routeFromParent.length_meters;
+				segLength = node.routeFromParent.length_meters * 1.02;
 				segFiber = (segLength / 1000) * (ATTENUATION_DB_PER_KM["1490"] ?? 0.3);
 			}
 			for (const sp of node.splicesOnRoute) {
-				segSplice += sp.splice_loss_db ?? 0.1;
+				segSplice += sp.splice_loss_db ?? SPLICE_LOSS_DB;
 			}
-			segConnector = 2 * 0.25;
+			segConnector = 2 * 0.5;
 		}
 
 		const segSplitter =
@@ -135,7 +137,11 @@ function buildBudgets(
 		};
 
 		const totalLoss = round2(
-			next.fiber + next.splitter + next.splice + next.connector,
+			next.fiber +
+				next.splitter +
+				next.splice +
+				next.connector +
+				SAFETY_MARGIN_DB,
 		);
 		let margin: number | null = null;
 		let status: OpticalStatus = "gray";
@@ -153,6 +159,7 @@ function buildBudgets(
 			splitterLoss: round2(next.splitter),
 			spliceLoss: round2(next.splice),
 			connectorLoss: round2(next.connector),
+			safetyMargin: SAFETY_MARGIN_DB,
 			totalLoss,
 			margin,
 			status,

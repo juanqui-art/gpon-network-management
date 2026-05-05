@@ -134,6 +134,23 @@ function StatsBar({ stats }: { stats: NetworkStats }) {
 			</span>
 			<span className="text-[rgba(164,164,164,0.3)]">·</span>
 			<span className="text-[#6b7280]">{km} km</span>
+			{stats.worstMargin !== null && (
+				<>
+					<span className="text-[rgba(164,164,164,0.3)]">·</span>
+					<span
+						style={{
+							color:
+								stats.worstStatus === "red"
+									? "#fb4d6d"
+									: stats.worstStatus === "yellow"
+										? "#f59e0b"
+										: "#22c55e",
+						}}
+					>
+						Margen crítico {stats.worstMargin.toFixed(1)} dB
+					</span>
+				</>
+			)}
 			{freePct !== null && (
 				<>
 					<span className="text-[rgba(164,164,164,0.3)]">·</span>
@@ -324,7 +341,10 @@ export function DiagramPanel({ isOpen, onToggle }: DiagramPanelProps) {
 			<div className="flex h-8 shrink-0 items-center justify-between px-4">
 				<div className="flex items-center gap-2">
 					<span className="text-xs font-medium text-[#e6e6e6]">
-						Diagrama lógico
+						Diagrama unifilar
+					</span>
+					<span className="text-[10px] text-[#6b7280]">
+						Topología y presupuesto óptico
 					</span>
 					{statusLabel && (
 						<>

@@ -18,6 +18,7 @@ export interface PathBudget {
 	splitterLoss: number;
 	spliceLoss: number;
 	connectorLoss: number;
+	safetyMargin: number;
 	totalLoss: number;
 	margin: number | null;
 	status: OpticalStatus;

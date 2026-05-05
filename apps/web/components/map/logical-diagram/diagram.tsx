@@ -26,7 +26,15 @@ import {
 	ZoomIn,
 	ZoomOut,
 } from "lucide-react";
-import { type KeyboardEvent, type ReactNode, useMemo, useState } from "react";
+import {
+	type KeyboardEvent,
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { getNapMode, hasInternalSplitter } from "@/lib/gpon/nap-config";
 import {
 	OPTICAL_STATUS_COLOR,
@@ -109,9 +117,9 @@ function MetricPill({
 	color?: string;
 }) {
 	return (
-		<span className="inline-flex h-4 min-w-0 items-center gap-1 rounded border border-white/10 bg-white/5 px-1.5 text-[7.5px] leading-none text-[#858585]">
-			<span className="text-[#5c5d5f]">{label}</span>
-			<span className="truncate font-medium" style={{ color }}>
+		<span className="inline-flex h-5 min-w-0 items-center gap-1 rounded border border-white/14 bg-white/7 px-1.5 text-[8px] leading-none text-[#a4a4a4]">
+			<span className="shrink-0 text-[#7b8086]">{label}</span>
+			<span className="min-w-0 truncate font-semibold" style={{ color }}>
 				{value}
 			</span>
 		</span>
@@ -216,8 +224,8 @@ function NodeMetrics({
 			: "0 km";
 
 	return (
-		<div className="mt-1.5 space-y-1.5">
-			<div className="flex min-w-0 flex-wrap gap-1">
+		<div className="mt-2 space-y-1.5 overflow-hidden">
+			<div className="flex min-w-0 gap-1 overflow-hidden">
 				<MetricPill
 					label="Split"
 					value={
@@ -238,7 +246,7 @@ function NodeMetrics({
 				used={el.ports_used}
 				reserved={el.ports_reserved}
 			/>
-			<div className="flex min-w-0 flex-wrap gap-1">
+			<div className="grid min-w-0 grid-cols-3 gap-1">
 				<MetricPill
 					label="Uso"
 					value={`${used}/${total}`}
@@ -284,12 +292,12 @@ function GponFlowNodeComponent({ data, selected }: NodeProps<GponFlowNode>) {
 			tabIndex={0}
 			onClick={() => onSelectElement(el.id)}
 			onKeyDown={handleKeyDown}
-			className="relative h-[92px] w-[196px] rounded-md border bg-[#1c2023] px-3 py-2 text-left shadow-lg transition-[opacity,border-color,box-shadow]"
+			className="relative h-[108px] w-[196px] overflow-hidden rounded-md border bg-[#202529] px-3 py-2 text-left shadow-lg transition-[opacity,border-color,box-shadow]"
 			style={{
-				borderColor: selected ? color : "rgba(255,255,255,0.08)",
+				borderColor: selected ? color : "rgba(255,255,255,0.13)",
 				boxShadow: selected
 					? `0 0 0 2px ${color}55, 0 12px 30px rgba(0,0,0,0.28)`
-					: "0 10px 22px rgba(0,0,0,0.18)",
+					: "0 12px 28px rgba(0,0,0,0.24)",
 				opacity: dimmed ? 0.18 : 1,
 			}}
 		>
@@ -308,7 +316,7 @@ function GponFlowNodeComponent({ data, selected }: NodeProps<GponFlowNode>) {
 			/>
 
 			<div
-				className="absolute left-0 top-2 h-[76px] w-[3px] rounded-full"
+				className="absolute left-0 top-2 h-[92px] w-[3px] rounded-full"
 				style={{ backgroundColor: color }}
 			/>
 
@@ -324,10 +332,10 @@ function GponFlowNodeComponent({ data, selected }: NodeProps<GponFlowNode>) {
 								? "NAP + PLC"
 								: el.type.toUpperCase()}
 					</div>
-					<div className="mt-2 truncate text-[10.5px] font-semibold leading-none text-[#e6e6e6]">
+					<div className="mt-2 truncate text-[11px] font-semibold leading-none text-[#f3f4f6]">
 						{el.code ?? el.name}
 					</div>
-					<div className="mt-1 truncate text-[7.5px] leading-none text-[#5c5d5f]">
+					<div className="mt-1 truncate text-[8px] leading-none text-[#8b9096]">
 						{el.name ?? EQUIPMENT_TYPE_LABEL[el.type]}
 					</div>
 				</div>
@@ -615,6 +623,32 @@ export function LogicalDiagram({
 	const [hoveredId, setHoveredId] = useState<string | null>(null);
 	const [showLabels, setShowLabels] = useState(true);
 	const [showMiniMap, setShowMiniMap] = useState(true);
+	const hoverClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	const clearHoverTimer = useCallback(() => {
+		if (hoverClearTimerRef.current) {
+			clearTimeout(hoverClearTimerRef.current);
+			hoverClearTimerRef.current = null;
+		}
+	}, []);
+
+	const handleNodeMouseEnter = useCallback(
+		(id: string) => {
+			clearHoverTimer();
+			setHoveredId((current) => (current === id ? current : id));
+		},
+		[clearHoverTimer],
+	);
+
+	const handleNodeMouseLeave = useCallback(() => {
+		clearHoverTimer();
+		hoverClearTimerRef.current = setTimeout(() => {
+			setHoveredId(null);
+			hoverClearTimerRef.current = null;
+		}, 90);
+	}, [clearHoverTimer]);
+
+	useEffect(() => clearHoverTimer, [clearHoverTimer]);
 
 	const visibleIds = useMemo(() => {
 		const nodeMap = new Map<string, LayoutNode>(
@@ -737,7 +771,7 @@ export function LogicalDiagram({
 						source: route.from_element_id,
 						target: node.tree.element.id,
 						type: "gponCable",
-						animated: isOnPath && hoveredId !== null,
+						animated: false,
 						data: {
 							color,
 							strokeWidth: isFeeder ? 2.8 : 2,
@@ -749,7 +783,7 @@ export function LogicalDiagram({
 					},
 				];
 			}),
-		[layoutNodes, visibleIds, highlightedRouteIds, hoveredId, showLabels],
+		[layoutNodes, visibleIds, highlightedRouteIds, showLabels],
 	);
 
 	return (
@@ -775,8 +809,8 @@ export function LogicalDiagram({
 				elementsSelectable
 				proOptions={{ hideAttribution: true }}
 				onNodeClick={(_, node) => onSelectElement(node.id)}
-				onNodeMouseEnter={(_, node) => setHoveredId(node.id)}
-				onNodeMouseLeave={() => setHoveredId(null)}
+				onNodeMouseEnter={(_, node) => handleNodeMouseEnter(node.id)}
+				onNodeMouseLeave={handleNodeMouseLeave}
 				aria-label="Diagrama lógico de la red GPON"
 			>
 				<Background color="rgba(164,164,164,0.12)" gap={18} size={1} />

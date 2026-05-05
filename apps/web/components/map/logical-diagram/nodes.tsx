@@ -10,6 +10,12 @@ import type { LayoutNode } from "./types";
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
 
+function truncateSvgText(value: string | null | undefined, maxLength: number) {
+	if (!value) return "";
+	if (value.length <= maxLength) return value;
+	return `${value.slice(0, Math.max(0, maxLength - 1))}…`;
+}
+
 function LossBar({
 	x,
 	y,
@@ -409,6 +415,12 @@ function NAPNode({
 	const total = el.total_ports ?? 0;
 	const free = Math.max(0, total - used - reserved);
 	const usedPct = total > 0 ? Math.round((used / total) * 100) : 0;
+	const capacityText =
+		total > 0 ? `${used}/${total} puertos · ${free} libres` : "Sin puertos";
+	const usageText =
+		total > 0
+			? `${usedPct}% usado${reserved > 0 ? ` · ${reserved} reservado` : ""}`
+			: "Capacidad no definida";
 	const distKm =
 		node.budget.cumulativeLengthMeters > 0
 			? `${(node.budget.cumulativeLengthMeters / 1000).toFixed(2)} km`
@@ -452,27 +464,31 @@ function NAPNode({
 				fontWeight={600}
 				fill="#e6e6e6"
 			>
-				{el.code ?? el.name}
+				{truncateSvgText(el.code ?? el.name, 24)}
 			</text>
 
 			{/* Capacity bar */}
 			<CapacityBar
 				x={x + 12}
-				y={y + 39}
+				y={y + 42}
 				w={w - 20}
 				total={el.total_ports}
 				used={el.ports_used}
 				reserved={el.ports_reserved}
 			/>
 
-			{/* Port count + usage + distance */}
-			<text x={x + 12} y={y + h - 9} fontSize={7.5} fill="#6b7280">
-				{`${used}/${total}p · ${usedPct}% · ${free} libre`}
-				{distKm ? ` · ${distKm}` : ""}
+			{/* Port count */}
+			<text x={x + 12} y={y + 58} fontSize={7.5} fill="#8a8f95">
+				{truncateSvgText(capacityText, 30)}
+			</text>
+
+			{/* Usage + distance */}
+			<text x={x + 12} y={y + 72} fontSize={7.5} fill="#6b7280">
+				{truncateSvgText(`${usageText}${distKm ? ` · ${distKm}` : ""}`, 34)}
 			</text>
 
 			{/* Loss bar */}
-			<LossBar x={x + 12} y={y + h - 5} w={w - 20} node={node} />
+			<LossBar x={x + 12} y={y + h - 6} w={w - 20} node={node} />
 		</NodeShell>
 	);
 }
