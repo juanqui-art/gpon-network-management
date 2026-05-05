@@ -22,8 +22,11 @@ export function OpticalBudgetPanel({
 }: OpticalBudgetPanelProps) {
 	const result = calculateOpticalBudget({
 		lengthMeters: route.length_meters,
+		attenuationDbPerKm: route.attenuation_db_per_km ?? null,
 		fiberType: route.fiber_type as FiberStandard | null,
 		splitRatio: splitterRatio ?? null,
+		connectorLossDb: route.connector_loss_db ?? null,
+		totalSpliceLossDb: route.splice_loss_db ?? null,
 		ponClass: oltPonClass ?? null,
 	});
 
@@ -61,7 +64,7 @@ export function OpticalBudgetPanel({
 					value={`${result.fiberLoss.toFixed(2)} dB`}
 					sub={
 						route.length_meters
-							? `${(route.length_meters / 1000).toFixed(2)} km`
+							? `${(route.length_meters / 1000).toFixed(2)} km ×1.02`
 							: "—"
 					}
 				/>
@@ -73,7 +76,17 @@ export function OpticalBudgetPanel({
 				<BudgetRow
 					label="Conectores"
 					value={`${result.connectorLoss.toFixed(2)} dB`}
-					sub="2 pares"
+					sub={route.connector_loss_db != null ? "dato BD" : "2 × 0.5 dB"}
+				/>
+				<BudgetRow
+					label="Empalmes"
+					value={`${result.spliceLoss.toFixed(2)} dB`}
+					sub={route.splice_loss_db != null ? "dato BD" : "0.1 dB/evento"}
+				/>
+				<BudgetRow
+					label="Reserva"
+					value={`${result.safetyMargin.toFixed(2)} dB`}
+					sub="margen diseño"
 				/>
 				<div className="h-px bg-[rgba(164,164,164,0.14)]" />
 				<BudgetRow

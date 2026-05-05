@@ -25,11 +25,29 @@ export const SPLITTER_LOSS_DB: Record<string, number> = {
 	"1:2": 3.5,
 	"1:4": 7.2,
 	"1:8": 10.5,
-	"1:16": 13.5,
+	"1:16": 13.8,
 	"1:32": 17.0,
 	"1:64": 20.5,
 	"1:128": 24.0,
 };
+
+// ── Pérdida de splitters asimétricos (Bus desbalanceado) ──────────────────────
+// Formato: "RATIO rama-minoritaria" → [pérdida rama minoritaria, pérdida rama mayoritaria]
+
+export const ASYMMETRIC_SPLITTER_LOSS_DB: Record<
+	string,
+	{ minority: number; majority: number }
+> = {
+	"5/95": { minority: 13.0, majority: 0.2 },
+	"10/90": { minority: 10.0, majority: 0.4 },
+	"20/80": { minority: 7.0, majority: 0.9 },
+	"30/70": { minority: 5.2, majority: 1.5 },
+	"50/50": { minority: 3.5, majority: 3.5 }, // equals 1:2 balanced
+};
+
+export const CONNECTOR_LOSS_DB = 0.5;
+export const SPLICE_LOSS_DB = 0.1;
+export const SAFETY_MARGIN_DB = 4.0; // Ecuador tropical: humedad, UV, reparaciones acumuladas
 
 // ── Clase óptica y rango de pérdida ─────────────────────────────────────────
 
@@ -52,6 +70,8 @@ export interface OpticalBudgetResult {
 	fiberLoss: number; // dB — pérdida por distancia
 	splitterLoss: number; // dB — pérdida del splitter
 	connectorLoss: number; // dB — estimado por conectores
+	spliceLoss: number; // dB — empalmes por fusión
+	safetyMargin: number; // dB — reserva de ingeniería
 	totalLoss: number; // dB — pérdida total
 	margin: number | null; // dB — margen restante (null si falta clase óptica)
 	status: OpticalStatus;
@@ -63,9 +83,14 @@ export interface OpticalBudgetResult {
 
 export interface OpticalBudgetInput {
 	lengthMeters: number | null;
+	attenuationDbPerKm?: number | null; // usa valor de BD si disponible; si null usa tabla por wavelength
 	fiberType: FiberStandard | null;
 	splitRatio: string | null; // "1:8", "1:16", etc.
-	connectorCount?: number; // pares de conectores, default 2
+	connectorCount?: number; // ignorado si connectorLossDb está definido; default 2
+	connectorLossDb?: number | null; // valor directo de BD; toma prioridad sobre connectorCount
+	spliceCount?: number; // ignorado si totalSpliceLossDb está definido
+	totalSpliceLossDb?: number | null; // valor directo de BD; toma prioridad sobre spliceCount
+	safetyMarginDb?: number; // default 3 dB
 	ponClass?: PonClass | null; // clase del OLT (opcional)
 	wavelength?: Wavelength; // default "1490" (downstream GPON)
 }
@@ -75,15 +100,18 @@ export function calculateOpticalBudget(
 ): OpticalBudgetResult {
 	const warnings: string[] = [];
 
+	// Factor de trenzado: el cable instalado es ~2% más largo que la ruta GIS
+	const CABLE_FACTOR = 1.02;
+
 	// Atenuación por longitud
 	const wavelength = input.wavelength ?? "1490";
-	const dbPerKm = ATTENUATION_DB_PER_KM[wavelength];
+	const dbPerKm = input.attenuationDbPerKm ?? ATTENUATION_DB_PER_KM[wavelength];
 	let fiberLoss = 0;
 
 	if (!input.lengthMeters) {
 		warnings.push("Longitud de ruta no calculada");
 	} else {
-		fiberLoss = (input.lengthMeters / 1000) * dbPerKm;
+		fiberLoss = ((input.lengthMeters * CABLE_FACTOR) / 1000) * dbPerKm;
 	}
 
 	// Pérdida del splitter
@@ -97,11 +125,22 @@ export function calculateOpticalBudget(
 		}
 	}
 
-	// Pérdida de conectores (0.25 dB/par, conservador)
-	const connectorPairs = input.connectorCount ?? 2;
-	const connectorLoss = connectorPairs * 0.25;
+	// Conectores: usa dato BD si disponible, si no 2 × 0.5 dB por defecto
+	const connectorLoss =
+		input.connectorLossDb != null
+			? input.connectorLossDb
+			: (input.connectorCount ?? 2) * CONNECTOR_LOSS_DB;
 
-	const totalLoss = fiberLoss + splitterLoss + connectorLoss;
+	// Empalmes: usa dato BD si disponible, si no spliceCount × 0.1 dB
+	const spliceLoss =
+		input.totalSpliceLossDb != null
+			? input.totalSpliceLossDb
+			: (input.spliceCount ?? 0) * SPLICE_LOSS_DB;
+
+	const safetyMargin = input.safetyMarginDb ?? SAFETY_MARGIN_DB;
+
+	const totalLoss =
+		fiberLoss + splitterLoss + connectorLoss + spliceLoss + safetyMargin;
 
 	// Margen y semáforo
 	let margin: number | null = null;
@@ -112,17 +151,17 @@ export function calculateOpticalBudget(
 		const budget = PON_CLASS_BUDGET[input.ponClass];
 		margin = budget.max - totalLoss;
 
-		if (margin > 3) {
+		if (margin > 4) {
 			status = "green";
-			statusLabel = "Margen holgado";
-		} else if (margin >= 1) {
+			statusLabel = "Margen holgado (>4 dB)";
+		} else if (margin >= 2) {
 			status = "yellow";
-			statusLabel = "Margen ajustado";
+			statusLabel = "Margen ajustado (2-4 dB)";
 		} else {
 			status = "red";
 			statusLabel = "Fuera de presupuesto";
 			warnings.push(
-				`Margen negativo (${margin.toFixed(1)} dB) — revisar diseño`,
+				`Margen insuficiente (${margin.toFixed(1)} dB) — revisar diseño`,
 			);
 		}
 	} else if (warnings.length === 0) {
@@ -135,14 +174,16 @@ export function calculateOpticalBudget(
 	if (input.lengthMeters && input.lengthMeters > 20000) {
 		warnings.push("Distancia mayor a 20 km — verificar ranging del equipo");
 	}
-	if (margin !== null && margin < 3 && margin >= 0) {
-		warnings.push("Margen < 3 dB — vulnerable a degradación");
+	if (margin !== null && margin < 4 && margin >= 0) {
+		warnings.push("Margen < 4 dB — vulnerable a degradación en clima tropical");
 	}
 
 	return {
 		fiberLoss: Math.round(fiberLoss * 100) / 100,
 		splitterLoss,
 		connectorLoss,
+		spliceLoss: Math.round(spliceLoss * 100) / 100,
+		safetyMargin,
 		totalLoss: Math.round(totalLoss * 100) / 100,
 		margin: margin !== null ? Math.round(margin * 100) / 100 : null,
 		status,
