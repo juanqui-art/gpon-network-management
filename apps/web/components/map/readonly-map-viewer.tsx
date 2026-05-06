@@ -227,6 +227,12 @@ export function ReadonlyMapViewer({
 		[connections, filterStatus, filterType, visibleEquipmentIds],
 	);
 
+	const visibleRoutePoints = useMemo(() => {
+		if (filterType === "all" && filterStatus === "all") return routePoints;
+		const visibleRouteIds = new Set(visibleConnections.map((c) => c.id));
+		return routePoints.filter((p) => visibleRouteIds.has(p.fiber_route_id));
+	}, [filterType, filterStatus, routePoints, visibleConnections]);
+
 	const mapWarnings = useMemo(
 		() => [
 			...warnings,
@@ -243,7 +249,7 @@ export function ReadonlyMapViewer({
 			naps: visibleEquipment.filter((item) => item.type === "nap").length,
 			onts: visibleEquipment.filter((item) => item.type === "ont").length,
 			routes: visibleConnections.length,
-			routePoints: routePoints.length,
+			routePoints: visibleRoutePoints.length,
 			saturatedNaps: visibleEquipment.filter(
 				(e) =>
 					e.type === "nap" &&
@@ -258,12 +264,17 @@ export function ReadonlyMapViewer({
 				.length,
 			totalNaps: equipment.filter((item) => item.type === "nap").length,
 		}),
-		[equipment, routePoints.length, visibleConnections, visibleEquipment],
+		[
+			equipment,
+			visibleRoutePoints.length,
+			visibleConnections,
+			visibleEquipment,
+		],
 	);
 
 	visibleEquipmentRef.current = visibleEquipment;
 	visibleConnectionsRef.current = visibleConnections;
-	routePointsRef.current = routePoints;
+	routePointsRef.current = visibleRoutePoints;
 
 	useEffect(() => {
 		if (!containerRef.current) return;
@@ -607,8 +618,8 @@ export function ReadonlyMapViewer({
 		const source = mapRef.current.getSource("readonly-route-points") as
 			| mapboxgl.GeoJSONSource
 			| undefined;
-		source?.setData(buildRoutePointsGeoJson(routePoints));
-	}, [isMapReady, routePoints]);
+		source?.setData(buildRoutePointsGeoJson(visibleRoutePoints));
+	}, [isMapReady, visibleRoutePoints]);
 
 	useEffect(() => {
 		if (!isMapReady || !mapRef.current) return;
@@ -1653,7 +1664,7 @@ function LeftPanel({
 									Red sin alertas
 								</p>
 								<p className="mt-0.5 text-[10px] text-[#9ee8c9]">
-									Todos los elementos tienen datos técnicos válidos.
+									Sin alertas de datos geométricos ni técnicos.
 								</p>
 							</div>
 						) : (
