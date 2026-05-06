@@ -94,7 +94,6 @@ const TYPE_FILTERS = [
 	{ value: "olt", label: "OLT" },
 	{ value: "splitter", label: "Splitter" },
 	{ value: "nap", label: "NAP" },
-	{ value: "ont", label: "ONT" },
 ];
 
 const STATUS_FILTERS = [
@@ -254,8 +253,12 @@ export function ReadonlyMapViewer({
 			totalKm:
 				visibleConnections.reduce((sum, c) => sum + (c.length_meters ?? 0), 0) /
 				1000,
+			totalOlts: equipment.filter((item) => item.type === "olt").length,
+			totalSplitters: equipment.filter((item) => item.type === "splitter")
+				.length,
+			totalNaps: equipment.filter((item) => item.type === "nap").length,
 		}),
-		[routePoints.length, visibleConnections, visibleEquipment],
+		[equipment, routePoints.length, visibleConnections, visibleEquipment],
 	);
 
 	visibleEquipmentRef.current = visibleEquipment;
@@ -1496,6 +1499,9 @@ interface LeftPanelProps {
 		routePoints: number;
 		saturatedNaps: number;
 		totalKm: number;
+		totalOlts: number;
+		totalSplitters: number;
+		totalNaps: number;
 	};
 	equipment: EquipmentMapItem[];
 	connections: ConnectionMapItem[];
@@ -1535,16 +1541,31 @@ function LeftPanel({
 							label="OLT"
 							value={counts.olts}
 							color={TYPE_COLOR.olt}
+							active={filterType === "olt"}
+							onClick={() => {
+								onTypeChange(filterType === "olt" ? "all" : "olt");
+								onTabChange("layers");
+							}}
 						/>
 						<MapStatChip
 							label="SPL"
 							value={counts.splitters}
 							color={TYPE_COLOR.splitter}
+							active={filterType === "splitter"}
+							onClick={() => {
+								onTypeChange(filterType === "splitter" ? "all" : "splitter");
+								onTabChange("layers");
+							}}
 						/>
 						<MapStatChip
 							label="NAP"
 							value={counts.naps}
 							color={TYPE_COLOR.nap}
+							active={filterType === "nap"}
+							onClick={() => {
+								onTypeChange(filterType === "nap" ? "all" : "nap");
+								onTabChange("layers");
+							}}
 						/>
 						<MapStatChip
 							label="km"
@@ -1591,6 +1612,11 @@ function LeftPanel({
 							filterStatus={filterStatus}
 							onTypeChange={onTypeChange}
 							onStatusChange={onStatusChange}
+							typeCounts={{
+								olt: counts.totalOlts,
+								splitter: counts.totalSplitters,
+								nap: counts.totalNaps,
+							}}
 						/>
 						<div className="mt-4 space-y-1.5 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.04)] p-2.5 text-xs">
 							<StatRow
@@ -1658,12 +1684,20 @@ function FilterBar({
 	filterStatus,
 	onTypeChange,
 	onStatusChange,
+	typeCounts,
 }: {
 	filterType: string;
 	filterStatus: string;
 	onTypeChange: (v: string) => void;
 	onStatusChange: (v: string) => void;
+	typeCounts: { olt: number; splitter: number; nap: number };
 }) {
+	const countByType: Record<string, number> = {
+		olt: typeCounts.olt,
+		splitter: typeCounts.splitter,
+		nap: typeCounts.nap,
+	};
+
 	return (
 		<div className="flex select-none flex-col gap-1.5">
 			<div className="flex flex-wrap items-center gap-1">
@@ -1672,7 +1706,7 @@ function FilterBar({
 						key={value}
 						type="button"
 						onClick={() => onTypeChange(value)}
-						className="rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors"
+						className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors"
 						style={{
 							background:
 								filterType === value
@@ -1686,6 +1720,20 @@ function FilterBar({
 						}}
 					>
 						{label}
+						{countByType[value] !== undefined && (
+							<span
+								className="rounded px-1 text-[9px] font-semibold"
+								style={{
+									background:
+										filterType === value
+											? "rgba(164,164,164,0.2)"
+											: "rgba(164,164,164,0.1)",
+									color: filterType === value ? "#d7d7d7" : "#5c5d5f",
+								}}
+							>
+								{countByType[value]}
+							</span>
+						)}
 					</button>
 				))}
 			</div>
