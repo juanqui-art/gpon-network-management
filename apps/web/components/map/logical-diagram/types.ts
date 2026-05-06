@@ -14,15 +14,39 @@ export interface TreeNode {
 }
 
 export interface PathBudget {
+	headendLoss: number;
 	fiberLoss: number;
 	splitterLoss: number;
 	spliceLoss: number;
 	connectorLoss: number;
+	additionalLoss: number;
+	physicalLoss: number;
 	safetyMargin: number;
 	totalLoss: number;
 	margin: number | null;
+	txPowerDbm: number | null;
+	rxPowerDbm: number | null;
+	rxSensitivityDbm: number | null;
+	powerMarginDb: number | null;
+	designPowerMarginDb: number | null;
 	status: OpticalStatus;
 	cumulativeLengthMeters: number;
+	lossEvents: BudgetLossEvent[];
+	warnings: string[];
+}
+
+export interface BudgetLossEvent {
+	kind:
+		| "headend"
+		| "fiber"
+		| "fusion"
+		| "splitter"
+		| "connector"
+		| "adjustment";
+	label: string;
+	loss: number;
+	section: string;
+	shortLabel: string;
 }
 
 export interface LayoutNode {

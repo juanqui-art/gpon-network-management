@@ -491,7 +491,7 @@ Distancia drop sugerida: 300 m
 Actualizar lib/types/gpon.ts
 Actualizar components/map/types.ts
 Actualizar RPCs de mapa
-Adaptar MapView al nuevo modelo
+Adaptar NetworkEditorMap/ReadonlyMapViewer al modelo operativo
 ```
 
 ### Fase 3: Editor de infraestructura

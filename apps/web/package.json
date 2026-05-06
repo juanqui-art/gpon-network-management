@@ -24,6 +24,7 @@
 		"@xyflow/react": "^12.10.2",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
+		"lightweight-charts": "^5.2.0",
 		"lucide-react": "^1.14.0",
 		"mapbox-gl": "^3.22.0",
 		"next": "16.2.4",

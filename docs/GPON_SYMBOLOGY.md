@@ -110,7 +110,9 @@ La captura del mapa confirma una paleta basada casi totalmente en grises. Por es
 
 La implementacion actual esta en:
 
-- `apps/web/components/map/map-view.tsx`
+- `apps/web/components/map/readonly-map-viewer.tsx`
+- `apps/web/components/map/network-editor-map.tsx`
+- `apps/web/components/map/equipment-layers.ts`
 - `apps/web/components/map/equipment-panel.tsx`
 - `apps/web/app/globals.css`
 

@@ -47,7 +47,7 @@ export const ASYMMETRIC_SPLITTER_LOSS_DB: Record<
 
 export const CONNECTOR_LOSS_DB = 0.5;
 export const SPLICE_LOSS_DB = 0.1;
-export const SAFETY_MARGIN_DB = 4.0; // Ecuador tropical: humedad, UV, reparaciones acumuladas
+export const SAFETY_MARGIN_DB = 3.0; // Margen de diseño base; la documentación recomienda 3-5 dB.
 
 // ── Clase óptica y rango de pérdida ─────────────────────────────────────────
 
@@ -61,6 +61,19 @@ export const PON_CLASS_BUDGET: Record<PonClass, { min: number; max: number }> =
 		E1: { min: 18, max: 33 },
 		E2: { min: 20, max: 35 },
 	};
+
+export const PON_CLASS_POWER_PROFILE: Record<
+	PonClass,
+	{ defaultTxDbm: number; rxSensitivityDbm: number }
+> = {
+	"B+": { defaultTxDbm: 3, rxSensitivityDbm: -28 },
+	"C+": { defaultTxDbm: 5, rxSensitivityDbm: -30 },
+	"C++": { defaultTxDbm: 7, rxSensitivityDbm: -32 },
+	N1: { defaultTxDbm: 4, rxSensitivityDbm: -28 },
+	N2: { defaultTxDbm: 5, rxSensitivityDbm: -30 },
+	E1: { defaultTxDbm: 4, rxSensitivityDbm: -30 },
+	E2: { defaultTxDbm: 6, rxSensitivityDbm: -32 },
+};
 
 // ── Resultado del cálculo ─────────────────────────────────────────────────────
 

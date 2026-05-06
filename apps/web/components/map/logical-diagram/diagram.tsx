@@ -3,7 +3,6 @@
 import {
 	Background,
 	BaseEdge,
-	Controls,
 	type Edge,
 	EdgeLabelRenderer,
 	type EdgeProps,
@@ -17,15 +16,7 @@ import {
 	ReactFlow,
 	useReactFlow,
 } from "@xyflow/react";
-import {
-	BadgeInfo,
-	Cable,
-	MapIcon,
-	Maximize2,
-	Tags,
-	ZoomIn,
-	ZoomOut,
-} from "lucide-react";
+import { BadgeInfo, MapIcon, Maximize2, Tags } from "lucide-react";
 import {
 	type KeyboardEvent,
 	type ReactNode,
@@ -35,8 +26,16 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { getNapMode, hasInternalSplitter } from "@/lib/gpon/nap-config";
+import type { InfrastructureElement } from "@/components/map/types";
 import {
+	getNapMode,
+	hasInternalSplitter,
+	NAP_MODE_LABEL,
+} from "@/lib/gpon/nap-config";
+import { getOltModel } from "@/lib/gpon/olt-catalog";
+import {
+	ATTENUATION_DB_PER_KM,
+	CONNECTOR_LOSS_DB,
 	OPTICAL_STATUS_COLOR,
 	SPLITTER_LOSS_DB,
 } from "@/lib/gpon/optical-budget";
@@ -52,6 +51,7 @@ import {
 	STATUS_COLOR,
 	TYPE_COLOR,
 } from "@/lib/map/palette";
+import { OpticalPowerBudgetChart } from "./optical-power-budget-chart";
 import {
 	collectDescendants,
 	findAncestorChain,
@@ -67,6 +67,7 @@ interface LogicalDiagramProps {
 	totalHeight: number;
 	selectedId: string | null;
 	selectedRouteId?: string | null;
+	showActivePanel?: boolean;
 	expandedGroups: Set<string>;
 	onSelectElement: (id: string) => void;
 	onToggleGroup: (id: string) => void;
@@ -96,7 +97,16 @@ type ActiveSummary = {
 	status: string;
 	loss: number;
 	margin: number | null;
+	physicalLoss: number;
+	txPowerDbm: number | null;
+	rxPowerDbm: number | null;
+	rxSensitivityDbm: number | null;
+	powerMarginDb: number | null;
 	lengthKm: string;
+	budget: LayoutNode["budget"];
+	pathLabel: string;
+	isEndpoint: boolean;
+	confidence: "complete" | "assumed" | "incomplete";
 };
 
 const nodeTypes = {
@@ -180,6 +190,228 @@ function CapacityBar({
 	);
 }
 
+function numericProperty(
+	properties: Record<string, unknown> | null | undefined,
+	key: string,
+): number | null {
+	const value = properties?.[key];
+	if (typeof value === "number" && Number.isFinite(value)) return value;
+	if (typeof value === "string" && value.trim() !== "") {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? parsed : null;
+	}
+	return null;
+}
+
+function stringProperty(
+	properties: Record<string, unknown> | null | undefined,
+	key: string,
+): string | null {
+	const value = properties?.[key];
+	return typeof value === "string" && value.trim() !== "" ? value : null;
+}
+
+function splitRatioSize(ratio: string | null): number | null {
+	if (!ratio) return null;
+	const [, size] = ratio.split(":");
+	const parsed = Number(size);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function getOltCapacity(element: InfrastructureElement) {
+	const modelId = stringProperty(element.properties, "olt_model_id");
+	const model = modelId ? getOltModel(modelId) : undefined;
+	const modelLabel =
+		stringProperty(element.properties, "olt_model") ??
+		(model ? `${model.manufacturer} ${model.model}` : null);
+	const serviceSlotsTotal =
+		numericProperty(element.properties, "service_slots_total") ??
+		model?.serviceSlotsTotal ??
+		null;
+	const serviceCardsInstalled =
+		numericProperty(element.properties, "service_cards_installed") ??
+		numericProperty(element.properties, "service_slots_used");
+	const ponPortsPerCard =
+		numericProperty(element.properties, "pon_ports_per_card") ??
+		model?.ponPortsPerCard ??
+		null;
+	const installedPonPorts =
+		element.total_pon_ports ??
+		(serviceCardsInstalled !== null && ponPortsPerCard !== null
+			? serviceCardsInstalled * ponPortsPerCard
+			: null);
+	const maxPonPorts =
+		numericProperty(element.properties, "max_pon_ports") ??
+		(serviceSlotsTotal !== null && ponPortsPerCard !== null
+			? serviceSlotsTotal * ponPortsPerCard
+			: (model?.maxPonPorts ?? null));
+	const designSplitRatio =
+		stringProperty(element.properties, "design_split_ratio") ??
+		stringProperty(element.properties, "split_ratio_design");
+	const splitSize = splitRatioSize(designSplitRatio);
+	const estimatedSubscribers =
+		numericProperty(element.properties, "estimated_subscribers") ??
+		(installedPonPorts !== null && splitSize !== null
+			? installedPonPorts * splitSize
+			: null);
+
+	return {
+		estimatedSubscribers,
+		installedPonPorts,
+		maxPonPorts,
+		modelLabel,
+		ponPortsPerCard,
+		serviceCardsInstalled,
+		serviceSlotsTotal,
+		designSplitRatio,
+	};
+}
+
+function OltCapacityStage({ element }: { element: InfrastructureElement }) {
+	const capacity = getOltCapacity(element);
+	const hasSlotData =
+		capacity.serviceCardsInstalled !== null &&
+		capacity.serviceSlotsTotal !== null;
+	const hasPonData =
+		capacity.installedPonPorts !== null && capacity.maxPonPorts !== null;
+	const slotRatio = hasSlotData
+		? Math.min(
+				(capacity.serviceCardsInstalled ?? 0) /
+					Math.max(capacity.serviceSlotsTotal ?? 1, 1),
+				1,
+			)
+		: 0;
+	const ponRatio = hasPonData
+		? Math.min(
+				(capacity.installedPonPorts ?? 0) /
+					Math.max(capacity.maxPonPorts ?? 1, 1),
+				1,
+			)
+		: 0;
+
+	return (
+		<div className="mt-1.5 space-y-1.5">
+			<div className="flex min-w-0 items-center justify-between gap-2">
+				<span className="truncate text-[8px] font-semibold leading-none text-[#d7d7d7]">
+					{capacity.modelLabel ?? element.pon_standard?.toUpperCase() ?? "OLT"}
+				</span>
+				<span className="shrink-0 text-[8px] font-bold leading-none text-[#38bdf8]">
+					{element.optical_class ?? "N/D"}
+				</span>
+			</div>
+			<div className="grid min-w-0 grid-cols-2 gap-1">
+				<MetricPill
+					label="Cards"
+					value={
+						hasSlotData
+							? `${capacity.serviceCardsInstalled}/${capacity.serviceSlotsTotal}`
+							: "N/D"
+					}
+				/>
+				<MetricPill
+					label="PON"
+					value={
+						hasPonData
+							? `${capacity.installedPonPorts}/${capacity.maxPonPorts}`
+							: String(element.total_pon_ports ?? "N/D")
+					}
+				/>
+			</div>
+			<div className="flex h-[3px] overflow-hidden rounded-full bg-white/8">
+				<div
+					className="h-full bg-[#38bdf8]"
+					style={{ width: `${Math.max(4, slotRatio * 100)}%` }}
+				/>
+				<div
+					className="h-full bg-[#34d399]"
+					style={{ width: `${Math.max(0, (ponRatio - slotRatio) * 100)}%` }}
+				/>
+			</div>
+			<div className="grid min-w-0 grid-cols-2 gap-1">
+				<MetricPill label="Split" value={capacity.designSplitRatio ?? "N/D"} />
+				<MetricPill
+					label="Clientes"
+					value={
+						capacity.estimatedSubscribers !== null
+							? capacity.estimatedSubscribers.toLocaleString("en-US")
+							: "N/D"
+					}
+				/>
+				<MetricPill
+					label="Tx"
+					value={
+						numericProperty(element.properties, "tx_power_dbm") !== null
+							? `${numericProperty(element.properties, "tx_power_dbm")} dBm`
+							: "N/D"
+					}
+					color="#38d8ff"
+				/>
+				<MetricPill
+					label="Sens."
+					value={
+						numericProperty(element.properties, "rx_sensitivity_dbm") !== null
+							? `${numericProperty(element.properties, "rx_sensitivity_dbm")} dBm`
+							: "N/D"
+					}
+				/>
+			</div>
+		</div>
+	);
+}
+
+function NapOpticalStage({
+	mode,
+	ratio,
+	loss,
+}: {
+	mode: ReturnType<typeof getNapMode>;
+	ratio: string | null;
+	loss: number | null;
+}) {
+	const isSplitter = mode === "with_splitter";
+	const isPrepared = mode === "prepared";
+	const accent = isSplitter
+		? TYPE_COLOR.nap
+		: isPrepared
+			? "#38bdf8"
+			: "#777879";
+	const label = isSplitter
+		? `PLC interno ${ratio ?? "sin ratio"}`
+		: NAP_MODE_LABEL[mode];
+
+	return (
+		<div
+			className="rounded border px-1.5 py-1"
+			style={{
+				backgroundColor: `${accent}10`,
+				borderColor: `${accent}35`,
+			}}
+		>
+			<div className="flex items-center justify-between gap-2">
+				<span className="truncate text-[8px] font-semibold leading-none text-[#d7d7d7]">
+					{label}
+				</span>
+				<span
+					className="shrink-0 text-[8px] font-bold leading-none"
+					style={{ color: accent }}
+				>
+					{loss !== null ? `-${loss} dB` : isSplitter ? "N/D" : "0 dB"}
+				</span>
+			</div>
+			<div className="mt-1 flex h-[3px] overflow-hidden rounded-full bg-white/8">
+				<div
+					className="h-full rounded-full"
+					style={{
+						width: isSplitter ? "78%" : isPrepared ? "38%" : "16%",
+						backgroundColor: accent,
+						opacity: isSplitter ? 0.95 : 0.55,
+					}}
+				/>
+			</div>
+		</div>
+	);
+}
+
 function NodeMetrics({
 	node,
 	ownLoss,
@@ -190,14 +422,7 @@ function NodeMetrics({
 	const el = node.tree.element;
 
 	if (el.type === "olt") {
-		return (
-			<div className="mt-2 flex min-w-0 flex-wrap gap-1">
-				<MetricPill label="Clase" value={el.optical_class ?? "N/D"} />
-				{el.total_pon_ports ? (
-					<MetricPill label="PON" value={String(el.total_pon_ports)} />
-				) : null}
-			</div>
-		);
+		return <OltCapacityStage element={el} />;
 	}
 
 	if (el.type === "splitter") {
@@ -222,25 +447,11 @@ function NodeMetrics({
 		node.budget.cumulativeLengthMeters > 0
 			? `${(node.budget.cumulativeLengthMeters / 1000).toFixed(2)} km`
 			: "0 km";
+	const napMode = getNapMode(el);
 
 	return (
-		<div className="mt-2 space-y-1.5 overflow-hidden">
-			<div className="flex min-w-0 gap-1 overflow-hidden">
-				<MetricPill
-					label="Split"
-					value={
-						getNapMode(el) === "with_splitter"
-							? (el.split_ratio ?? "Sin ratio")
-							: getNapMode(el) === "prepared"
-								? "PLC ready"
-								: "Terminal"
-					}
-					color={hasInternalSplitter(el) ? TYPE_COLOR.nap : undefined}
-				/>
-				{ownLoss !== null ? (
-					<MetricPill label="Ins." value={`-${ownLoss} dB`} />
-				) : null}
-			</div>
+		<div className="mt-1.5 space-y-1.5 overflow-hidden">
+			<NapOpticalStage mode={napMode} ratio={el.split_ratio} loss={ownLoss} />
 			<CapacityBar
 				total={el.total_ports}
 				used={el.ports_used}
@@ -275,7 +486,7 @@ function GponFlowNodeComponent({ data, selected }: NodeProps<GponFlowNode>) {
 	const hasChildren = node.tree.children.length > 0;
 	const ownLoss =
 		(el.type === "splitter" || hasInternalSplitter(el)) && el.split_ratio
-			? (SPLITTER_LOSS_DB[el.split_ratio] ?? 0)
+			? (el.insertion_loss_db ?? SPLITTER_LOSS_DB[el.split_ratio] ?? 0)
 			: null;
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -292,7 +503,7 @@ function GponFlowNodeComponent({ data, selected }: NodeProps<GponFlowNode>) {
 			tabIndex={0}
 			onClick={() => onSelectElement(el.id)}
 			onKeyDown={handleKeyDown}
-			className="relative h-[108px] w-[196px] overflow-hidden rounded-md border bg-[#202529] px-3 py-2 text-left shadow-lg transition-[opacity,border-color,box-shadow]"
+			className="relative h-[116px] w-[196px] overflow-hidden rounded-md border bg-[#202529] px-3 py-2 text-left shadow-lg transition-[opacity,border-color,box-shadow]"
 			style={{
 				borderColor: selected ? color : "rgba(255,255,255,0.13)",
 				boxShadow: selected
@@ -316,7 +527,7 @@ function GponFlowNodeComponent({ data, selected }: NodeProps<GponFlowNode>) {
 			/>
 
 			<div
-				className="absolute left-0 top-2 h-[92px] w-[3px] rounded-full"
+				className="absolute left-0 top-2 h-[100px] w-[3px] rounded-full"
 				style={{ backgroundColor: color }}
 			/>
 
@@ -504,7 +715,7 @@ function DiagramToolbar({
 	showMiniMap: boolean;
 	onToggleMiniMap: () => void;
 }) {
-	const { fitView, zoomIn, zoomOut } = useReactFlow();
+	const { fitView } = useReactFlow();
 
 	return (
 		<Panel position="top-left" className="!m-3">
@@ -515,13 +726,6 @@ function DiagramToolbar({
 				>
 					<Maximize2 className="size-3.5" aria-hidden="true" />
 				</FlowButton>
-				<FlowButton label="Acercar" onClick={() => zoomIn({ duration: 160 })}>
-					<ZoomIn className="size-3.5" aria-hidden="true" />
-				</FlowButton>
-				<FlowButton label="Alejar" onClick={() => zoomOut({ duration: 160 })}>
-					<ZoomOut className="size-3.5" aria-hidden="true" />
-				</FlowButton>
-				<span className="mx-1 h-5 w-px bg-white/10" />
 				<FlowButton
 					label="Mostrar distancias"
 					onClick={onToggleLabels}
@@ -541,69 +745,120 @@ function DiagramToolbar({
 	);
 }
 
-function DiagramLegend() {
-	return (
-		<Panel position="bottom-left" className="!m-3">
-			<div className="flex items-center gap-3 rounded-md border border-white/10 bg-[#111213]/86 px-2.5 py-1.5 text-[10px] text-[#858585] shadow-xl backdrop-blur">
-				<span className="inline-flex items-center gap-1">
-					<span
-						className="size-2 rounded-full"
-						style={{ backgroundColor: TYPE_COLOR.olt }}
-					/>
-					OLT
-				</span>
-				<span className="inline-flex items-center gap-1">
-					<span
-						className="size-2 rounded-full"
-						style={{ backgroundColor: TYPE_COLOR.splitter }}
-					/>
-					Splitter
-				</span>
-				<span className="inline-flex items-center gap-1">
-					<span
-						className="size-2 rounded-full"
-						style={{ backgroundColor: TYPE_COLOR.nap }}
-					/>
-					NAP
-				</span>
-				<span className="inline-flex items-center gap-1">
-					<Cable className="size-3" aria-hidden="true" />
-					Feeder / distribución
-				</span>
-			</div>
-		</Panel>
-	);
+function confidenceLabel(confidence: ActiveSummary["confidence"]) {
+	if (confidence === "complete") return "Completo";
+	if (confidence === "assumed") return "Con supuestos";
+	return "Sin clase";
+}
+
+function confidenceColor(confidence: ActiveSummary["confidence"]) {
+	if (confidence === "complete") return "#34d399";
+	if (confidence === "assumed") return "#f59e0b";
+	return "#858585";
+}
+
+function findPathNodes(roots: TreeNode[], targetId: string): TreeNode[] {
+	function walk(node: TreeNode, path: TreeNode[]): TreeNode[] | null {
+		const nextPath = [...path, node];
+		if (node.element.id === targetId) return nextPath;
+		for (const child of node.children) {
+			const found = walk(child, nextPath);
+			if (found) return found;
+		}
+		return null;
+	}
+
+	for (const root of roots) {
+		const found = walk(root, []);
+		if (found) return found;
+	}
+	return [];
+}
+
+function getRouteLossLabel(
+	route: LayoutNode["tree"]["routeFromParent"],
+): string {
+	if (!route) return "";
+	const fiberLoss =
+		route.length_meters != null
+			? ((route.length_meters * 1.02) / 1000) *
+				(route.attenuation_db_per_km ?? ATTENUATION_DB_PER_KM["1490"])
+			: 0;
+	const routeLoss =
+		route.total_loss_db ??
+		fiberLoss +
+			(route.splice_loss_db ?? 0) +
+			(route.connector_loss_db ?? 2 * CONNECTOR_LOSS_DB);
+	return `${routeLoss.toFixed(2)} dB`;
 }
 
 function ActivePathPanel({ summary }: { summary: ActiveSummary | null }) {
 	if (!summary) return null;
+	const warnings = Array.from(new Set(summary.budget.warnings)).slice(0, 4);
+	const confidence = {
+		color: confidenceColor(summary.confidence),
+		label: confidenceLabel(summary.confidence),
+	};
 
 	return (
-		<Panel position="top-right" className="!m-3">
-			<div className="w-60 rounded-md border border-white/10 bg-[#111213]/92 p-3 text-xs shadow-xl backdrop-blur">
-				<div className="mb-2 flex items-center gap-2 text-[#d7d7d7]">
-					<BadgeInfo className="size-3.5 text-[#38bdf8]" aria-hidden="true" />
-					<span className="truncate font-medium">{summary.code}</span>
+		<Panel position="bottom-right" className="!m-3">
+			<div className="w-[min(760px,calc(100vw-360px))] rounded-lg border border-white/10 bg-[#0d0f10]/94 p-2.5 text-xs shadow-[0_20px_70px_rgba(0,0,0,0.46)] backdrop-blur">
+				<div className="mb-2 flex items-center justify-between gap-3 text-[#d7d7d7]">
+					<div className="flex min-w-0 items-center gap-2">
+						<BadgeInfo className="size-3.5 text-[#38bdf8]" aria-hidden="true" />
+						<div className="min-w-0">
+							<p className="truncate font-semibold">
+								Presupuesto en ruta: {summary.code}
+							</p>
+							<p className="mt-0.5 truncate text-[10px] text-[#858585]">
+								{summary.pathLabel}
+							</p>
+						</div>
+					</div>
+					<div className="flex shrink-0 items-center gap-1.5">
+						<MetricPill label="Fisica" value={`${summary.physicalLoss} dB`} />
+						<MetricPill
+							label="Rx"
+							value={
+								summary.rxPowerDbm === null
+									? "N/D"
+									: `${summary.rxPowerDbm.toFixed(1)} dBm`
+							}
+						/>
+						<MetricPill
+							label="Margen"
+							value={summary.margin === null ? "N/D" : `${summary.margin} dB`}
+							color={
+								summary.margin === null
+									? "#858585"
+									: summary.margin < 1
+										? "#fb4d6d"
+										: summary.margin < 3
+											? "#f59e0b"
+											: "#34d399"
+							}
+						/>
+						<span
+							className="rounded border px-1.5 py-0.5 text-[9px] font-semibold"
+							style={{
+								backgroundColor: `${confidence.color}18`,
+								borderColor: `${confidence.color}44`,
+								color: confidence.color,
+							}}
+						>
+							{confidence.label}
+						</span>
+					</div>
 				</div>
-				<div className="grid grid-cols-2 gap-1.5 text-[10px]">
-					<MetricPill label="Tipo" value={summary.type} />
-					<MetricPill label="Estado" value={summary.status} />
-					<MetricPill label="Pérdida" value={`${summary.loss} dB`} />
-					<MetricPill
-						label="Margen"
-						value={summary.margin === null ? "N/D" : `${summary.margin} dB`}
-						color={
-							summary.margin === null
-								? "#858585"
-								: summary.margin < 1
-									? "#fb4d6d"
-									: summary.margin < 3
-										? "#f59e0b"
-										: "#34d399"
-						}
-					/>
-					<MetricPill label="Long." value={summary.lengthKm} />
-				</div>
+				<OpticalPowerBudgetChart budget={summary.budget} height={135} />
+				{warnings.length > 0 && (
+					<p
+						className="mt-1.5 truncate rounded border border-[#f59e0b]/20 bg-[#f59e0b]/8 px-2 py-1 text-[10px] text-[#f6c768]"
+						title={warnings.join(" · ")}
+					>
+						Supuestos: {warnings.join(" · ")}
+					</p>
+				)}
 			</div>
 		</Panel>
 	);
@@ -616,13 +871,14 @@ export function LogicalDiagram({
 	totalHeight,
 	selectedId,
 	selectedRouteId = null,
+	showActivePanel = true,
 	expandedGroups,
 	onSelectElement,
 	onToggleGroup,
 }: LogicalDiagramProps) {
 	const [hoveredId, setHoveredId] = useState<string | null>(null);
 	const [showLabels, setShowLabels] = useState(true);
-	const [showMiniMap, setShowMiniMap] = useState(true);
+	const [showMiniMap, setShowMiniMap] = useState(false);
 	const hoverClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const clearHoverTimer = useCallback(() => {
@@ -704,15 +960,38 @@ export function LogicalDiagram({
 		if (!node) return null;
 
 		const el = node.tree.element;
+		const pathNodes = findPathNodes(roots, activeId);
+		const pathLabel =
+			pathNodes
+				.map(
+					(item) => item.element.code ?? item.element.name ?? item.element.id,
+				)
+				.join(" -> ") ||
+			(el.code ?? el.name ?? el.id);
+		const confidence =
+			node.budget.margin === null
+				? "incomplete"
+				: node.budget.warnings.length > 0
+					? "assumed"
+					: "complete";
 		return {
 			code: el.code ?? el.name ?? el.id,
 			type: EQUIPMENT_TYPE_LABEL[el.type] ?? el.type,
 			status: EQUIPMENT_STATUS_LABEL[el.status] ?? el.status,
 			loss: node.budget.totalLoss,
 			margin: node.budget.margin,
+			physicalLoss: node.budget.physicalLoss,
+			txPowerDbm: node.budget.txPowerDbm,
+			rxPowerDbm: node.budget.rxPowerDbm,
+			rxSensitivityDbm: node.budget.rxSensitivityDbm,
+			powerMarginDb: node.budget.powerMarginDb,
 			lengthKm: `${(node.budget.cumulativeLengthMeters / 1000).toFixed(2)} km`,
+			budget: node.budget,
+			pathLabel,
+			isEndpoint: el.type === "nap",
+			confidence,
 		};
-	}, [hoveredId, selectedId, layoutNodes]);
+	}, [hoveredId, selectedId, layoutNodes, roots]);
 
 	const flowNodes = useMemo<GponFlowNode[]>(
 		() =>
@@ -764,6 +1043,8 @@ export function LogicalDiagram({
 				const km = route.length_meters
 					? `${(route.length_meters / 1000).toFixed(2)} km`
 					: undefined;
+				const routeLoss = getRouteLossLabel(route);
+				const routeLabel = isActivePath && km ? `${km} · ${routeLoss}` : km;
 
 				return [
 					{
@@ -778,7 +1059,7 @@ export function LogicalDiagram({
 							opacity: isOnPath ? (isActivePath ? 1 : 0.82) : 0.1,
 							active: isActivePath,
 							statusColor: OPTICAL_STATUS_COLOR[node.budget.status],
-							label: showLabels || isActivePath ? km : undefined,
+							label: showLabels || isActivePath ? routeLabel : undefined,
 						},
 					},
 				];
@@ -820,12 +1101,7 @@ export function LogicalDiagram({
 					showMiniMap={showMiniMap}
 					onToggleMiniMap={() => setShowMiniMap((current) => !current)}
 				/>
-				<ActivePathPanel summary={activeSummary} />
-				<DiagramLegend />
-				<Controls
-					showInteractive={false}
-					className="!border !border-white/10 !bg-[#1b1c1d]/90 !shadow-xl"
-				/>
+				{showActivePanel && <ActivePathPanel summary={activeSummary} />}
 				{showMiniMap && (
 					<MiniMap
 						pannable

@@ -276,7 +276,7 @@ function SplitterNode({
 	const { x, y, width: w, height: h } = node;
 	const hasChildren = node.tree.children.length > 0;
 	const ownLoss = el.split_ratio
-		? (SPLITTER_LOSS_DB[el.split_ratio] ?? 0)
+		? (el.insertion_loss_db ?? SPLITTER_LOSS_DB[el.split_ratio] ?? 0)
 		: null;
 
 	const handleKeyDown = (e: React.KeyboardEvent<SVGGElement>) => {
@@ -425,6 +425,12 @@ function NAPNode({
 		node.budget.cumulativeLengthMeters > 0
 			? `${(node.budget.cumulativeLengthMeters / 1000).toFixed(2)} km`
 			: null;
+	const ownLoss =
+		el.split_ratio && el.insertion_loss_db != null
+			? `${el.insertion_loss_db} dB`
+			: el.split_ratio
+				? `${SPLITTER_LOSS_DB[el.split_ratio] ?? 0} dB`
+				: null;
 
 	return (
 		<NodeShell
@@ -484,7 +490,12 @@ function NAPNode({
 
 			{/* Usage + distance */}
 			<text x={x + 12} y={y + 72} fontSize={7.5} fill="#6b7280">
-				{truncateSvgText(`${usageText}${distKm ? ` · ${distKm}` : ""}`, 34)}
+				{truncateSvgText(
+					`${usageText}${ownLoss ? ` · ${ownLoss}` : ""}${
+						distKm ? ` · ${distKm}` : ""
+					}`,
+					34,
+				)}
 			</text>
 
 			{/* Loss bar */}

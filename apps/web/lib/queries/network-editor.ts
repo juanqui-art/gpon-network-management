@@ -37,21 +37,20 @@ export const networkEditorKeys = {
 };
 
 export async function fetchNetworkEditorData(
-	_networkId: string,
+	networkId: string,
 ): Promise<NetworkEditorData> {
 	const supabase = createClient();
 
-	// Current schema is still single-tenant in the checked-in migrations, so the
-	// map RPCs do not accept p_network_id yet. Keep networkId in the query key so
-	// the UI contract is ready when network-scoped RPCs land.
 	const [
 		{ data: elements, error: elementsError },
 		{ data: routes, error: routesError },
 		{ data: routePoints, error: routePointsError },
 	] = await Promise.all([
-		supabase.rpc("infrastructure_elements_for_map"),
-		supabase.rpc("fiber_routes_for_map"),
-		supabase.rpc("route_points_for_map"),
+		supabase.rpc("infrastructure_elements_for_map", {
+			p_network_id: networkId,
+		}),
+		supabase.rpc("fiber_routes_for_map", { p_network_id: networkId }),
+		supabase.rpc("route_points_for_map", { p_network_id: networkId }),
 	]);
 
 	if (elementsError) throw elementsError;

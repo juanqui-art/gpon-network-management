@@ -9,11 +9,13 @@ import {
 
 interface OltModelSelectorProps {
 	onSelect: (model: OltModel) => void;
+	selectedModelId?: string | null;
 	selectedOpticalClass?: string | null;
 }
 
 export function OltModelSelector({
 	onSelect,
+	selectedModelId,
 	selectedOpticalClass,
 }: OltModelSelectorProps) {
 	const [filterManufacturer, setFilterManufacturer] = useState<string | null>(
@@ -67,7 +69,9 @@ export function OltModelSelector({
 				</legend>
 				<div className="grid gap-2">
 					{filteredModels.map((model) => {
-						const isSelected = selectedOpticalClass === model.opticalClass;
+						const isSelected = selectedModelId
+							? selectedModelId === model.id
+							: selectedOpticalClass === model.opticalClass;
 						return (
 							<button
 								key={model.id}

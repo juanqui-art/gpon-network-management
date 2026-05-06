@@ -1,8 +1,7 @@
 "use client";
 
-import { LocateFixed, Minus, MousePointer2, Plus, X } from "lucide-react";
+import { Layers, LocateFixed, MousePointer2 } from "lucide-react";
 import mapboxgl from "mapbox-gl";
-import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import {
@@ -12,9 +11,21 @@ import {
 	setEquipmentLayersFilter,
 } from "@/components/map/equipment-layers";
 import {
+	InspectorRow,
+	InspectorSection,
+} from "@/components/map/map-inspector-primitives";
+import { MapInspectorShell } from "@/components/map/map-inspector-shell";
+import {
+	MapControls,
+	MapLegend,
+	MapStatChip,
+} from "@/components/map/map-overlay-components";
+import {
 	FIBER_RENDER_COLOR,
 	hideNoisyMapLabels,
 } from "@/components/map/mapbox-shared-style";
+import { OltModelSelector } from "@/components/map/olt-model-selector";
+import { OltTechnicalEditor } from "@/components/map/olt-technical-editor";
 import type {
 	ConnectionMapItem,
 	EquipmentMapItem,
@@ -23,7 +34,13 @@ import type {
 	InfrastructureElement,
 	RoutePoint,
 } from "@/components/map/types";
-import { ROUTE_POINT_COLOR, TYPE_COLOR } from "@/lib/map/palette";
+import {
+	buildOltModelProperties,
+	propertyNumber,
+	propertyString,
+	withDefaultOltProperties,
+} from "@/lib/gpon/olt-properties";
+import { CABLE_LABEL, ROUTE_POINT_COLOR, TYPE_COLOR } from "@/lib/map/palette";
 import {
 	getRouteMidpoints,
 	getRouteVertices,
@@ -40,6 +57,7 @@ import type {
 	ElementStatus,
 	FiberType,
 	InstallationType,
+	PonStandard,
 	RouteStatus,
 	RouteType,
 } from "@/lib/types/gpon";
@@ -103,12 +121,34 @@ const TOOL_LABELS: Record<EditorTool, string> = {
 
 const ZOOM_ROUTE_POINTS = 15;
 const EMPTY_INCIDENTS: IncidentMapItem[] = [];
+const EDITOR_PANEL_TABS = [
+	{ value: "tools" as const, label: "Herramienta", icon: MousePointer2 },
+	{ value: "layers" as const, label: "Capas", icon: Layers },
+];
 
-function scheduleMapResize(map: mapboxgl.Map) {
-	requestAnimationFrame(() => {
-		map.resize();
-		requestAnimationFrame(() => map.resize());
+function scheduleMapResize(map: mapboxgl.Map, shouldResize: () => boolean) {
+	const frameIds = new Set<number>();
+	const cancel = () => {
+		for (const frameId of frameIds) cancelAnimationFrame(frameId);
+		frameIds.clear();
+	};
+	const resizeIfCurrent = () => {
+		if (shouldResize()) map.resize();
+	};
+
+	const firstFrameId = requestAnimationFrame(() => {
+		frameIds.delete(firstFrameId);
+		resizeIfCurrent();
+
+		const secondFrameId = requestAnimationFrame(() => {
+			frameIds.delete(secondFrameId);
+			resizeIfCurrent();
+		});
+		frameIds.add(secondFrameId);
 	});
+	frameIds.add(firstFrameId);
+
+	return cancel;
 }
 
 export function NetworkEditorMap({
@@ -247,14 +287,24 @@ export function NetworkEditorMap({
 			zoom: DEFAULT_ZOOM,
 		});
 		mapRef.current = map;
+		const resizeCancelers = new Set<() => void>();
+		const queueMapResize = () => {
+			const cancelResize = scheduleMapResize(
+				map,
+				() =>
+					mapRef.current === map && containerRef.current?.isConnected === true,
+			);
+			resizeCancelers.add(cancelResize);
+			return cancelResize;
+		};
 
 		const resizeObserver = new ResizeObserver(() => {
-			scheduleMapResize(map);
+			queueMapResize();
 		});
 		resizeObserver.observe(containerRef.current);
 
 		map.on("load", () => {
-			scheduleMapResize(map);
+			queueMapResize();
 			hideNoisyMapLabels(map);
 			map.addSource("editor-routes-v2", {
 				type: "geojson",
@@ -279,7 +329,7 @@ export function NetworkEditorMap({
 			});
 			setIsReady(true);
 			requestAnimationFrame(() => {
-				scheduleMapResize(map);
+				queueMapResize();
 				fitToEquipment(map, equipmentRef.current, false);
 				updateVisibility(map, filterTypeRef.current, filterStatusRef.current);
 			});
@@ -449,6 +499,8 @@ export function NetworkEditorMap({
 
 		return () => {
 			resizeObserver.disconnect();
+			for (const cancelResize of resizeCancelers) cancelResize();
+			resizeCancelers.clear();
 			map.off("zoom", onZoom);
 			map.off("click", onClick);
 			map.off(
@@ -647,26 +699,14 @@ export function NetworkEditorMap({
 				/>
 			</div>
 			<div className="absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2">
-				<div className="rounded-lg border border-[rgba(164,164,164,0.16)] bg-[rgba(34,35,36,0.9)] px-3 py-2 text-xs text-[#a4a4a4] shadow-2xl backdrop-blur-md">
-					{mode === "view" ? "Vista" : mode === "design" ? "Crear" : "Editar"} ·{" "}
-					{TOOL_LABELS[activeTool]}
-				</div>
-				<div className="flex overflow-hidden rounded-lg border border-[rgba(164,164,164,0.16)] bg-[rgba(34,35,36,0.9)] shadow-2xl backdrop-blur-md">
-					<IconButton label="Acercar" onClick={() => mapRef.current?.zoomIn()}>
-						<Plus className="size-4" />
-					</IconButton>
-					<IconButton label="Alejar" onClick={() => mapRef.current?.zoomOut()}>
-						<Minus className="size-4" />
-					</IconButton>
-					<IconButton
-						label="Ajustar"
-						onClick={() =>
-							fitToEquipment(mapRef.current, visibleEquipment, true)
-						}
-					>
-						<LocateFixed className="size-4" />
-					</IconButton>
-				</div>
+				<EditorMapStatus mode={mode} activeTool={activeTool} />
+				<MapLegend />
+				<MapControls
+					onFit={() => fitToEquipment(mapRef.current, visibleEquipment, true)}
+					onResetNorth={() => mapRef.current?.resetNorth()}
+					onZoomIn={() => mapRef.current?.zoomIn()}
+					onZoomOut={() => mapRef.current?.zoomOut()}
+				/>
 			</div>
 			{selectedFeature && (
 				<SelectionInspector
@@ -714,57 +754,50 @@ function EditorLeftPanel({
 	tab: LeftPanelTab;
 }) {
 	return (
-		<div className="flex w-72 flex-col overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md">
-			<div className="border-b border-[rgba(164,164,164,0.12)] px-3 py-3">
-				<div className="mb-3 flex items-center justify-between">
-					<div>
-						<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-							Editor GPON
-						</p>
-						<p className="mt-1 text-sm font-semibold text-[#e6e6e6]">
-							{mode === "view"
-								? "Inspección"
-								: mode === "design"
-									? "Diseño"
-									: "Edición"}
-						</p>
-					</div>
-					<MousePointer2 className="size-4 text-[#38d8ff]" />
-				</div>
-				<div className="grid grid-cols-4 gap-1.5">
-					<StatChip label="OLT" value={counts.olts} color={TYPE_COLOR.olt} />
-					<StatChip
+		<div className="flex max-h-[calc(100%-2rem)] w-72 flex-col overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md">
+			<div className="border-b border-[rgba(164,164,164,0.12)] px-3 py-2.5">
+				<div className="mb-2.5 grid grid-cols-4 gap-1.5">
+					<MapStatChip label="OLT" value={counts.olts} color={TYPE_COLOR.olt} />
+					<MapStatChip
 						label="SPL"
 						value={counts.splitters}
 						color={TYPE_COLOR.splitter}
 					/>
-					<StatChip label="NAP" value={counts.naps} color={TYPE_COLOR.nap} />
-					<StatChip
+					<MapStatChip label="NAP" value={counts.naps} color={TYPE_COLOR.nap} />
+					<MapStatChip
 						label="km"
 						value={counts.totalKm.toFixed(1)}
 						color="#a4a4a4"
 					/>
 				</div>
-			</div>
-			<div className="grid grid-cols-2 gap-1 border-b border-[rgba(164,164,164,0.12)] p-2">
-				<button
-					type="button"
-					onClick={() => onTabChange("tools")}
-					className={tabButtonClass(tab === "tools")}
-				>
-					Herramienta
-				</button>
-				<button
-					type="button"
-					onClick={() => onTabChange("layers")}
-					className={tabButtonClass(tab === "layers")}
-				>
-					Capas
-				</button>
+				<div className="grid grid-cols-2 gap-1 rounded-md bg-[rgba(164,164,164,0.05)] p-1">
+					{EDITOR_PANEL_TABS.map(({ value, label, icon: Icon }) => (
+						<button
+							key={value}
+							type="button"
+							onClick={() => onTabChange(value)}
+							className={tabButtonClass(tab === value)}
+						>
+							<Icon className="size-3" aria-hidden="true" />
+							<span>{label}</span>
+						</button>
+					))}
+				</div>
 			</div>
 			<div className="space-y-3 p-3">
 				{tab === "tools" ? (
 					<div className="space-y-3">
+						<div className="flex items-center justify-between rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.04)] px-3 py-2">
+							<div>
+								<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+									Modo
+								</p>
+								<p className="mt-0.5 text-xs font-semibold text-[#e6e6e6]">
+									{formatEditorMode(mode)}
+								</p>
+							</div>
+							<MousePointer2 className="size-4 text-[#38d8ff]" />
+						</div>
 						<div className="rounded-md border border-[rgba(56,216,255,0.2)] bg-[rgba(56,216,255,0.08)] p-3">
 							<p className="text-[10px] uppercase tracking-widest text-[#7ddfff]">
 								Activa
@@ -783,6 +816,9 @@ function EditorLeftPanel({
 					</div>
 				) : (
 					<div className="space-y-3">
+						<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+							Filtros de visibilidad
+						</p>
 						<label className="block">
 							<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
 								Tipo
@@ -841,53 +877,15 @@ function SelectionInspector({
 	onUpdateRoute?: (id: string, patch: Partial<FiberRoute>) => void;
 }) {
 	const title = getFeatureTitle(feature);
-	const subtitle = selectionLabel(feature.kind);
+	const subtitle = getFeatureSubtitle(feature);
+	const accent = getFeatureAccent(feature);
 	const [inspectorMode, setInspectorMode] = useState<InspectorMode>("view");
 
 	return (
-		<aside className="absolute right-4 top-4 z-20 w-80 overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.94)] text-[#d7d7d7] shadow-2xl backdrop-blur-md">
-			<header className="flex items-start justify-between gap-3 border-b border-[rgba(164,164,164,0.12)] px-4 py-3">
-				<div className="min-w-0">
-					<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-						{subtitle}
-					</p>
-					<h2 className="mt-1 truncate text-sm font-semibold text-[#e6e6e6]">
-						{title}
-					</h2>
-				</div>
-				<button
-					type="button"
-					aria-label="Cerrar inspector"
-					onClick={onClose}
-					className="rounded-md p-1 text-[#777879] transition-colors hover:bg-[rgba(164,164,164,0.08)] hover:text-[#e6e6e6]"
-				>
-					<X className="size-4" />
-				</button>
-			</header>
-			<div className="space-y-3 p-4">
-				{feature.kind === "element" && (
-					<ElementInspectorDetails
-						element={feature.item}
-						isEditing={inspectorMode === "edit"}
-						onCancelEdit={() => setInspectorMode("view")}
-						onStartEdit={() => setInspectorMode("edit")}
-						onUpdateElement={onUpdateElement}
-					/>
-				)}
-				{feature.kind === "route" && (
-					<RouteInspectorDetails
-						equipment={equipment}
-						isEditing={inspectorMode === "edit"}
-						onCancelEdit={() => setInspectorMode("view")}
-						onStartEdit={() => setInspectorMode("edit")}
-						onUpdateRoute={onUpdateRoute}
-						route={feature.item}
-					/>
-				)}
-				{feature.kind === "routePoint" && (
-					<RoutePointInspectorDetails point={feature.item} />
-				)}
-				{inspectorMode === "view" && (
+		<MapInspectorShell
+			accent={accent}
+			actions={
+				inspectorMode === "view" ? (
 					<div className="grid grid-cols-2 gap-2 pt-1">
 						<button
 							type="button"
@@ -905,9 +903,35 @@ function SelectionInspector({
 							Cerrar
 						</button>
 					</div>
-				)}
-			</div>
-		</aside>
+				) : null
+			}
+			onClose={onClose}
+			subtitle={subtitle}
+			title={title}
+		>
+			{feature.kind === "element" && (
+				<ElementInspectorDetails
+					element={feature.item}
+					isEditing={inspectorMode === "edit"}
+					onCancelEdit={() => setInspectorMode("view")}
+					onStartEdit={() => setInspectorMode("edit")}
+					onUpdateElement={onUpdateElement}
+				/>
+			)}
+			{feature.kind === "route" && (
+				<RouteInspectorDetails
+					equipment={equipment}
+					isEditing={inspectorMode === "edit"}
+					onCancelEdit={() => setInspectorMode("view")}
+					onStartEdit={() => setInspectorMode("edit")}
+					onUpdateRoute={onUpdateRoute}
+					route={feature.item}
+				/>
+			)}
+			{feature.kind === "routePoint" && (
+				<RoutePointInspectorDetails point={feature.item} />
+			)}
+		</MapInspectorShell>
 	);
 }
 
@@ -928,6 +952,16 @@ function ElementInspectorDetails({
 	const [status, setStatus] = useState<ElementStatus>(
 		normalizeElementStatus(element.status),
 	);
+	const [ponStandard, setPonStandard] = useState<PonStandard | null>(
+		element.pon_standard,
+	);
+	const [opticalClass, setOpticalClass] = useState(element.optical_class);
+	const [totalPonPorts, setTotalPonPorts] = useState(element.total_pon_ports);
+	const [properties, setProperties] = useState<Record<string, unknown>>(
+		element.type === "olt"
+			? withDefaultOltProperties(element.properties)
+			: element.properties,
+	);
 	const [addressReference, setAddressReference] = useState(
 		element.address_reference ?? "",
 	);
@@ -936,17 +970,32 @@ function ElementInspectorDetails({
 	useEffect(() => {
 		setName(element.name ?? "");
 		setStatus(normalizeElementStatus(element.status));
+		setPonStandard(element.pon_standard);
+		setOpticalClass(element.optical_class);
+		setTotalPonPorts(element.total_pon_ports);
+		setProperties(
+			element.type === "olt"
+				? withDefaultOltProperties(element.properties)
+				: element.properties,
+		);
 		setAddressReference(element.address_reference ?? "");
 		setNotes(element.notes ?? "");
 	}, [element]);
 
 	const applyChanges = () => {
-		onUpdateElement?.(element.id, {
+		const patch: Partial<InfrastructureElement> = {
 			name: emptyToNull(name),
 			status,
 			address_reference: emptyToNull(addressReference),
 			notes: emptyToNull(notes),
-		});
+		};
+		if (element.type === "olt") {
+			patch.pon_standard = ponStandard;
+			patch.optical_class = emptyToNull(opticalClass ?? "");
+			patch.total_pon_ports = totalPonPorts;
+			patch.properties = properties;
+		}
+		onUpdateElement?.(element.id, patch);
 		onCancelEdit();
 	};
 
@@ -988,6 +1037,29 @@ function ElementInspectorDetails({
 						</select>
 					</label>
 				</InspectorSection>
+				{element.type === "olt" && (
+					<InspectorSection title="OLT técnica">
+						<div className="rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)] p-3">
+							<OltModelSelector
+								selectedModelId={propertyString(properties, "olt_model_id")}
+								selectedOpticalClass={opticalClass}
+								onSelect={(model) => {
+									const next = buildOltModelProperties(model, properties);
+									setProperties(next.properties);
+									setPonStandard(model.ponStandard);
+									setOpticalClass(model.opticalClass);
+									setTotalPonPorts(next.totalPonPorts);
+								}}
+							/>
+						</div>
+						<OltTechnicalEditor
+							properties={properties}
+							totalPonPorts={totalPonPorts}
+							onPropertiesChange={setProperties}
+							onTotalPonPortsChange={setTotalPonPorts}
+						/>
+					</InspectorSection>
+				)}
 				<InspectorSection title="Ubicación">
 					<label className="block">
 						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
@@ -1040,6 +1112,51 @@ function ElementInspectorDetails({
 				/>
 				<InspectorRow label="Nombre" value={element.name} />
 			</InspectorSection>
+			{element.type === "olt" && (
+				<InspectorSection title="OLT técnica">
+					<InspectorRow
+						label="Modelo"
+						value={propertyString(
+							element.properties,
+							"olt_model",
+							"Sin modelo",
+						)}
+					/>
+					<InspectorRow label="Clase óptica" value={element.optical_class} />
+					<InspectorRow
+						label="PON instalados"
+						value={element.total_pon_ports}
+					/>
+					<InspectorRow
+						label="Tarjetas"
+						value={`${propertyNumber(element.properties, "service_cards_installed") ?? "—"} / ${propertyNumber(element.properties, "service_slots_total") ?? "—"}`}
+					/>
+					<InspectorRow
+						label="Split diseño"
+						value={propertyString(
+							element.properties,
+							"design_split_ratio",
+							"—",
+						)}
+					/>
+					<InspectorRow
+						label="Clientes estimados"
+						value={propertyNumber(element.properties, "estimated_subscribers")}
+					/>
+					<InspectorRow
+						label="Cabecera"
+						value={`${propertyNumber(element.properties, "headend_loss_db")?.toFixed(1) ?? "—"} dB`}
+					/>
+					<InspectorRow
+						label="Patchcord"
+						value={propertyString(
+							element.properties,
+							"headend_patchcord_type",
+							"—",
+						)}
+					/>
+				</InspectorSection>
+			)}
 			<InspectorSection title="Ubicación">
 				<InspectorRow
 					label="Calidad"
@@ -1358,40 +1475,6 @@ function RoutePointInspectorDetails({ point }: { point: RoutePoint }) {
 			<InspectorRow label="Riesgo" value={point.risk_level} />
 			<InspectorRow label="Referencia" value={point.reference_text} />
 		</div>
-	);
-}
-
-function InspectorRow({
-	label,
-	value,
-}: {
-	label: string;
-	value: number | string | null | undefined;
-}) {
-	return (
-		<div className="flex items-start justify-between gap-3 rounded-md border border-[rgba(164,164,164,0.08)] bg-[rgba(164,164,164,0.04)] px-2.5 py-2 text-xs">
-			<span className="shrink-0 text-[#777879]">{label}</span>
-			<span className="min-w-0 truncate text-right font-medium text-[#e6e6e6]">
-				{formatInspectorValue(value)}
-			</span>
-		</div>
-	);
-}
-
-function InspectorSection({
-	children,
-	title,
-}: {
-	children: React.ReactNode;
-	title: string;
-}) {
-	return (
-		<section className="space-y-2">
-			<h3 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#777879]">
-				{title}
-			</h3>
-			<div className="space-y-2">{children}</div>
-		</section>
 	);
 }
 
@@ -1900,23 +1983,50 @@ function focusFeature(map: mapboxgl.Map, feature: SelectedFeature) {
 
 function getFeatureTitle(feature: SelectedFeature) {
 	if (feature.kind === "element") {
-		return feature.item.code || feature.item.name || feature.item.id;
+		return feature.item.name || feature.item.code || feature.item.id;
 	}
 	if (feature.kind === "route") {
-		return feature.item.code || feature.item.id;
+		return feature.item.code || "Ruta de fibra";
 	}
-	return feature.item.code || feature.item.id;
+	return feature.item.code || getRoutePointLabel(feature.item.type);
+}
+
+function getFeatureSubtitle(feature: SelectedFeature) {
+	if (feature.kind === "element") {
+		return `${formatElementType(feature.item.type)} · ${formatElementStatus(
+			feature.item.status,
+		)}`;
+	}
+	if (feature.kind === "route") {
+		return CABLE_LABEL[feature.item.cable_type ?? feature.item.type] ?? "Fibra";
+	}
+	return getRoutePointLabel(feature.item.type);
+}
+
+function getFeatureAccent(feature: SelectedFeature) {
+	if (feature.kind === "element") {
+		return TYPE_COLOR[feature.item.type] ?? TYPE_COLOR.unknown;
+	}
+	if (feature.kind === "route") {
+		return (
+			FIBER_RENDER_COLOR[feature.item.cable_type ?? feature.item.type] ??
+			FIBER_RENDER_COLOR.default
+		);
+	}
+	return ROUTE_POINT_COLOR[feature.item.type] ?? "#d7d7d7";
+}
+
+function getRoutePointLabel(type: RoutePoint["type"]) {
+	const labels: Record<string, string> = {
+		crossing: "Cruce",
+		reserve: "Reserva",
+		splice: "Empalme",
+	};
+	return labels[type] ?? type;
 }
 
 function formatCoordinate(value: number) {
 	return value.toFixed(6);
-}
-
-function formatInspectorValue(value: number | string | null | undefined) {
-	if (value === null || value === undefined || value === "") return "—";
-	if (typeof value === "number")
-		return Number.isInteger(value) ? value : value.toFixed(2);
-	return value;
 }
 
 function formatElementType(type: EquipmentMapItem["type"]) {
@@ -1999,27 +2109,14 @@ function selectionLabel(kind: Selection["kind"]) {
 	return "Punto de ruta";
 }
 
-function tabButtonClass(active: boolean) {
-	return `rounded px-2 py-1.5 text-xs font-medium transition-colors ${active ? "bg-[rgba(56,216,255,0.14)] text-[#bdeafe]" : "text-[#777879] hover:bg-[rgba(164,164,164,0.06)] hover:text-[#d7d7d7]"}`;
+function formatEditorMode(mode: EditorMode) {
+	if (mode === "view") return "Inspección";
+	if (mode === "design") return "Diseño";
+	return "Edición";
 }
 
-function StatChip({
-	label,
-	value,
-	color,
-}: {
-	label: string;
-	value: number | string;
-	color: string;
-}) {
-	return (
-		<div className="rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)] px-2 py-1.5">
-			<p className="text-[9px] text-[#777879]">{label}</p>
-			<p className="font-mono text-sm font-semibold" style={{ color }}>
-				{value}
-			</p>
-		</div>
-	);
+function tabButtonClass(active: boolean) {
+	return `flex items-center justify-center gap-1.5 rounded px-2 py-1.5 text-[10px] font-medium transition-colors ${active ? "bg-[rgba(56,216,255,0.14)] text-[#bdeafe]" : "text-[#777879] hover:bg-[rgba(164,164,164,0.06)] hover:text-[#d7d7d7]"}`;
 }
 
 function StatRow({ label, value }: { label: string; value: number | string }) {
@@ -2031,24 +2128,17 @@ function StatRow({ label, value }: { label: string; value: number | string }) {
 	);
 }
 
-function IconButton({
-	children,
-	label,
-	onClick,
+function EditorMapStatus({
+	activeTool,
+	mode,
 }: {
-	children: ReactNode;
-	label: string;
-	onClick: () => void;
+	activeTool: EditorTool;
+	mode: EditorMode;
 }) {
 	return (
-		<button
-			type="button"
-			aria-label={label}
-			onClick={onClick}
-			className="border-r border-[rgba(164,164,164,0.1)] p-2 text-[#d7d7d7] transition-colors last:border-r-0 hover:bg-[rgba(164,164,164,0.08)]"
-		>
-			{children}
-		</button>
+		<div className="rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.9)] px-3 py-2 text-xs text-[#a4a4a4] shadow-2xl backdrop-blur-md">
+			{formatEditorMode(mode)} · {TOOL_LABELS[activeTool]}
+		</div>
 	);
 }
 

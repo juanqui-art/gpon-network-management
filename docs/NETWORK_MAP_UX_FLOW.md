@@ -581,7 +581,7 @@ Calidad
 ```
 /networks/[id]
 ├─ Carga zonas: Z01, Z05, Z10
-├─ NetworkEditorShell → MapView (pasa zones como prop)
+├─ NetworkEditorShell → NetworkEditorMap (pasa zones como prop)
 └─ Usuario en Modo VISTA
 ```
 

@@ -34,7 +34,7 @@ Las **zonas** (Z01, Z05, Z10) recién implementadas añaden un contexto geográf
 6. Usa herramienta measure (futuro) → mide distancia a OLT
 
 **Requisitos técnicos:**
-- ✅ Zonas cargadas en MapView
+- ✅ Zonas cargadas en NetworkEditorMap
 - ✅ Filtros por zona funcionan
 - ✅ Árbol topológico con stats
 - ✅ Alertas en tiempo real
@@ -371,7 +371,7 @@ Las **zonas** (Z01, Z05, Z10) recién implementadas añaden un contexto geográf
 - **Impacto:** Acelera creación de redes medianas (~30 elementos en minutos)
 
 **Opción C: Herramienta measure (pequeña)**
-- [ ] Integrar @turf/length en map-view
+- [ ] Integrar @turf/length en NetworkEditorMap
 - [ ] UI para activar herramienta
 - [ ] Mostrar distancia en tiempo real
 - **Impacto:** Ayuda a validar longitudes de rutas

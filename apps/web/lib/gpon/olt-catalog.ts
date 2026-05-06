@@ -12,7 +12,12 @@ export interface OltModel {
 	ponStandard: PonStandard;
 	opticalClass: string; // "B+", "C+", etc.
 	maxPowerDbm: number;
+	defaultTxPowerDbm?: number;
+	rxSensitivityDbm?: number;
 	maxPonPorts: number;
+	serviceSlotsTotal?: number;
+	controlSlotsTotal?: number;
+	ponPortsPerCard?: number;
 	notes: string;
 }
 
@@ -24,7 +29,12 @@ export const OLT_CATALOG: Record<string, OltModel> = {
 		ponStandard: "gpon",
 		opticalClass: "B+",
 		maxPowerDbm: 28,
-		maxPonPorts: 4,
+		defaultTxPowerDbm: 3,
+		rxSensitivityDbm: -28,
+		maxPonPorts: 16,
+		serviceSlotsTotal: 7,
+		controlSlotsTotal: 2,
+		ponPortsPerCard: 16,
 		notes: "GPON Clase B+, ideal para redes urbanas y periféricas",
 	},
 
@@ -35,7 +45,12 @@ export const OLT_CATALOG: Record<string, OltModel> = {
 		ponStandard: "gpon",
 		opticalClass: "C+",
 		maxPowerDbm: 32,
-		maxPonPorts: 8,
+		defaultTxPowerDbm: 5,
+		rxSensitivityDbm: -30,
+		maxPonPorts: 32,
+		serviceSlotsTotal: 15,
+		controlSlotsTotal: 2,
+		ponPortsPerCard: 16,
 		notes: "GPON Clase C+, para zonas rurales con splitters en cascada",
 	},
 
@@ -46,7 +61,12 @@ export const OLT_CATALOG: Record<string, OltModel> = {
 		ponStandard: "gpon",
 		opticalClass: "C+",
 		maxPowerDbm: 32,
-		maxPonPorts: 8,
+		defaultTxPowerDbm: 5,
+		rxSensitivityDbm: -30,
+		maxPonPorts: 224,
+		serviceSlotsTotal: 14,
+		controlSlotsTotal: 2,
+		ponPortsPerCard: 16,
 		notes: "GPON Clase C+, equipamiento ZTE común en Ecuador",
 	},
 
@@ -57,7 +77,12 @@ export const OLT_CATALOG: Record<string, OltModel> = {
 		ponStandard: "gpon",
 		opticalClass: "C++",
 		maxPowerDbm: 35,
-		maxPonPorts: 16,
+		defaultTxPowerDbm: 7,
+		rxSensitivityDbm: -32,
+		maxPonPorts: 32,
+		serviceSlotsTotal: 2,
+		controlSlotsTotal: 2,
+		ponPortsPerCard: 16,
 		notes: "GPON Clase C++, versión mejorada para zonas suburbanas",
 	},
 
@@ -68,7 +93,12 @@ export const OLT_CATALOG: Record<string, OltModel> = {
 		ponStandard: "gpon",
 		opticalClass: "B+",
 		maxPowerDbm: 28,
-		maxPonPorts: 4,
+		defaultTxPowerDbm: 3,
+		rxSensitivityDbm: -28,
+		maxPonPorts: 16,
+		serviceSlotsTotal: 5,
+		controlSlotsTotal: 2,
+		ponPortsPerCard: 16,
 		notes: "GPON Clase B+, equipamiento Nokia de alta confiabilidad",
 	},
 
@@ -79,7 +109,12 @@ export const OLT_CATALOG: Record<string, OltModel> = {
 		ponStandard: "gpon",
 		opticalClass: "B+",
 		maxPowerDbm: 28,
-		maxPonPorts: 4,
+		defaultTxPowerDbm: 3,
+		rxSensitivityDbm: -28,
+		maxPonPorts: 16,
+		serviceSlotsTotal: 2,
+		controlSlotsTotal: 1,
+		ponPortsPerCard: 8,
 		notes: "GPON Clase B+, OLT modular Calix",
 	},
 
@@ -90,7 +125,12 @@ export const OLT_CATALOG: Record<string, OltModel> = {
 		ponStandard: "xgs_pon",
 		opticalClass: "N1",
 		maxPowerDbm: 29,
-		maxPonPorts: 4,
+		defaultTxPowerDbm: 4,
+		rxSensitivityDbm: -28,
+		maxPonPorts: 16,
+		serviceSlotsTotal: 7,
+		controlSlotsTotal: 2,
+		ponPortsPerCard: 16,
 		notes: "XGS-PON Clase N1, para futuro upgrade a 10G",
 	},
 };

@@ -27,7 +27,9 @@ function normalizeRouteDirection(
 
 	const fromRank = TYPE_RANK[from.type];
 	const toRank = TYPE_RANK[to.type];
-	if (fromRank === toRank) return null;
+	if (fromRank === toRank) {
+		return { parent: from, child: to, route };
+	}
 
 	if (fromRank < toRank) {
 		return { parent: from, child: to, route };

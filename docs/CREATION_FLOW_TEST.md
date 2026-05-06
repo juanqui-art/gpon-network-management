@@ -89,7 +89,7 @@ networks (
    │                                    ● Sin guardar│
    └─────────────────────────────────────────────────┘
    │                                                   │
-   │  MapView                                         │
+   │  NetworkEditorMap                                │
    │  (mapa vacío, ningún elemento creado aún)       │
    │                                                   │
    └─────────────────────────────────────────────────┘
@@ -112,7 +112,7 @@ networks (
 
 **❓ Preguntas sin responder:**
 - ¿Se cargan las zonas correctamente?
-- ¿MapView recibe `zones` prop?
+- ¿NetworkEditorMap recibe `zones` prop?
 - ¿El modo inicial es "view"?
 
 ---
@@ -122,7 +122,7 @@ networks (
 
 1. User ve topbar con pills [Vista] [Crear] [Editar]
 2. Click [Crear] → `setMode("design")`
-3. MapView entra en modo design:
+3. NetworkEditorMap entra en modo design:
    ```
    - Toolbar visible con herramientas: NAP, OLT, SPL, Fibra, etc.
    - Panel izquierdo con capas/filtros
@@ -243,7 +243,7 @@ Código: PIC-UIO-Z05-NAP-001  ← regeneró automático
    - `clearActiveDraft()`
    - `isDirty = true` ← NUEVO elemento aún no guardado a BD
 
-6. MapView:
+6. NetworkEditorMap:
    - NAP aparece en mapa con marcador
    - Panel derecho se cierra
 
@@ -270,7 +270,7 @@ Código: PIC-UIO-Z05-NAP-001  ← regeneró automático
 
 3. User cambia nombre a "OLT Principal"
 4. Click [Guardar]
-5. MapView:
+5. NetworkEditorMap:
    - OLT aparece en mapa
    - Ahora hay 2 elementos: NAP + OLT
 
@@ -302,7 +302,7 @@ Código: PIC-UIO-Z05-NAP-001  ← regeneró automático
 
 6. User confirma [Guardar]
 7. RPC: `create_fiber_route_draft(...)`
-8. MapView:
+8. NetworkEditorMap:
    - Línea aparece entre OLT y NAP
 
 **Store:**
@@ -356,7 +356,7 @@ Código: PIC-UIO-Z05-NAP-001  ← regeneró automático
 **Qué debería suceder:**
 
 1. Topbar: click [Vista]
-2. MapView entra en modo view:
+2. NetworkEditorMap entra en modo view:
    - Toolbar desaparece
    - Panel izquierdo: filtros, búsqueda, árbol, alertas
    - Panel derecho: aparece al seleccionar elemento

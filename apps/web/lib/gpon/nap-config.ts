@@ -15,12 +15,21 @@ export const DEFAULT_NAP_PROPERTIES = {
 } satisfies Record<string, string>;
 
 export function getNapMode(element: {
+	type?: string;
 	properties: Record<string, unknown> | null | undefined;
 	split_ratio: unknown;
+	total_ports?: number | null;
 }): NapMode {
 	const mode = element.properties?.nap_mode;
 	if (mode === "terminal" || mode === "with_splitter" || mode === "prepared") {
 		return mode;
+	}
+	if (
+		element.type === "nap" &&
+		element.total_ports &&
+		element.total_ports > 0
+	) {
+		return "with_splitter";
 	}
 	return element.split_ratio ? "with_splitter" : "terminal";
 }
@@ -29,6 +38,7 @@ export function hasInternalSplitter(element: {
 	type: string;
 	properties: Record<string, unknown> | null | undefined;
 	split_ratio: unknown;
+	total_ports?: number | null;
 }): boolean {
 	return element.type === "nap" && getNapMode(element) === "with_splitter";
 }

@@ -130,8 +130,9 @@ export type IncidentMapItem = {
 	equipment_id: string;
 };
 
-// Transitional aliases while MapView is adapted from the old equipment/connection
-// RPCs to the MVP infrastructure RPCs.
+// Map-facing aliases used by the read-only map and network editor. They keep
+// legacy ONT/customer fields available while infrastructure RPCs remain focused
+// on OLT/Splitter/NAP/fiber data.
 export type EquipmentMapItem = Omit<
 	InfrastructureElement,
 	"type" | "status"

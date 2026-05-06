@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { NetworkIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { DiagramPanel } from "@/components/map/logical-diagram";
@@ -143,9 +144,10 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 					<button
 						type="button"
 						onClick={() => setDiagramOpen(!diagramOpen)}
-						className="text-xs text-[#777879] transition-colors hover:text-[#a4a4a4]"
+						className="inline-flex items-center gap-1.5 rounded-md border border-[rgba(56,216,255,0.18)] bg-[rgba(56,216,255,0.06)] px-2.5 py-1 text-xs font-medium text-[#8bdff4] transition-colors hover:border-[rgba(56,216,255,0.32)] hover:bg-[rgba(56,216,255,0.1)]"
 					>
-						{diagramOpen ? "↓" : "↑"} Diagrama
+						<NetworkIcon className="size-3.5" aria-hidden="true" />
+						{diagramOpen ? "Ocultar" : "Abrir"} unifilar
 					</button>
 					{isDirty && (
 						<>

@@ -969,7 +969,7 @@ function ReadonlyUnifilarPanel({
 					</Button>
 				</div>
 			</header>
-			<div className="grid min-h-0 flex-1 grid-cols-1 gap-2.5 bg-[#151617] p-2.5 lg:grid-cols-[minmax(0,1fr)_420px]">
+			<div className="grid min-h-0 flex-1 grid-cols-1 gap-2.5 bg-[#151617] p-2.5 lg:grid-cols-[minmax(0,1fr)_540px]">
 				{roots.length === 0 ? (
 					<div className="flex h-full items-center justify-center rounded-md border border-dashed border-white/12 bg-white/[0.025] px-6 text-center lg:col-span-2">
 						<div className="max-w-lg">
@@ -1139,7 +1139,7 @@ function UnifilarOpticalBudgetSummary({
 				<OpticalPowerBudgetChart
 					budget={budget}
 					className="mb-2"
-					height={240}
+					height={320}
 				/>
 				<BudgetMiniRow
 					label="Pérdida física"
