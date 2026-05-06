@@ -1788,10 +1788,36 @@ function NetworkTree({
 	connections: ConnectionMapItem[];
 	onSelectEquipment?: (el: EquipmentMapItem) => void;
 }) {
+	const olts = useMemo(
+		() => equipment.filter((e) => e.type === "olt"),
+		[equipment],
+	);
+
+	const allExpandableIds = useMemo(() => {
+		const ids: string[] = olts.map((o) => o.id);
+		for (const olt of olts) {
+			const feederRoutes = connections.filter(
+				(c) => c.from_element_id === olt.id || c.to_element_id === olt.id,
+			);
+			for (const e of equipment) {
+				if (
+					e.type === "splitter" &&
+					feederRoutes.some(
+						(r) => r.from_element_id === e.id || r.to_element_id === e.id,
+					)
+				) {
+					ids.push(e.id);
+				}
+			}
+		}
+		return ids;
+	}, [olts, equipment, connections]);
+
 	const [expandedItems, setExpandedItems] = useState<Set<string>>(() => {
-		const firstOlt = equipment.find((e) => e.type === "olt");
+		const firstOlt = olts[0];
 		return firstOlt ? new Set([firstOlt.id]) : new Set();
 	});
+
 	const toggleItem = (id: string) => {
 		setExpandedItems((prev) => {
 			const next = new Set(prev);
@@ -1801,7 +1827,7 @@ function NetworkTree({
 		});
 	};
 
-	const olts = equipment.filter((e) => e.type === "olt");
+	const allExpanded = allExpandableIds.every((id) => expandedItems.has(id));
 
 	if (olts.length === 0) {
 		return (
@@ -1813,6 +1839,22 @@ function NetworkTree({
 
 	return (
 		<div className="space-y-2">
+			<div className="mb-1 flex items-center justify-between">
+				<span className="text-[10px] text-[#5c5d5f]">
+					{olts.length} OLT{olts.length !== 1 ? "s" : ""}
+				</span>
+				<button
+					type="button"
+					onClick={() =>
+						setExpandedItems(
+							allExpanded ? new Set() : new Set(allExpandableIds),
+						)
+					}
+					className="text-[10px] text-[#5c5d5f] transition-colors hover:text-[#a4a4a4]"
+				>
+					{allExpanded ? "Contraer todo" : "Expandir todo"}
+				</button>
+			</div>
 			{olts.map((olt) => {
 				const feederRoutes = connections.filter(
 					(c) => c.from_element_id === olt.id || c.to_element_id === olt.id,
@@ -1829,9 +1871,9 @@ function NetworkTree({
 				return (
 					<div
 						key={olt.id}
-						className="rounded-md border border-[rgba(56,189,248,0.2)] bg-[rgba(56,189,248,0.05)] p-2"
+						className="min-w-0 rounded-md border border-[rgba(56,189,248,0.2)] bg-[rgba(56,189,248,0.05)] p-2"
 					>
-						<div className="flex items-center gap-1.5">
+						<div className="flex min-w-0 items-center gap-1.5">
 							<button
 								type="button"
 								onClick={() => toggleItem(olt.id)}
@@ -1855,10 +1897,15 @@ function NetworkTree({
 								className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-80"
 							>
 								<span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#38bdf8]" />
-								<span className="truncate text-xs font-semibold text-[#e6e6e6]">
+								<span className="min-w-0 flex-1 truncate text-xs font-semibold text-[#e6e6e6]">
 									{olt.name ?? olt.code}
 								</span>
-								<span className="ml-auto shrink-0 text-[10px] text-[#777879]">
+								{olt.optical_class && (
+									<span className="shrink-0 rounded border border-[rgba(56,189,248,0.22)] bg-[rgba(56,189,248,0.08)] px-1 font-mono text-[9px] text-[#38bdf8]">
+										{olt.optical_class}
+									</span>
+								)}
+								<span className="shrink-0 text-[10px] text-[#777879]">
 									{connectedSplitters.length} spl
 								</span>
 							</button>
