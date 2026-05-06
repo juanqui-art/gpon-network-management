@@ -34,8 +34,8 @@ pnpm build        # build de producción
 /login              → auth
 /register           → auth
 /networks           → lista de redes + crear nueva
-/networks/[id]      → editor de red (NetworkEditorShell + MapView)
-/map                → editor legacy (acceso directo al MapView con seed dev)
+/networks/[id]      → editor de red (NetworkEditorShell + NetworkEditorMap)
+/map                → mapa de consulta/read-only (ReadonlyMapViewer)
 ```
 
 ## Estructura actual
@@ -50,24 +50,26 @@ apps/web/
 │   │   └── register/page.tsx
 │   ├── (dashboard)/
 │   │   ├── layout.tsx                    # Header nav (Redes, Salir)
-│   │   ├── map/page.tsx                  # Editor legacy (seed dev)
+│   │   ├── map/page.tsx                  # Mapa de consulta/read-only
 │   │   └── networks/
 │   │       ├── page.tsx                  # Lista redes (server, llama list_networks RPC)
 │   │       ├── networks-client.tsx       # UI crear/listar redes
 │   │       └── [id]/
 │   │           ├── page.tsx              # Editor de red (server)
-│   │           └── network-editor-shell.tsx  # Shell con Zustand store + MapView
+│   │           └── network-editor-shell.tsx  # Shell con Zustand store + NetworkEditorMap
 │   └── actions/auth.ts
 ├── components/
 │   ├── map/
-│   │   ├── map-view.tsx                  # Editor Mapbox (~4500 líneas)
-│   │   ├── map-viewer.tsx                # Viewer read-only (modo consulta)
 │   │   ├── network-editor-map.tsx        # Contenedor del mapa en el editor
-│   │   ├── readonly-map-viewer.tsx       # Viewer para reportes/previews
+│   │   ├── readonly-map-viewer.tsx       # Viewer read-only para /map
+│   │   ├── map-inspector-shell.tsx       # Marco compartido del inspector derecho
+│   │   ├── map-inspector-primitives.tsx  # Filas/secciones compartidas del inspector
+│   │   ├── map-overlay-components.tsx    # Stats, leyenda y controles compartidos
 │   │   ├── equipment-layers.ts           # GeoJSON + gestión de capas Mapbox centralizadas
 │   │   ├── mapbox-shared-style.ts        # Constantes de estilo compartidas (colores fibra, labels)
 │   │   ├── context-menu.tsx              # Menú contextual del diagrama
 │   │   ├── olt-model-selector.tsx        # Selector de modelo OLT (clase óptica)
+│   │   ├── olt-technical-editor.tsx      # Inventario/cabecera OLT compartido
 │   │   ├── data-quality-badge.tsx        # Badge de calidad de datos
 │   │   ├── nap-capacity.tsx              # Barra de capacidad NAP
 │   │   ├── optical-budget-panel.tsx      # Calculadora óptica con semáforo
@@ -107,7 +109,7 @@ apps/web/
 ├── biome.json
 └── package.json
 
-database/migrations/                      # ✅ 001-013 APLICADAS en Supabase (014-017 pendientes aplicar)
+database/migrations/                      # ✅ 001-017 APLICADAS en Supabase
 ├── 001_initial_schema.sql                # 3 tablas + 13 ENUMs + indices + trigger
 ├── 002_rls_policies.sql                  # RLS para 5 roles + get_user_role()
 ├── 003_seed_dev.sql                      # Red mínima Quito (8 elementos, 7 rutas, 3 puntos)
@@ -154,40 +156,39 @@ docs/
     └── ANALISIS_TECNICO.md               # Whitepaper original GPON Ecuador (fuente de GPON_FTTH_ECUADOR_RESEARCH.md)
 ```
 
-## Estado del editor (map-view.tsx)
+## Estado del editor de red (network-editor-map.tsx)
 
 ### Modos implementados
-- ✅ **Modo `view`**: markers SVG con ring de calidad, rutas coloreadas, route points, leyenda, filtros por tipo/estado
-- ✅ **Modo `design`**: crear OLT/Splitter/NAP por click → draft → guardar. Dibujar fibra con vértices y snap automático. Marcar cruce/reserva/empalme
-- ✅ **Modo `edit`**: seleccionar elementos/rutas → editar propiedades inline → guardar vía update RPC. Drag de marcadores para mover ubicación. Eliminar con confirmación
+- ✅ **Modo `view`**: inspección de elementos/rutas/puntos con inspector compartido
+- ✅ **Modo `design`**: prepara herramientas de creación de infraestructura
+- ✅ **Modo `edit`**: seleccionar elementos/rutas → editar propiedades inline → guardar vía store + RPC. Mover elementos y ajustar vértices de rutas
 
-### Panel izquierdo (4 tabs)
-- ✅ **Capas**: filtros tipo/estado + layer toggles + stats (OLT/SPL/NAP/km)
-- ✅ **Lista**: búsqueda de elementos por nombre o código
-- ✅ **Árbol**: jerarquía OLT → Splitter → NAP con capacidad visual en tiempo real
-- ✅ **Alertas**: advertencias en tiempo real (splitter sin ratio, NAP saturada, ruta sin endpoints)
+### Paneles y componentes compartidos
+- ✅ **Inspector derecho**: `MapInspectorShell` + primitivas compartidas
+- ✅ **Overlays**: `MapStatChip`, `MapLegend`, `MapControls`
+- ✅ **OLT técnica**: inventario/cabecera OLT compartidos entre `/map` y `/networks/[id]`
+- ✅ **Diagrama unifilar**: presupuesto óptico acumulado con splitter/NAP/cabecera
 
 ### Features transversales
 - ✅ Calidad de datos: ring punteado en mapa + badge en panel (unknown/approximate/drawn/gps_captured/verified)
 - ✅ Capacidad NAP: barra usada/reservada/disponible + advertencias (70%/90% umbral)
-- ✅ Calculadora óptica: semáforo por ruta (verde/ámbar/rojo/gris) basado en pérdida por fibra + splitter + conectores
+- ✅ Calculadora óptica: semáforo por ruta/unifilar basado en fibra + splitters + conectores + empalmes + cabecera
 - ✅ Códigos operativos: patrón PIC-UIO-DRF-{TIPO}-{SEQ} para drafts
 - ✅ Undo/redo: Zundo con 50 steps para elementos/rutas/puntos
 - ✅ Templates de topología: Star (1:16), Tree (1:32), Cascade (1:64), Blank
 
 ### Pendiente en el editor
 - ❌ **Herramienta `measure`**: medir distancia sobre el mapa (Turf.js ya instalado)
-- ❌ **Clase óptica del OLT**: campo editable; sin él el semáforo queda en gris
 - ❌ **Reserva de fibra** (`reservation_m`): requiere migración DB + campo en panel de rutas
-- ⚠️ **map-view.tsx tiene ~4500 líneas** — candidato urgente a partir en subcomponentes
+- ⚠️ **Creación de elementos/rutas en NetworkEditorMap**: continuar consolidando flujo de diseño
 
 ## Pendiente de construir (priorizado)
 
 ### Alta prioridad
-1. Clase óptica del OLT (campo en panel + uso en calculadora óptica)
+1. Completar flujo de creación en `NetworkEditorMap`
 2. Herramienta measure (Turf.js `@turf/length` ya instalado)
 3. Reserva de fibra — campo `reservation_m` en rutas
-4. Partir map-view.tsx en subcomponentes
+4. Consolidar formularios compartidos del inspector
 
 ### Media prioridad
 5. Zona operativa configurable en el código (Z05 hardcoded → seleccionable)
@@ -202,7 +203,7 @@ docs/
 12. Monitoreo SNMP, TR-069, APIs de OLT
 
 ## Base de datos (Supabase)
-- **Proyecto:** `ybijrwyenlfemjjueopo` — migraciones 001-013 aplicadas (014-017 pendientes aplicar)
+- **Proyecto:** `ybijrwyenlfemjjueopo` — migraciones 001-017 aplicadas
 - **Tablas MVP (4):** `networks`, `infrastructure_elements`, `fiber_routes`, `route_points`
 - **ENUMs (13):** `user_role`, `element_type`, `element_status`, `data_quality`, `pon_standard`, `split_ratio`, `route_type`, `route_status`, `installation_type`, `fiber_type`, `route_point_type`, `crossing_type`, `risk_level`
 - **Seed dev:** 1 OLT, 2 splitters, 5 NAPs, 7 rutas (2 feeder + 5 distribution), 3 puntos (1 cruce, 1 reserva, 1 empalme)
