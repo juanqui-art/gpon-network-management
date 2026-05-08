@@ -72,6 +72,7 @@ const roleDescriptions: Record<UserRole, string> = {
 const elementLabels: Record<ElementType, string> = {
 	olt: "OLT",
 	splitter: "Splitters",
+	closure: "Mufas",
 	nap: "NAPs",
 };
 

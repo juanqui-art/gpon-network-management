@@ -47,6 +47,7 @@ export type EditorTool =
 	| "olt"
 	| "splitter"
 	| "nap"
+	| "closure"
 	| "fiber"
 	| "crossing"
 	| "reserve"
@@ -119,8 +120,12 @@ export interface NetworkEditorStore extends TemporalState {
 	isDirty: boolean;
 	isSaving: boolean;
 	validationErrors: ValidationError[];
+	createdElementIds: string[];
+	createdRouteIds: string[];
+	createdRoutePointIds: string[];
 	modifiedElementIds: string[];
 	modifiedRouteIds: string[];
+	modifiedRoutePointIds: string[];
 
 	// ── Local mutations (instant, no DB) ─────────────────────────────────────
 
@@ -199,8 +204,12 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 			isDirty: false,
 			isSaving: false,
 			validationErrors: [],
+			createdElementIds: [],
+			createdRouteIds: [],
+			createdRoutePointIds: [],
 			modifiedElementIds: [],
 			modifiedRouteIds: [],
+			modifiedRoutePointIds: [],
 
 			// ── Session ────────────────────────────────────────────────────────
 
@@ -217,6 +226,7 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 			addElement: (element) =>
 				set((s) => ({
 					elements: { ...s.elements, [element.id]: element },
+					createdElementIds: addUniqueId(s.createdElementIds, element.id),
 					isDirty: true,
 				})),
 
@@ -234,7 +244,9 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 							},
 						},
 						isDirty: true,
-						modifiedElementIds: addUniqueId(s.modifiedElementIds, id),
+						modifiedElementIds: s.createdElementIds.includes(id)
+							? s.modifiedElementIds
+							: addUniqueId(s.modifiedElementIds, id),
 					};
 				}),
 
@@ -296,9 +308,14 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 						},
 						routes,
 						isDirty: true,
-						modifiedElementIds: addUniqueId(s.modifiedElementIds, id),
+						modifiedElementIds: s.createdElementIds.includes(id)
+							? s.modifiedElementIds
+							: addUniqueId(s.modifiedElementIds, id),
 						modifiedRouteIds: changedRouteIds.reduce(
-							(ids, routeId) => addUniqueId(ids, routeId),
+							(ids, routeId) =>
+								s.createdRouteIds.includes(routeId)
+									? ids
+									: addUniqueId(ids, routeId),
 							s.modifiedRouteIds,
 						),
 					};
@@ -315,6 +332,7 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 			addRoute: (route) =>
 				set((s) => ({
 					routes: { ...s.routes, [route.id]: route },
+					createdRouteIds: addUniqueId(s.createdRouteIds, route.id),
 					isDirty: true,
 				})),
 
@@ -328,7 +346,9 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 							[id]: { ...r, ...patch, updated_at: new Date().toISOString() },
 						},
 						isDirty: true,
-						modifiedRouteIds: addUniqueId(s.modifiedRouteIds, id),
+						modifiedRouteIds: s.createdRouteIds.includes(id)
+							? s.modifiedRouteIds
+							: addUniqueId(s.modifiedRouteIds, id),
 					};
 				}),
 
@@ -353,7 +373,9 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 							},
 						},
 						isDirty: true,
-						modifiedRouteIds: addUniqueId(s.modifiedRouteIds, id),
+						modifiedRouteIds: s.createdRouteIds.includes(id)
+							? s.modifiedRouteIds
+							: addUniqueId(s.modifiedRouteIds, id),
 					};
 				}),
 
@@ -378,7 +400,9 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 							},
 						},
 						isDirty: true,
-						modifiedRouteIds: addUniqueId(s.modifiedRouteIds, id),
+						modifiedRouteIds: s.createdRouteIds.includes(id)
+							? s.modifiedRouteIds
+							: addUniqueId(s.modifiedRouteIds, id),
 					};
 				}),
 
@@ -402,7 +426,9 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 							},
 						},
 						isDirty: true,
-						modifiedRouteIds: addUniqueId(s.modifiedRouteIds, id),
+						modifiedRouteIds: s.createdRouteIds.includes(id)
+							? s.modifiedRouteIds
+							: addUniqueId(s.modifiedRouteIds, id),
 					};
 				}),
 
@@ -423,6 +449,7 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 			addRoutePoint: (point) =>
 				set((s) => ({
 					routePoints: { ...s.routePoints, [point.id]: point },
+					createdRoutePointIds: addUniqueId(s.createdRoutePointIds, point.id),
 					isDirty: true,
 				})),
 
@@ -436,6 +463,9 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 							[id]: { ...rp, ...patch, updated_at: new Date().toISOString() },
 						},
 						isDirty: true,
+						modifiedRoutePointIds: s.createdRoutePointIds.includes(id)
+							? s.modifiedRoutePointIds
+							: addUniqueId(s.modifiedRoutePointIds, id),
 					};
 				}),
 
@@ -492,7 +522,12 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 					routePoints: toRecord(data.routePoints),
 					isDirty: false,
 					validationErrors: [],
+					createdElementIds: [],
+					createdRouteIds: [],
+					createdRoutePointIds: [],
 					modifiedElementIds: [],
+					modifiedRouteIds: [],
+					modifiedRoutePointIds: [],
 				});
 
 				useNetworkEditorStore.temporal.getState().clear();
@@ -520,7 +555,12 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 					routePoints: toRecord(routePoints as RoutePoint[]),
 					isDirty: false,
 					validationErrors: [],
+					createdElementIds: [],
+					createdRouteIds: [],
+					createdRoutePointIds: [],
 					modifiedElementIds: [],
+					modifiedRouteIds: [],
+					modifiedRoutePointIds: [],
 				});
 
 				// Reset undo history after load
@@ -528,16 +568,30 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 			},
 
 			validate: () => {
-				const { elements, routes } = get();
+				const { elements, routePoints, routes } = get();
 				const errors: ValidationError[] = [];
+				const elementList = Object.values(elements);
+				const routeList = Object.values(routes);
 
-				for (const el of Object.values(elements)) {
-					if (!el.name && el.type === "olt") {
+				if (
+					elementList.length > 0 &&
+					!elementList.some((element) => element.type === "olt")
+				) {
+					errors.push({
+						id: "network",
+						kind: "network",
+						field: "olt",
+						message: "La captura necesita al menos una OLT antes de guardar",
+					});
+				}
+
+				for (const el of elementList) {
+					if (!el.code.trim()) {
 						errors.push({
 							id: el.id,
 							kind: "element",
-							field: "name",
-							message: `${el.code}: OLT sin nombre`,
+							field: "code",
+							message: `${el.type}: elemento sin código`,
 						});
 					}
 					if (el.type === "splitter" && !el.split_ratio) {
@@ -546,6 +600,26 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 							kind: "element",
 							field: "split_ratio",
 							message: `${el.code}: Splitter sin relación de división`,
+						});
+					}
+					if (
+						el.type === "closure" &&
+						el.properties.has_splitter === true &&
+						!el.split_ratio
+					) {
+						errors.push({
+							id: el.id,
+							kind: "element",
+							field: "split_ratio",
+							message: `${el.code}: Mufa con splitter sin ratio`,
+						});
+					}
+					if (el.type === "nap" && el.split_ratio && !el.total_ports) {
+						errors.push({
+							id: el.id,
+							kind: "element",
+							field: "total_ports",
+							message: `${el.code}: NAP con splitter sin capacidad de puertos`,
 						});
 					}
 
@@ -573,13 +647,64 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 					}
 				}
 
-				for (const r of Object.values(routes)) {
+				for (const r of routeList) {
 					if (!r.from_element_id || !r.to_element_id) {
 						errors.push({
 							id: r.id,
 							kind: "route",
 							field: "endpoints",
 							message: `${r.code ?? r.id}: Ruta sin origen o destino`,
+						});
+					}
+					if (
+						r.from_element_id &&
+						r.to_element_id &&
+						(!elements[r.from_element_id] || !elements[r.to_element_id])
+					) {
+						errors.push({
+							id: r.id,
+							kind: "route",
+							field: "endpoints",
+							message: `${r.code ?? r.id}: Ruta conectada a un elemento inexistente`,
+						});
+					}
+					if (r.geojson_coordinates.length < 2) {
+						errors.push({
+							id: r.id,
+							kind: "route",
+							field: "geometry",
+							message: `${r.code ?? r.id}: Ruta sin trazado válido`,
+						});
+					}
+					if (!r.fiber_count || r.fiber_count <= 0) {
+						errors.push({
+							id: r.id,
+							kind: "route",
+							field: "fiber_count",
+							message: `${r.code ?? r.id}: Fibra sin cantidad de hilos`,
+						});
+					}
+				}
+
+				for (const point of Object.values(routePoints)) {
+					if (!routes[point.fiber_route_id]) {
+						errors.push({
+							id: point.id,
+							kind: "routePoint",
+							field: "fiber_route_id",
+							message: `${point.code ?? point.id}: Punto físico sin ruta asociada`,
+						});
+					}
+					if (
+						point.type === "mufa" &&
+						point.properties.has_splitter === true &&
+						!point.properties.split_ratio
+					) {
+						errors.push({
+							id: point.id,
+							kind: "routePoint",
+							field: "split_ratio",
+							message: `${point.code ?? point.id}: Mufa sobre ruta con splitter sin ratio`,
 						});
 					}
 				}
@@ -589,24 +714,143 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 			},
 
 			save: async () => {
-				const { modifiedElementIds, modifiedRouteIds, networkId, validate } =
-					get();
+				const {
+					createdElementIds,
+					createdRouteIds,
+					createdRoutePointIds,
+					modifiedElementIds,
+					modifiedRouteIds,
+					modifiedRoutePointIds,
+					networkId,
+					validate,
+				} = get();
 				if (!networkId) return;
 
 				const errors = validate();
 				if (errors.length > 0) {
 					set({
-						statusMessage: errors.map((error) => error.message).join(" · "),
+						isSaving: false,
+						statusMessage: `No se guardó: ${errors.map((error) => error.message).join(" · ")}`,
 					});
+					return;
 				}
 
 				set({ isSaving: true });
 
 				try {
-					const { updateFiberRoute, updateInfrastructureElement } =
-						await import("@/lib/queries/network-editor");
+					const {
+						createFiberRoute,
+						createInfrastructureElement,
+						createRoutePoint,
+						updateFiberRoute,
+						updateInfrastructureElement,
+						updateRoutePoint,
+					} = await import("@/lib/queries/network-editor");
+
+					const elementIdMap = new Map<string, string>();
+					const routeIdMap = new Map<string, string>();
+					const nextElements = { ...get().elements };
+					const nextRoutes = { ...get().routes };
+					const nextRoutePoints = { ...get().routePoints };
+
+					for (const id of createdElementIds) {
+						const element = nextElements[id];
+						if (!element) continue;
+						const savedElement = await createInfrastructureElement({
+							type: element.type,
+							code: element.code,
+							name: element.name,
+							lng: element.lng,
+							lat: element.lat,
+							status: element.status,
+							location_quality: element.location_quality,
+							pon_standard: element.pon_standard,
+							total_pon_ports: element.total_pon_ports,
+							optical_class: element.optical_class,
+							split_ratio: element.split_ratio,
+							insertion_loss_db: element.insertion_loss_db,
+							total_ports: element.total_ports,
+							properties: element.properties,
+							address_reference: element.address_reference,
+							notes: element.notes,
+						});
+						elementIdMap.set(id, savedElement.id);
+						delete nextElements[id];
+						nextElements[savedElement.id] = savedElement;
+					}
+
+					for (const id of createdRouteIds) {
+						const route = nextRoutes[id];
+						if (!route) continue;
+						const savedRoute = await createFiberRoute({
+							code: route.code,
+							type: route.type,
+							status: route.status,
+							from_element_id: route.from_element_id
+								? (elementIdMap.get(route.from_element_id) ??
+									route.from_element_id)
+								: null,
+							to_element_id: route.to_element_id
+								? (elementIdMap.get(route.to_element_id) ?? route.to_element_id)
+								: null,
+							geojson_coordinates: route.geojson_coordinates,
+							route_quality: route.route_quality,
+							installation_type: route.installation_type,
+							fiber_type: route.fiber_type,
+							fiber_count: route.fiber_count,
+							length_meters: route.length_meters,
+							attenuation_db_per_km: route.attenuation_db_per_km,
+							splice_loss_db: route.splice_loss_db,
+							connector_loss_db: route.connector_loss_db,
+							notes: route.notes,
+						});
+						routeIdMap.set(id, savedRoute.id);
+						delete nextRoutes[id];
+						nextRoutes[savedRoute.id] = savedRoute;
+					}
+
+					for (const id of createdRoutePointIds) {
+						const point = nextRoutePoints[id];
+						if (!point) continue;
+						const savedPoint = await createRoutePoint({
+							fiber_route_id:
+								routeIdMap.get(point.fiber_route_id) ?? point.fiber_route_id,
+							type: point.type,
+							lng: point.lng,
+							lat: point.lat,
+							code: point.code,
+							status: point.status,
+							location_quality: point.location_quality,
+							crossing_type: point.crossing_type,
+							risk_level: point.risk_level,
+							reserve_length_m: point.reserve_length_m,
+							splice_loss_db: point.splice_loss_db,
+							reference_text: point.reference_text,
+							properties: point.properties,
+							notes: point.notes,
+						});
+						delete nextRoutePoints[id];
+						nextRoutePoints[savedPoint.id] = savedPoint;
+					}
+
+					const currentSelection = get().selection;
+					set({
+						elements: nextElements,
+						routes: nextRoutes,
+						routePoints: nextRoutePoints,
+						selection: currentSelection
+							? {
+									...currentSelection,
+									id:
+										elementIdMap.get(currentSelection.id) ??
+										routeIdMap.get(currentSelection.id) ??
+										currentSelection.id,
+								}
+							: null,
+					});
 
 					for (const id of modifiedElementIds) {
+						if (createdElementIds.includes(id)) continue;
 						const element = get()
 							.getElementsArray()
 							.find((item) => item.id === id);
@@ -618,6 +862,7 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 					}
 
 					for (const id of modifiedRouteIds) {
+						if (createdRouteIds.includes(id)) continue;
 						const route = get()
 							.getRoutesArray()
 							.find((item) => item.id === id);
@@ -634,12 +879,32 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 						}));
 					}
 
+					for (const id of modifiedRoutePointIds) {
+						if (createdRoutePointIds.includes(id)) continue;
+						const point = get().routePoints[id];
+						if (!point) continue;
+						const savedPoint = await updateRoutePoint({
+							point,
+							patch: point,
+						});
+						set((s) => ({
+							routePoints: {
+								...s.routePoints,
+								[id]: savedPoint,
+							},
+						}));
+					}
+
 					set({
 						isDirty: false,
 						isSaving: false,
 						validationErrors: [],
+						createdElementIds: [],
+						createdRouteIds: [],
+						createdRoutePointIds: [],
 						modifiedElementIds: [],
 						modifiedRouteIds: [],
+						modifiedRoutePointIds: [],
 						statusMessage: "Cambios guardados.",
 					});
 					useNetworkEditorStore.temporal.getState().clear();
@@ -662,8 +927,12 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 						routes: {},
 						routePoints: {},
 						isDirty: false,
+						createdElementIds: [],
+						createdRouteIds: [],
+						createdRoutePointIds: [],
 						modifiedElementIds: [],
 						modifiedRouteIds: [],
+						modifiedRoutePointIds: [],
 					});
 				useNetworkEditorStore.temporal.getState().clear();
 			},
@@ -675,6 +944,10 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 				routes: state.routes,
 				routePoints: state.routePoints,
 			}),
+			equality: (pastState, currentState) =>
+				pastState.elements === currentState.elements &&
+				pastState.routes === currentState.routes &&
+				pastState.routePoints === currentState.routePoints,
 			limit: 50,
 		},
 	),

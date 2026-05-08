@@ -11,7 +11,7 @@ export type UserRole =
 	| "installer"
 	| "support";
 
-export type ElementType = "olt" | "splitter" | "nap";
+export type ElementType = "olt" | "splitter" | "nap" | "closure";
 
 export type ElementStatus =
 	| "planned"
@@ -44,7 +44,7 @@ export type InstallationType = "aerial" | "underground" | "duct" | "facade";
 
 export type FiberType = "g652d" | "g657a1" | "g657a2";
 
-export type RoutePointType = "crossing" | "reserve" | "splice";
+export type RoutePointType = "crossing" | "reserve" | "splice" | "mufa";
 
 export type CrossingType = "avenue" | "river" | "railway" | "highway" | "other";
 
@@ -62,7 +62,7 @@ export interface GeoLineString {
 	coordinates: Array<[longitude: number, latitude: number]>;
 }
 
-// ─── INFRASTRUCTURE ELEMENT (OLT / Splitter / NAP) ───────────────────────────
+// ─── INFRASTRUCTURE ELEMENT (OLT / Splitter / NAP / Closure) ─────────────────
 
 export interface InfrastructureElement {
 	id: string;

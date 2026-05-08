@@ -10,6 +10,7 @@ const TYPE_CODE: Record<string, string> = {
 	olt: "OLT",
 	splitter: "SPL",
 	nap: "NAP",
+	closure: "MUF",
 	ont: "ONT",
 	feeder: "FDR",
 	distribution: "DST",

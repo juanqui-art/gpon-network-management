@@ -8,6 +8,7 @@ import type { TreeNode } from "./types";
 const TYPE_RANK: Record<InfrastructureElement["type"], number> = {
 	olt: 0,
 	splitter: 1,
+	closure: 1,
 	nap: 2,
 };
 

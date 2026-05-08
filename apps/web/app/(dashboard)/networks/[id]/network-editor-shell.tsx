@@ -1,29 +1,21 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { NetworkIcon } from "lucide-react";
+import { MapPinned, NetworkIcon, Plus } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { DiagramPanel } from "@/components/map/logical-diagram";
 import { NetworkEditorMap } from "@/components/map/network-editor-map";
+import { useNetworkEditorHistoryShortcuts } from "@/lib/hooks/use-network-editor-history-shortcuts";
 import { MAPBOX_TOKEN } from "@/lib/mapbox/config";
 import {
 	fetchNetworkEditorData,
 	networkEditorKeys,
 } from "@/lib/queries/network-editor";
-import {
-	type EditorMode,
-	useNetworkEditorStore,
-} from "@/lib/store/network-editor";
+import { useNetworkEditorStore } from "@/lib/store/network-editor";
 import type { UserRole } from "@/lib/types/gpon";
 import { canWriteInfrastructure } from "@/lib/types/gpon";
 import type { Network } from "@/lib/types/network";
-
-const MODE_LABELS: Record<EditorMode, string> = {
-	view: "Vista",
-	design: "Crear",
-	edit: "Editar",
-};
 
 interface Props {
 	network: Network;
@@ -66,6 +58,11 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 		queryFn: () => fetchNetworkEditorData(networkId),
 	});
 
+	const { canRedo, canUndo } = useNetworkEditorHistoryShortcuts({
+		enabled: canEdit,
+		onHistoryChange: setStatusMessage,
+	});
+
 	useEffect(() => {
 		if (networkQuery.data) {
 			hydrateNetwork(networkId, networkQuery.data);
@@ -73,17 +70,15 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 	}, [networkId, networkQuery.data, hydrateNetwork]);
 
 	useEffect(() => {
-		if (mode === "design") setActiveTool("olt");
-		else setActiveTool("select");
-	}, [mode, setActiveTool]);
-
-	const modes: EditorMode[] = canEdit ? ["view", "design", "edit"] : ["view"];
+		setMode(canEdit ? "edit" : "view");
+		setActiveTool("select");
+	}, [canEdit, setActiveTool, setMode]);
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
 			{/* Editor topbar */}
 			<div className="flex h-11 shrink-0 items-center justify-between border-b border-[rgba(164,164,164,0.14)] bg-[#1e1f20] px-4 gap-4">
-				{/* Left: breadcrumb + modes */}
+				{/* Left: breadcrumb + workspace identity */}
 				<div className="flex items-center gap-4">
 					<Link
 						href="/networks"
@@ -95,43 +90,23 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 					<span className="max-w-48 truncate text-xs font-medium text-[#e6e6e6]">
 						{network.name}
 					</span>
-
-					{/* Mode pill selector */}
-					<div className="flex rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)] p-0.5">
-						{modes.map((m) => (
-							<button
-								key={m}
-								type="button"
-								aria-pressed={mode === m}
-								onClick={() => setMode(m)}
-								className="rounded px-3 py-1 text-[11px] font-medium transition-colors"
-								style={{
-									background:
-										mode === m
-											? m === "design"
-												? "rgba(167,139,250,0.22)"
-												: m === "edit"
-													? "rgba(245,158,11,0.2)"
-													: "rgba(56,189,248,0.16)"
-											: "transparent",
-									color:
-										mode === m
-											? m === "design"
-												? "#c4b5fd"
-												: m === "edit"
-													? "#fbbf24"
-													: "#bdeafe"
-											: "#a4a4a4",
-								}}
-							>
-								{MODE_LABELS[m]}
-							</button>
-						))}
+					<div className="inline-flex items-center gap-1.5 rounded-md border border-[rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.08)] px-2.5 py-1 text-[11px] font-medium text-[#fbbf24]">
+						<MapPinned className="size-3.5" aria-hidden="true" />
+						{canEdit ? "Edición de inventario" : "Consulta"}
 					</div>
 				</div>
 
 				{/* Right: diagram toggle + dirty indicator + save */}
 				<div className="flex items-center gap-3">
+					{canEdit && (
+						<Link
+							href={`/networks/${networkId}/capture`}
+							className="inline-flex items-center gap-1.5 rounded-md border border-[rgba(52,211,153,0.3)] bg-[rgba(52,211,153,0.1)] px-2.5 py-1 text-xs font-medium text-[#34d399] transition-colors hover:bg-[rgba(52,211,153,0.16)]"
+						>
+							<Plus className="size-3.5" aria-hidden="true" />
+							Captura rápida
+						</Link>
+					)}
 					{validationErrors.length > 0 && (
 						<span
 							className="max-w-52 truncate rounded-md border border-[rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.08)] px-2 py-1 text-xs text-[#f59e0b]"
@@ -152,7 +127,18 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 					{isDirty && (
 						<>
 							<span className="text-xs text-[#777879]">
-								Cambios sin guardar
+								Cambios sin guardar · Ctrl+Z revierte
+							</span>
+							<span
+								className="rounded-md border border-[rgba(164,164,164,0.14)] bg-[rgba(164,164,164,0.05)] px-2 py-1 text-[11px] text-[#8f969e]"
+								title={
+									canUndo
+										? "Ctrl+Z para deshacer. Ctrl+Shift+Z o Ctrl+Y para rehacer."
+										: "No hay cambios reversibles todavía."
+								}
+							>
+								{canUndo ? "Deshacer disponible" : "Sin historial"}
+								{canRedo ? " · Rehacer" : ""}
 							</span>
 							<button
 								type="button"

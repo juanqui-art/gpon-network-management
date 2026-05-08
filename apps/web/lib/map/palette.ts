@@ -12,6 +12,7 @@ export type EquipmentType =
 	| "olt"
 	| "splitter"
 	| "nap"
+	| "closure"
 	| "ont"
 	| "amplifier"
 	| "wdm"
@@ -21,6 +22,7 @@ export const TYPE_COLOR: Record<string, string> = {
 	olt: "#38bdf8",
 	splitter: "#a78bfa",
 	nap: "#f59e0b",
+	closure: "#38d8ff",
 	ont: "#34d399",
 	amplifier: "#fde047",
 	wdm: "#22d3ee",
@@ -67,16 +69,18 @@ export const CABLE_LABEL: Record<string, string> = {
 };
 
 // ── Route points ────────────────────────────────────────────────────────────
-export type RoutePointVisualType = "crossing" | "reserve" | "splice";
+export type RoutePointVisualType = "crossing" | "reserve" | "splice" | "mufa";
 
 export const ROUTE_POINT_COLOR: Record<RoutePointVisualType, string> = {
 	crossing: "#d7d7d7",
+	mufa: "#38d8ff",
 	reserve: "#f6c768",
 	splice: "#fb7185",
 };
 
 export const ROUTE_POINT_LABEL: Record<RoutePointVisualType, string> = {
 	crossing: "Cruce",
+	mufa: "Mufa",
 	reserve: "Reserva",
 	splice: "Empalme",
 };

@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 export const EQUIPMENT_TYPE_LABEL: Record<string, string> = {
 	olt: "OLT",
 	splitter: "Splitter",
+	closure: "Mufa",
 	nap: "NAP",
 	ont: "ONT",
 	unknown: "Equipo",
@@ -40,11 +41,20 @@ export const EQUIPMENT_MARKER_SIZE: Record<string, number> = {
 	olt: 38,
 	splitter: 30,
 	nap: 28,
+	closure: 30,
 	ont: 22,
 };
 
-function normalizedType(type: string): "olt" | "splitter" | "nap" | "ont" {
-	if (type === "olt" || type === "splitter" || type === "nap") return type;
+function normalizedType(
+	type: string,
+): "olt" | "splitter" | "closure" | "nap" | "ont" {
+	if (
+		type === "olt" ||
+		type === "splitter" ||
+		type === "closure" ||
+		type === "nap"
+	)
+		return type;
 	return "ont";
 }
 
@@ -70,10 +80,25 @@ export function equipmentSymbolSvg(
 		case "splitter":
 			return `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30">
         <path d="M4 5.5 Q4 4.3 5.1 4.9 L25.4 14 Q27 14.8 25.4 16 L5.1 25.1 Q4 25.7 4 24.5 Z" fill="${c}"/>
-        <circle cx="8.2" cy="15" r="2" fill="white" opacity="0.95"/>
-        <path d="M14 15 H24" stroke="white" stroke-width="1.7" stroke-linecap="round" opacity="0.82"/>
-        <path d="M17 15 L23.2 9" stroke="white" stroke-width="1.7" stroke-linecap="round" opacity="0.62"/>
-        <path d="M17 15 L23.2 21" stroke="white" stroke-width="1.7" stroke-linecap="round" opacity="0.62"/>
+        <circle cx="8" cy="15" r="2.2" fill="white" opacity="0.96"/>
+        <path d="M11.2 15 H17.2" stroke="white" stroke-width="1.7" stroke-linecap="round" opacity="0.9"/>
+        <path d="M17.2 15 L24 9" stroke="white" stroke-width="1.65" stroke-linecap="round" opacity="0.72"/>
+        <path d="M17.2 15 H24.6" stroke="white" stroke-width="1.65" stroke-linecap="round" opacity="0.86"/>
+        <path d="M17.2 15 L24 21" stroke="white" stroke-width="1.65" stroke-linecap="round" opacity="0.72"/>
+        <circle cx="24.5" cy="9" r="1.15" fill="white" opacity="0.82"/>
+        <circle cx="25" cy="15" r="1.15" fill="white" opacity="0.92"/>
+        <circle cx="24.5" cy="21" r="1.15" fill="white" opacity="0.82"/>
+      </svg>`;
+		case "closure":
+			return `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30">
+        <path d="M2.5 15 H7.2" stroke="white" stroke-width="2.2" stroke-linecap="round" opacity="0.78"/>
+        <path d="M22.8 15 H27.5" stroke="white" stroke-width="2.2" stroke-linecap="round" opacity="0.78"/>
+        <rect x="6.2" y="7" width="17.6" height="16" rx="8" fill="${c}"/>
+        <path d="M8.8 11.2 H21.2" stroke="white" stroke-width="1.25" stroke-linecap="round" opacity="0.34"/>
+        <path d="M8.8 18.8 H21.2" stroke="white" stroke-width="1.25" stroke-linecap="round" opacity="0.34"/>
+        <path d="M10.2 15 C12.2 12.7 17.8 17.3 19.8 15" stroke="white" stroke-width="1.55" fill="none" stroke-linecap="round" opacity="0.92"/>
+        <circle cx="11.2" cy="15" r="1.25" fill="white" opacity="0.95"/>
+        <circle cx="18.8" cy="15" r="1.25" fill="white" opacity="0.95"/>
       </svg>`;
 		case "nap":
 			if (options.hasInternalSplitter) {
@@ -203,28 +228,89 @@ export function EquipmentSymbol({
 					d="M4 5.5 Q4 4.3 5.1 4.9 L25.4 14 Q27 14.8 25.4 16 L5.1 25.1 Q4 25.7 4 24.5 Z"
 					fill={color}
 				/>
-				<circle cx="8.2" cy="15" r="2" fill="white" opacity="0.95" />
+				<circle cx="8" cy="15" r="2.2" fill="white" opacity="0.96" />
 				<path
-					d="M14 15 H24"
+					d="M11.2 15 H17.2"
 					stroke="white"
 					strokeWidth="1.7"
 					strokeLinecap="round"
-					opacity="0.82"
+					opacity="0.9"
 				/>
 				<path
-					d="M17 15 L23.2 9"
+					d="M17.2 15 L24 9"
 					stroke="white"
-					strokeWidth="1.7"
+					strokeWidth="1.65"
 					strokeLinecap="round"
-					opacity="0.62"
+					opacity="0.72"
 				/>
 				<path
-					d="M17 15 L23.2 21"
+					d="M17.2 15 H24.6"
 					stroke="white"
-					strokeWidth="1.7"
+					strokeWidth="1.65"
 					strokeLinecap="round"
-					opacity="0.62"
+					opacity="0.86"
 				/>
+				<path
+					d="M17.2 15 L24 21"
+					stroke="white"
+					strokeWidth="1.65"
+					strokeLinecap="round"
+					opacity="0.72"
+				/>
+				<circle cx="24.5" cy="9" r="1.15" fill="white" opacity="0.82" />
+				<circle cx="25" cy="15" r="1.15" fill="white" opacity="0.92" />
+				<circle cx="24.5" cy="21" r="1.15" fill="white" opacity="0.82" />
+			</svg>
+		);
+	}
+
+	if (symbolType === "closure") {
+		return (
+			<svg
+				width={size ?? 28}
+				height={size ?? 28}
+				viewBox="0 0 30 30"
+				aria-hidden="true"
+			>
+				<path
+					d="M2.5 15 H7.2"
+					stroke="white"
+					strokeWidth="2.2"
+					strokeLinecap="round"
+					opacity="0.78"
+				/>
+				<path
+					d="M22.8 15 H27.5"
+					stroke="white"
+					strokeWidth="2.2"
+					strokeLinecap="round"
+					opacity="0.78"
+				/>
+				<rect x="6.2" y="7" width="17.6" height="16" rx="8" fill={color} />
+				<path
+					d="M8.8 11.2 H21.2"
+					stroke="white"
+					strokeWidth="1.25"
+					strokeLinecap="round"
+					opacity="0.34"
+				/>
+				<path
+					d="M8.8 18.8 H21.2"
+					stroke="white"
+					strokeWidth="1.25"
+					strokeLinecap="round"
+					opacity="0.34"
+				/>
+				<path
+					d="M10.2 15 C12.2 12.7 17.8 17.3 19.8 15"
+					stroke="white"
+					strokeWidth="1.55"
+					fill="none"
+					strokeLinecap="round"
+					opacity="0.92"
+				/>
+				<circle cx="11.2" cy="15" r="1.25" fill="white" opacity="0.95" />
+				<circle cx="18.8" cy="15" r="1.25" fill="white" opacity="0.95" />
 			</svg>
 		);
 	}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Layers, LocateFixed, MousePointer2 } from "lucide-react";
+import { AlertTriangle, Layers, ListChecks, LocateFixed } from "lucide-react";
 import mapboxgl from "mapbox-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -10,6 +10,14 @@ import {
 	readonlyEquipmentZoomFilters,
 	setEquipmentLayersFilter,
 } from "@/components/map/equipment-layers";
+import {
+	ALERT_LEVEL_STYLES,
+	buildOpticalBudgetAlerts,
+	type OpticalBudgetAlert,
+	type OpticalBudgetAlertLevel,
+} from "@/components/map/logical-diagram/budget-alerts";
+import { layoutTree } from "@/components/map/logical-diagram/layout-engine";
+import { buildNetworkTree } from "@/components/map/logical-diagram/tree-builder";
 import {
 	InspectorRow,
 	InspectorSection,
@@ -55,9 +63,11 @@ import type {
 import type {
 	DataQuality,
 	ElementStatus,
+	ElementType,
 	FiberType,
 	InstallationType,
 	PonStandard,
+	RoutePointType,
 	RouteStatus,
 	RouteType,
 } from "@/lib/types/gpon";
@@ -70,6 +80,9 @@ interface NetworkEditorMapProps {
 	incidents?: IncidentMapItem[];
 	mode: EditorMode;
 	activeTool: EditorTool;
+	chrome?: "full" | "minimal";
+	createElementTypes?: ElementType[];
+	draftRouteSourceId?: string | null;
 	selection: Selection | null;
 	onSelectionChange: (selection: Selection | null) => void;
 	onStatusMessageChange?: (message: string) => void;
@@ -80,6 +93,23 @@ interface NetworkEditorMapProps {
 		afterIndex: number,
 		coordinate: RouteCoordinate,
 	) => void;
+	onMapPlacement?: (position: { lng: number; lat: number }) => void;
+	onMapElementCreate?: (
+		type: ElementType,
+		position: { lng: number; lat: number },
+	) => void;
+	onMapToolSelect?: (type: ElementType) => void;
+	onMapClosureToolSelect?: (
+		properties: Record<string, unknown>,
+		label: string,
+	) => void;
+	onStartRouteFromElement?: (element: EquipmentMapItem) => void;
+	onCreateRoutePoint?: (input: {
+		route: ConnectionMapItem;
+		type: RoutePointType;
+		position: { lng: number; lat: number };
+		properties?: Record<string, unknown>;
+	}) => void;
 	onMoveRouteVertex?: (
 		id: string,
 		vertexIndex: number,
@@ -88,18 +118,36 @@ interface NetworkEditorMapProps {
 	onMoveElement?: (id: string, lng: number, lat: number) => void;
 }
 
-type LeftPanelTab = "tools" | "layers";
+type LeftPanelTab = "tools" | "layers" | "alerts";
+type OpticalFilter = "all" | "alerts";
 type SelectedFeature =
 	| { kind: "element"; item: EquipmentMapItem }
 	| { kind: "route"; item: ConnectionMapItem }
 	| { kind: "routePoint"; item: RoutePoint };
 type InspectorMode = "view" | "edit";
-type ElementContextMenu = {
-	element: EquipmentMapItem;
-	connectedRoutes: number;
-	x: number;
-	y: number;
-};
+type ElementContextMenu =
+	| {
+			kind: "element";
+			element: EquipmentMapItem;
+			connectedRoutes: number;
+			x: number;
+			y: number;
+	  }
+	| {
+			kind: "route";
+			route: ConnectionMapItem;
+			lng: number;
+			lat: number;
+			x: number;
+			y: number;
+	  }
+	| {
+			kind: "create";
+			lng: number;
+			lat: number;
+			x: number;
+			y: number;
+	  };
 type DraggingRouteVertex = {
 	routeId: string;
 	vertexIndex: number;
@@ -111,6 +159,7 @@ const TOOL_LABELS: Record<EditorTool, string> = {
 	olt: "OLT",
 	splitter: "Splitter",
 	nap: "NAP",
+	closure: "Mufa",
 	fiber: "Fibra",
 	crossing: "Cruce",
 	reserve: "Reserva",
@@ -122,8 +171,9 @@ const TOOL_LABELS: Record<EditorTool, string> = {
 const ZOOM_ROUTE_POINTS = 15;
 const EMPTY_INCIDENTS: IncidentMapItem[] = [];
 const EDITOR_PANEL_TABS = [
-	{ value: "tools" as const, label: "Herramienta", icon: MousePointer2 },
+	{ value: "tools" as const, label: "Resumen", icon: ListChecks },
 	{ value: "layers" as const, label: "Capas", icon: Layers },
+	{ value: "alerts" as const, label: "Alertas", icon: AlertTriangle },
 ];
 
 function scheduleMapResize(map: mapboxgl.Map, shouldResize: () => boolean) {
@@ -159,12 +209,21 @@ export function NetworkEditorMap({
 	incidents = EMPTY_INCIDENTS,
 	mode,
 	activeTool,
+	chrome = "full",
+	createElementTypes = ["olt", "splitter", "nap"],
+	draftRouteSourceId = null,
 	selection,
 	onSelectionChange,
 	onStatusMessageChange,
 	onUpdateElement,
 	onUpdateRoute,
 	onInsertRouteVertex,
+	onMapElementCreate,
+	onMapPlacement,
+	onMapToolSelect,
+	onMapClosureToolSelect,
+	onStartRouteFromElement,
+	onCreateRoutePoint,
 	onMoveRouteVertex,
 	onMoveElement,
 }: NetworkEditorMapProps) {
@@ -173,14 +232,25 @@ export function NetworkEditorMap({
 	const equipmentRef = useRef(equipment);
 	const connectionsRef = useRef(connections);
 	const routePointsRef = useRef(routePoints);
+	const draftRouteSourceIdRef = useRef(draftRouteSourceId);
+	const opticalAlertsByEquipmentRef = useRef<
+		Map<string, OpticalBudgetAlertLevel>
+	>(new Map());
 	const onSelectionChangeRef = useRef(onSelectionChange);
 	const onStatusMessageChangeRef = useRef(onStatusMessageChange);
 	const onInsertRouteVertexRef = useRef(onInsertRouteVertex);
+	const onMapElementCreateRef = useRef(onMapElementCreate);
+	const onMapPlacementRef = useRef(onMapPlacement);
+	const onMapToolSelectRef = useRef(onMapToolSelect);
+	const onMapClosureToolSelectRef = useRef(onMapClosureToolSelect);
+	const onStartRouteFromElementRef = useRef(onStartRouteFromElement);
+	const onCreateRoutePointRef = useRef(onCreateRoutePoint);
 	const onMoveRouteVertexRef = useRef(onMoveRouteVertex);
 	const onMoveElementRef = useRef(onMoveElement);
 	const [isReady, setIsReady] = useState(false);
 	const [filterType, setFilterType] = useState("all");
 	const [filterStatus, setFilterStatus] = useState("all");
+	const [filterOptical, setFilterOptical] = useState<OpticalFilter>("all");
 	const [leftTab, setLeftTab] = useState<LeftPanelTab>("tools");
 	const [contextMenu, setContextMenu] = useState<ElementContextMenu | null>(
 		null,
@@ -192,12 +262,47 @@ export function NetworkEditorMap({
 		useState<DraggingRouteVertex | null>(null);
 	const movingElementRef = useRef<EquipmentMapItem | null>(null);
 	const draggingRouteVertexRef = useRef<DraggingRouteVertex | null>(null);
+	const activeToolRef = useRef(activeTool);
 	const filterTypeRef = useRef(filterType);
 	const filterStatusRef = useRef(filterStatus);
+	const filterOpticalRef = useRef<OpticalFilter>(filterOptical);
 
 	const incidentsByEquipment = useMemo(
 		() => new Map(incidents.map((item) => [item.equipment_id, item])),
 		[incidents],
+	);
+
+	const opticalAlerts = useMemo(() => {
+		const infrastructureElements = equipment.filter(
+			(item): item is EquipmentMapItem & InfrastructureElement =>
+				item.type === "olt" || item.type === "splitter" || item.type === "nap",
+		);
+		const elementRecords = Object.fromEntries(
+			infrastructureElements.map((item) => [item.id, item]),
+		) as Record<string, InfrastructureElement>;
+		const routeRecords = Object.fromEntries(
+			connections.map((item) => [item.id, item]),
+		) as Record<string, FiberRoute>;
+		const routePointRecords = Object.fromEntries(
+			routePoints.map((item) => [item.id, item]),
+		) as Record<string, RoutePoint>;
+		const tree = buildNetworkTree(
+			elementRecords,
+			routeRecords,
+			routePointRecords,
+		);
+		const oltClasses = new Map<string, string | null>(
+			tree.map((root) => [root.element.id, root.element.optical_class ?? null]),
+		);
+		const { nodes } = layoutTree(tree, oltClasses);
+		return buildOpticalBudgetAlerts(nodes);
+	}, [connections, equipment, routePoints]);
+	const opticalAlertsByEquipment = useMemo(
+		() =>
+			new Map<string, OpticalBudgetAlertLevel>(
+				opticalAlerts.map((alert) => [alert.id, alert.level]),
+			),
+		[opticalAlerts],
 	);
 
 	const visibleEquipment = useMemo(
@@ -206,9 +311,20 @@ export function NetworkEditorMap({
 				if (filterType !== "all" && item.type !== filterType) return false;
 				if (filterStatus !== "all" && item.status !== filterStatus)
 					return false;
+				if (
+					filterOptical === "alerts" &&
+					!opticalAlertsByEquipment.has(item.id)
+				)
+					return false;
 				return true;
 			}),
-		[equipment, filterStatus, filterType],
+		[
+			equipment,
+			filterOptical,
+			filterStatus,
+			filterType,
+			opticalAlertsByEquipment,
+		],
 	);
 
 	const visibleEquipmentIds = useMemo(
@@ -220,13 +336,18 @@ export function NetworkEditorMap({
 		() =>
 			connections.filter((route) => {
 				if (route.geojson_coordinates.length < 2) return false;
-				if (filterType === "all" && filterStatus === "all") return true;
+				if (
+					filterType === "all" &&
+					filterStatus === "all" &&
+					filterOptical === "all"
+				)
+					return true;
 				return (
 					visibleEquipmentIds.has(route.from_equipment_id) ||
 					visibleEquipmentIds.has(route.to_equipment_id)
 				);
 			}),
-		[connections, filterStatus, filterType, visibleEquipmentIds],
+		[connections, filterOptical, filterStatus, filterType, visibleEquipmentIds],
 	);
 
 	const counts = useMemo(
@@ -261,17 +382,33 @@ export function NetworkEditorMap({
 		const item = routePoints.find((candidate) => candidate.id === selection.id);
 		return item ? { kind: "routePoint", item } : null;
 	}, [connections, equipment, routePoints, selection]);
+	const isPlacementTool =
+		activeTool === "olt" ||
+		activeTool === "splitter" ||
+		activeTool === "nap" ||
+		activeTool === "closure";
+	const showEditorChrome = chrome === "full";
 
 	equipmentRef.current = visibleEquipment;
 	connectionsRef.current = visibleConnections;
 	routePointsRef.current = routePoints;
+	draftRouteSourceIdRef.current = draftRouteSourceId;
+	opticalAlertsByEquipmentRef.current = opticalAlertsByEquipment;
 	onSelectionChangeRef.current = onSelectionChange;
 	onStatusMessageChangeRef.current = onStatusMessageChange;
 	onInsertRouteVertexRef.current = onInsertRouteVertex;
+	onMapElementCreateRef.current = onMapElementCreate;
+	onMapPlacementRef.current = onMapPlacement;
+	onMapToolSelectRef.current = onMapToolSelect;
+	onMapClosureToolSelectRef.current = onMapClosureToolSelect;
+	onStartRouteFromElementRef.current = onStartRouteFromElement;
+	onCreateRoutePointRef.current = onCreateRoutePoint;
 	onMoveRouteVertexRef.current = onMoveRouteVertex;
 	onMoveElementRef.current = onMoveElement;
+	activeToolRef.current = activeTool;
 	filterTypeRef.current = filterType;
 	filterStatusRef.current = filterStatus;
+	filterOpticalRef.current = filterOptical;
 	movingElementRef.current = movingElement;
 	draggingRouteVertexRef.current = draggingRouteVertex;
 
@@ -311,6 +448,11 @@ export function NetworkEditorMap({
 				data: buildRoutesGeoJson(connectionsRef.current, equipmentRef.current),
 			});
 			addRouteLayers(map);
+			map.addSource("editor-draft-route-v2", {
+				type: "geojson",
+				data: emptyFeatureCollection(),
+			});
+			addDraftRouteLayers(map);
 			map.addSource("editor-route-points-v2", {
 				type: "geojson",
 				data: buildRoutePointsGeoJson(routePointsRef.current),
@@ -325,18 +467,32 @@ export function NetworkEditorMap({
 				map,
 				sourceId: "editor-equipment-v2",
 				layerPrefix: "editor-v2",
-				data: buildEquipmentGeoJson(equipmentRef.current, incidentsByEquipment),
+				data: buildEquipmentGeoJson(
+					equipmentRef.current,
+					incidentsByEquipment,
+					opticalAlertsByEquipmentRef.current,
+				),
 			});
 			setIsReady(true);
 			requestAnimationFrame(() => {
 				queueMapResize();
 				fitToEquipment(map, equipmentRef.current, false);
-				updateVisibility(map, filterTypeRef.current, filterStatusRef.current);
+				updateVisibility(
+					map,
+					filterTypeRef.current,
+					filterStatusRef.current,
+					filterOpticalRef.current,
+				);
 			});
 		});
 
 		const onZoom = () =>
-			updateVisibility(map, filterTypeRef.current, filterStatusRef.current);
+			updateVisibility(
+				map,
+				filterTypeRef.current,
+				filterStatusRef.current,
+				filterOpticalRef.current,
+			);
 		const onRouteVertexMouseDown = (event: mapboxgl.MapLayerMouseEvent) => {
 			const vertex = queryRouteGeometryVertex(event);
 			if (!vertex || vertex.isLocked) return;
@@ -351,14 +507,22 @@ export function NetworkEditorMap({
 			);
 		};
 		const onMouseMove = (event: mapboxgl.MapMouseEvent) => {
-			if (!draggingRouteVertexRef.current) return;
-			const canvas = map.getCanvas();
-			canvas.style.cursor = "grabbing";
-			onMoveRouteVertexRef.current?.(
-				draggingRouteVertexRef.current.routeId,
-				draggingRouteVertexRef.current.vertexIndex,
-				[event.lngLat.lng, event.lngLat.lat],
-			);
+			if (draggingRouteVertexRef.current) {
+				const canvas = map.getCanvas();
+				canvas.style.cursor = "grabbing";
+				onMoveRouteVertexRef.current?.(
+					draggingRouteVertexRef.current.routeId,
+					draggingRouteVertexRef.current.vertexIndex,
+					[event.lngLat.lng, event.lngLat.lat],
+				);
+				return;
+			}
+			updateDraftRouteGuide(map, {
+				activeTool: activeToolRef.current,
+				equipment: equipmentRef.current,
+				sourceId: draftRouteSourceIdRef.current,
+				target: [event.lngLat.lng, event.lngLat.lat],
+			});
 		};
 		const onMouseUp = () => {
 			if (!draggingRouteVertexRef.current) return;
@@ -408,6 +572,20 @@ export function NetworkEditorMap({
 				return;
 			}
 
+			if (
+				onMapPlacementRef.current &&
+				(activeToolRef.current === "olt" ||
+					activeToolRef.current === "splitter" ||
+					activeToolRef.current === "nap" ||
+					activeToolRef.current === "closure")
+			) {
+				onMapPlacementRef.current({
+					lng: event.lngLat.lng,
+					lat: event.lngLat.lat,
+				});
+				return;
+			}
+
 			const midpoint = queryRouteGeometryMidpoint(map, event.point);
 			if (midpoint) {
 				onInsertRouteVertexRef.current?.(
@@ -445,8 +623,36 @@ export function NetworkEditorMap({
 				connectionsRef.current,
 				routePointsRef.current,
 			);
+			if (next?.kind === "route") {
+				const route = connectionsRef.current.find(
+					(item) => item.id === next.id,
+				);
+				if (route && onCreateRoutePointRef.current) {
+					setContextMenu({
+						kind: "route",
+						route,
+						lng: event.lngLat.lng,
+						lat: event.lngLat.lat,
+						x: event.point.x,
+						y: event.point.y,
+					});
+				} else {
+					setContextMenu(null);
+				}
+				return;
+			}
 			if (next?.kind !== "element") {
-				setContextMenu(null);
+				if (onMapElementCreateRef.current || onMapToolSelectRef.current) {
+					setContextMenu({
+						kind: "create",
+						lng: event.lngLat.lng,
+						lat: event.lngLat.lat,
+						x: event.point.x,
+						y: event.point.y,
+					});
+				} else {
+					setContextMenu(null);
+				}
 				return;
 			}
 			const element = equipmentRef.current.find((item) => item.id === next.id);
@@ -455,6 +661,7 @@ export function NetworkEditorMap({
 				return;
 			}
 			setContextMenu({
+				kind: "element",
 				element,
 				connectedRoutes: connectionsRef.current.filter(
 					(route) =>
@@ -546,6 +753,14 @@ export function NetworkEditorMap({
 	}, [isReady, visibleConnections, visibleEquipment]);
 
 	useEffect(() => {
+		if (!isReady || !mapRef.current || draftRouteSourceId) return;
+		const source = mapRef.current.getSource("editor-draft-route-v2") as
+			| mapboxgl.GeoJSONSource
+			| undefined;
+		source?.setData(emptyFeatureCollection());
+	}, [draftRouteSourceId, isReady]);
+
+	useEffect(() => {
 		if (!isReady || !mapRef.current) return;
 		const source = mapRef.current.getSource("editor-route-points-v2") as
 			| mapboxgl.GeoJSONSource
@@ -559,14 +774,20 @@ export function NetworkEditorMap({
 			| mapboxgl.GeoJSONSource
 			| undefined;
 		source?.setData(
-			buildEquipmentGeoJson(visibleEquipment, incidentsByEquipment),
+			buildEquipmentGeoJson(
+				visibleEquipment,
+				incidentsByEquipment,
+				opticalAlertsByEquipment,
+			),
 		);
-		updateVisibility(mapRef.current, filterType, filterStatus);
+		updateVisibility(mapRef.current, filterType, filterStatus, filterOptical);
 	}, [
+		filterOptical,
 		filterStatus,
 		filterType,
 		incidentsByEquipment,
 		isReady,
+		opticalAlertsByEquipment,
 		visibleEquipment,
 	]);
 
@@ -597,11 +818,15 @@ export function NetworkEditorMap({
 
 	useEffect(() => {
 		if (!mapRef.current) return;
-		mapRef.current.getCanvas().style.cursor = movingElement ? "crosshair" : "";
+		mapRef.current.getCanvas().style.cursor = movingElement
+			? "crosshair"
+			: isPlacementTool
+				? "copy"
+				: "";
 		return () => {
 			if (mapRef.current) mapRef.current.getCanvas().style.cursor = "";
 		};
-	}, [movingElement]);
+	}, [isPlacementTool, movingElement]);
 
 	useEffect(() => {
 		if (!movingElement) return;
@@ -618,6 +843,15 @@ export function NetworkEditorMap({
 		if (!mapRef.current || !selectedFeature) return;
 		focusFeature(mapRef.current, selectedFeature);
 	};
+
+	const selectOpticalAlert = (alert: OpticalBudgetAlert) => {
+		const element = equipment.find((item) => item.id === alert.id);
+		if (!element) return;
+		onSelectionChange({ id: alert.id, kind: "element" });
+		if (mapRef.current) {
+			focusFeature(mapRef.current, { kind: "element", item: element });
+		}
+	};
 	const startMovingElement = (element: EquipmentMapItem) => {
 		setContextMenu(null);
 		setMovingElement(element);
@@ -632,10 +866,18 @@ export function NetworkEditorMap({
 
 	return (
 		<div
-			className={`relative h-full min-h-0 overflow-hidden bg-[#1b1c1d] ${movingElement ? "cursor-crosshair" : ""}`}
+			className={`relative h-full min-h-0 overflow-hidden bg-[#1b1c1d] ${movingElement ? "cursor-crosshair" : ""} ${isPlacementTool ? "cursor-copy" : ""}`}
 		>
 			<div ref={containerRef} className="absolute inset-0 h-full w-full" />
 			<div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-gradient-to-b from-[#1b1c1d]/70 to-transparent" />
+			{isPlacementTool && !movingElement && (
+				<div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-lg border border-[rgba(52,211,153,0.3)] bg-[rgba(34,35,36,0.94)] px-3 py-2 text-xs text-[#86efac] shadow-2xl backdrop-blur-md">
+					<span className="font-medium">
+						Colocando {TOOL_LABELS[activeTool]}
+					</span>
+					: click izquierdo en el mapa para crear
+				</div>
+			)}
 			{movingElement && (
 				<div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-lg border border-[rgba(245,158,11,0.3)] bg-[rgba(34,35,36,0.94)] px-3 py-2 text-xs text-[#fbbf24] shadow-2xl backdrop-blur-md">
 					<span className="font-medium">{movingElement.code}</span>: click en el
@@ -654,27 +896,244 @@ export function NetworkEditorMap({
 					className="absolute z-40 min-w-44 overflow-hidden rounded-lg border border-[rgba(164,164,164,0.16)] bg-[rgba(34,35,36,0.96)] p-1 text-xs text-[#d7d7d7] shadow-2xl backdrop-blur-md"
 					style={{ left: contextMenu.x, top: contextMenu.y }}
 				>
-					<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
-						{contextMenu.element.code}
-					</div>
-					<div className="border-[rgba(164,164,164,0.1)] border-b px-3 pb-2 text-[11px] text-[#a4a4a4]">
-						{contextMenu.connectedRoutes === 0
-							? "Sin fibras conectadas."
-							: `${contextMenu.connectedRoutes} fibra${
-									contextMenu.connectedRoutes === 1 ? "" : "s"
-								} conectada${
-									contextMenu.connectedRoutes === 1 ? "" : "s"
-								} se actualizará${
-									contextMenu.connectedRoutes === 1 ? "" : "n"
-								}.`}
-					</div>
-					<button
-						type="button"
-						onClick={() => startMovingElement(contextMenu.element)}
-						className="block w-full rounded-md px-3 py-2 text-left text-[#fbbf24] transition-colors hover:bg-[rgba(245,158,11,0.12)]"
-					>
-						Mover elemento
-					</button>
+					{contextMenu.kind === "element" ? (
+						<>
+							<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
+								{contextMenu.element.code}
+							</div>
+							<div className="border-[rgba(164,164,164,0.1)] border-b px-3 pb-2 text-[11px] text-[#a4a4a4]">
+								{contextMenu.connectedRoutes === 0
+									? "Sin fibras conectadas."
+									: `${contextMenu.connectedRoutes} fibra${
+											contextMenu.connectedRoutes === 1 ? "" : "s"
+										} conectada${
+											contextMenu.connectedRoutes === 1 ? "" : "s"
+										} se actualizará${
+											contextMenu.connectedRoutes === 1 ? "" : "n"
+										}.`}
+							</div>
+							<button
+								type="button"
+								onClick={() => startMovingElement(contextMenu.element)}
+								className="block w-full rounded-md px-3 py-2 text-left text-[#fbbf24] transition-colors hover:bg-[rgba(245,158,11,0.12)]"
+							>
+								Mover elemento
+							</button>
+							{onStartRouteFromElementRef.current && (
+								<button
+									type="button"
+									onClick={() => {
+										onStartRouteFromElementRef.current?.(contextMenu.element);
+										setContextMenu(null);
+									}}
+									className="block w-full rounded-md px-3 py-2 text-left text-[#8bdff4] transition-colors hover:bg-[rgba(56,216,255,0.12)]"
+								>
+									Crear fibra desde aquí
+								</button>
+							)}
+						</>
+					) : contextMenu.kind === "route" ? (
+						<>
+							<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
+								{contextMenu.route.code ?? "Ruta de fibra"}
+							</div>
+							<button
+								type="button"
+								onClick={() => {
+									onCreateRoutePointRef.current?.({
+										route: contextMenu.route,
+										type: "mufa",
+										position: { lng: contextMenu.lng, lat: contextMenu.lat },
+										properties: { closure_type: "mufa" },
+									});
+									setContextMenu(null);
+								}}
+								className="block w-full rounded-md px-3 py-2 text-left text-[#8bdff4] transition-colors hover:bg-[rgba(56,216,255,0.12)]"
+							>
+								Agregar mufa
+							</button>
+							<button
+								type="button"
+								onClick={() => {
+									onCreateRoutePointRef.current?.({
+										route: contextMenu.route,
+										type: "mufa",
+										position: { lng: contextMenu.lng, lat: contextMenu.lat },
+										properties: {
+											closure_type: "mufa",
+											has_midspan_access: true,
+										},
+									});
+									setContextMenu(null);
+								}}
+								className="block w-full rounded-md px-3 py-2 text-left text-[#f6c768] transition-colors hover:bg-[rgba(246,199,104,0.12)]"
+							>
+								Agregar mufa + sangrado
+							</button>
+							<button
+								type="button"
+								onClick={() => {
+									onCreateRoutePointRef.current?.({
+										route: contextMenu.route,
+										type: "mufa",
+										position: { lng: contextMenu.lng, lat: contextMenu.lat },
+										properties: {
+											closure_type: "mufa",
+											has_splice: true,
+										},
+									});
+									setContextMenu(null);
+								}}
+								className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
+							>
+								Agregar mufa + empalme
+							</button>
+							<button
+								type="button"
+								onClick={() => {
+									onCreateRoutePointRef.current?.({
+										route: contextMenu.route,
+										type: "mufa",
+										position: { lng: contextMenu.lng, lat: contextMenu.lat },
+										properties: {
+											closure_type: "mufa",
+											has_splitter: true,
+											split_ratio: "1:4",
+										},
+									});
+									setContextMenu(null);
+								}}
+								className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
+							>
+								Agregar mufa + splitter
+							</button>
+							<button
+								type="button"
+								onClick={() => {
+									onCreateRoutePointRef.current?.({
+										route: contextMenu.route,
+										type: "mufa",
+										position: { lng: contextMenu.lng, lat: contextMenu.lat },
+										properties: {
+											closure_type: "mufa",
+											has_midspan_access: true,
+											has_splitter: true,
+											split_ratio: "1:4",
+										},
+									});
+									setContextMenu(null);
+								}}
+								className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
+							>
+								Agregar mufa + sangrado + splitter
+							</button>
+						</>
+					) : (
+						<>
+							<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
+								Crear elemento
+							</div>
+							{createElementTypes.map((elementType) => (
+								<button
+									key={elementType}
+									type="button"
+									onClick={() => {
+										if (onMapToolSelectRef.current) {
+											onMapToolSelectRef.current(elementType);
+										} else {
+											onMapElementCreateRef.current?.(elementType, {
+												lng: contextMenu.lng,
+												lat: contextMenu.lat,
+											});
+										}
+										setContextMenu(null);
+									}}
+									className="block w-full rounded-md px-3 py-2 text-left text-[#d7d7d7] transition-colors hover:bg-[rgba(52,211,153,0.1)] hover:text-[#34d399]"
+								>
+									Crear {TOOL_LABELS[elementType]}
+								</button>
+							))}
+							{onMapClosureToolSelectRef.current && (
+								<>
+									<div className="my-1 border-t border-white/10" />
+									<button
+										type="button"
+										onClick={() => {
+											onMapClosureToolSelectRef.current?.(
+												{ closure_type: "mufa" },
+												"Mufa",
+											);
+											setContextMenu(null);
+										}}
+										className="block w-full rounded-md px-3 py-2 text-left text-[#8bdff4] transition-colors hover:bg-[rgba(56,216,255,0.12)]"
+									>
+										Crear mufa
+									</button>
+									<button
+										type="button"
+										onClick={() => {
+											onMapClosureToolSelectRef.current?.(
+												{ closure_type: "mufa", has_midspan_access: true },
+												"Mufa + sangrado",
+											);
+											setContextMenu(null);
+										}}
+										className="block w-full rounded-md px-3 py-2 text-left text-[#f6c768] transition-colors hover:bg-[rgba(246,199,104,0.12)]"
+									>
+										Crear mufa + sangrado
+									</button>
+									<button
+										type="button"
+										onClick={() => {
+											onMapClosureToolSelectRef.current?.(
+												{ closure_type: "mufa", has_splice: true },
+												"Mufa + empalme",
+											);
+											setContextMenu(null);
+										}}
+										className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
+									>
+										Crear mufa + empalme
+									</button>
+									<button
+										type="button"
+										onClick={() => {
+											onMapClosureToolSelectRef.current?.(
+												{
+													closure_type: "mufa",
+													has_splitter: true,
+													split_ratio: "1:4",
+												},
+												"Mufa + splitter",
+											);
+											setContextMenu(null);
+										}}
+										className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
+									>
+										Crear mufa + splitter
+									</button>
+									<button
+										type="button"
+										onClick={() => {
+											onMapClosureToolSelectRef.current?.(
+												{
+													closure_type: "mufa",
+													has_midspan_access: true,
+													has_splitter: true,
+													split_ratio: "1:4",
+												},
+												"Mufa + sangrado + splitter",
+											);
+											setContextMenu(null);
+										}}
+										className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
+									>
+										Crear mufa + sangrado + splitter
+									</button>
+								</>
+							)}
+						</>
+					)}
 					<button
 						type="button"
 						onClick={() => setContextMenu(null)}
@@ -684,35 +1143,54 @@ export function NetworkEditorMap({
 					</button>
 				</div>
 			)}
-			<div className="absolute left-4 top-4 z-20">
-				<EditorLeftPanel
-					activeTool={activeTool}
-					counts={counts}
-					filterStatus={filterStatus}
-					filterType={filterType}
-					mode={mode}
-					onFit={() => fitToEquipment(mapRef.current, visibleEquipment, true)}
-					onStatusChange={setFilterStatus}
-					onTabChange={setLeftTab}
-					onTypeChange={setFilterType}
-					tab={leftTab}
-				/>
-			</div>
-			<div className="absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2">
-				<EditorMapStatus mode={mode} activeTool={activeTool} />
-				<MapLegend />
-				<MapControls
-					onFit={() => fitToEquipment(mapRef.current, visibleEquipment, true)}
-					onResetNorth={() => mapRef.current?.resetNorth()}
-					onZoomIn={() => mapRef.current?.zoomIn()}
-					onZoomOut={() => mapRef.current?.zoomOut()}
-				/>
-			</div>
-			{selectedFeature && (
+			{showEditorChrome && (
+				<>
+					<div className="absolute left-4 top-4 z-20">
+						<EditorLeftPanel
+							activeTool={activeTool}
+							alerts={opticalAlerts}
+							counts={counts}
+							filterOptical={filterOptical}
+							filterStatus={filterStatus}
+							filterType={filterType}
+							mode={mode}
+							onAlertSelect={selectOpticalAlert}
+							onFit={() =>
+								fitToEquipment(mapRef.current, visibleEquipment, true)
+							}
+							onOpticalChange={setFilterOptical}
+							onStatusChange={setFilterStatus}
+							onTabChange={setLeftTab}
+							onTypeChange={setFilterType}
+							tab={leftTab}
+						/>
+					</div>
+					<div className="absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2">
+						<EditorMapStatus activeTool={activeTool} mode={mode} />
+						<MapLegend />
+						<MapControls
+							onFit={() =>
+								fitToEquipment(mapRef.current, visibleEquipment, true)
+							}
+							onResetNorth={() => mapRef.current?.resetNorth()}
+							onZoomIn={() => mapRef.current?.zoomIn()}
+							onZoomOut={() => mapRef.current?.zoomOut()}
+						/>
+					</div>
+				</>
+			)}
+			{showEditorChrome && selectedFeature && (
 				<SelectionInspector
 					key={`${selectedFeature.kind}:${selectedFeature.item.id}`}
 					feature={selectedFeature}
 					equipment={equipment}
+					opticalAlert={
+						selectedFeature.kind === "element"
+							? (opticalAlerts.find(
+									(alert) => alert.id === selectedFeature.item.id,
+								) ?? null)
+							: null
+					}
 					onClose={() => onSelectionChange(null)}
 					onFocus={focusSelectedFeature}
 					onUpdateElement={onUpdateElement}
@@ -725,17 +1203,22 @@ export function NetworkEditorMap({
 
 function EditorLeftPanel({
 	activeTool,
+	alerts,
 	counts,
+	filterOptical,
 	filterStatus,
 	filterType,
 	mode,
+	onAlertSelect,
 	onFit,
+	onOpticalChange,
 	onStatusChange,
 	onTabChange,
 	onTypeChange,
 	tab,
 }: {
 	activeTool: EditorTool;
+	alerts: OpticalBudgetAlert[];
 	counts: {
 		olts: number;
 		splitters: number;
@@ -744,10 +1227,13 @@ function EditorLeftPanel({
 		routePoints: number;
 		totalKm: number;
 	};
+	filterOptical: OpticalFilter;
 	filterStatus: string;
 	filterType: string;
 	mode: EditorMode;
+	onAlertSelect: (alert: OpticalBudgetAlert) => void;
 	onFit: () => void;
+	onOpticalChange: (filter: OpticalFilter) => void;
 	onStatusChange: (status: string) => void;
 	onTabChange: (tab: LeftPanelTab) => void;
 	onTypeChange: (type: string) => void;
@@ -770,7 +1256,7 @@ function EditorLeftPanel({
 						color="#a4a4a4"
 					/>
 				</div>
-				<div className="grid grid-cols-2 gap-1 rounded-md bg-[rgba(164,164,164,0.05)] p-1">
+				<div className="grid grid-cols-3 gap-1 rounded-md bg-[rgba(164,164,164,0.05)] p-1">
 					{EDITOR_PANEL_TABS.map(({ value, label, icon: Icon }) => (
 						<button
 							key={value}
@@ -780,6 +1266,11 @@ function EditorLeftPanel({
 						>
 							<Icon className="size-3" aria-hidden="true" />
 							<span>{label}</span>
+							{value === "alerts" && alerts.length > 0 && (
+								<span className="rounded bg-[#f59e0b]/20 px-1 font-mono text-[9px] text-[#fbbf24]">
+									{alerts.length}
+								</span>
+							)}
 						</button>
 					))}
 				</div>
@@ -790,21 +1281,18 @@ function EditorLeftPanel({
 						<div className="flex items-center justify-between rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.04)] px-3 py-2">
 							<div>
 								<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-									Modo
+									Área
 								</p>
 								<p className="mt-0.5 text-xs font-semibold text-[#e6e6e6]">
 									{formatEditorMode(mode)}
 								</p>
 							</div>
-							<MousePointer2 className="size-4 text-[#38d8ff]" />
+							<ListChecks className="size-4 text-[#fbbf24]" />
 						</div>
-						<div className="rounded-md border border-[rgba(56,216,255,0.2)] bg-[rgba(56,216,255,0.08)] p-3">
-							<p className="text-[10px] uppercase tracking-widest text-[#7ddfff]">
-								Activa
-							</p>
-							<p className="mt-1 text-sm font-semibold text-[#dff8ff]">
-								{TOOL_LABELS[activeTool]}
-							</p>
+						<div className="space-y-1.5 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.04)] p-2.5 text-xs">
+							<StatRow label="Rutas" value={counts.routes} />
+							<StatRow label="Puntos de ruta" value={counts.routePoints} />
+							<StatRow label="Herramienta" value={TOOL_LABELS[activeTool]} />
 						</div>
 						<button
 							type="button"
@@ -814,7 +1302,7 @@ function EditorLeftPanel({
 							<LocateFixed className="size-3.5" /> Ajustar vista
 						</button>
 					</div>
-				) : (
+				) : tab === "layers" ? (
 					<div className="space-y-3">
 						<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
 							Filtros de visibilidad
@@ -850,13 +1338,166 @@ function EditorLeftPanel({
 								<option value="faulty">Con falla</option>
 							</select>
 						</label>
+						<label className="block">
+							<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+								Óptico
+							</span>
+							<select
+								value={filterOptical}
+								onChange={(event) =>
+									onOpticalChange(event.target.value as OpticalFilter)
+								}
+								className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2 py-2 text-xs text-[#e6e6e6] outline-none"
+							>
+								<option value="all">Todos</option>
+								<option value="alerts">Solo alertas</option>
+							</select>
+						</label>
 						<div className="space-y-1.5 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.04)] p-2.5 text-xs">
 							<StatRow label="Rutas" value={counts.routes} />
 							<StatRow label="Puntos de ruta" value={counts.routePoints} />
 						</div>
 					</div>
+				) : (
+					<MapOpticalAlerts
+						alerts={alerts}
+						filterOptical={filterOptical}
+						onFilterChange={onOpticalChange}
+						onSelect={onAlertSelect}
+					/>
 				)}
 			</div>
+		</div>
+	);
+}
+
+function MapOpticalAlerts({
+	alerts,
+	filterOptical,
+	onFilterChange,
+	onSelect,
+}: {
+	alerts: OpticalBudgetAlert[];
+	filterOptical: OpticalFilter;
+	onFilterChange: (filter: OpticalFilter) => void;
+	onSelect: (alert: OpticalBudgetAlert) => void;
+}) {
+	if (alerts.length === 0) {
+		return (
+			<div className="rounded-md border border-[rgba(52,211,153,0.2)] bg-[rgba(52,211,153,0.08)] p-3 text-xs">
+				<p className="font-semibold text-[#86efac]">Sin alertas ópticas</p>
+				<p className="mt-1 text-[11px] leading-4 text-[#8f969e]">
+					Los elementos calculados mantienen margen suficiente.
+				</p>
+			</div>
+		);
+	}
+
+	const deficientCount = alerts.filter(
+		(alert) => alert.level === "deficient",
+	).length;
+	const tightCount = alerts.length - deficientCount;
+
+	return (
+		<div className="space-y-2">
+			<div className="flex items-center justify-between gap-2">
+				<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+					Presupuesto óptico
+				</p>
+				<span className="font-mono text-[10px] text-[#fbbf24]">
+					{alerts.length}
+				</span>
+			</div>
+			<div className="grid grid-cols-2 gap-1.5">
+				<OpticalAlertCountPill
+					color="#fb4d6d"
+					label="Deficientes"
+					value={deficientCount}
+				/>
+				<OpticalAlertCountPill
+					color="#f59e0b"
+					label="Ajustadas"
+					value={tightCount}
+				/>
+			</div>
+			<button
+				type="button"
+				onClick={() =>
+					onFilterChange(filterOptical === "alerts" ? "all" : "alerts")
+				}
+				className="flex w-full items-center justify-between rounded-md border border-[rgba(245,158,11,0.24)] bg-[rgba(245,158,11,0.08)] px-2.5 py-2 text-left text-xs text-[#fbbf24] transition-colors hover:bg-[rgba(245,158,11,0.13)]"
+			>
+				<span>
+					{filterOptical === "alerts"
+						? "Mostrar toda la red"
+						: "Ver solo alertas"}
+				</span>
+				<span className="font-mono text-[10px]">
+					{filterOptical === "alerts" ? "ON" : "OFF"}
+				</span>
+			</button>
+			<button
+				type="button"
+				onClick={() => onSelect(alerts[0])}
+				className="flex w-full items-center justify-between rounded-md border border-[rgba(251,77,109,0.24)] bg-[rgba(251,77,109,0.08)] px-2.5 py-2 text-left text-xs text-[#fb7185] transition-colors hover:bg-[rgba(251,77,109,0.13)]"
+			>
+				<span>Ir al peor margen</span>
+				<span className="font-mono text-[10px]">
+					{alerts[0].margin?.toFixed(1)} dB
+				</span>
+			</button>
+			<div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
+				{alerts.map((alert) => {
+					const style = ALERT_LEVEL_STYLES[alert.level];
+					return (
+						<button
+							key={alert.id}
+							type="button"
+							onClick={() => onSelect(alert)}
+							className="w-full rounded-md border px-2.5 py-2 text-left transition-colors hover:bg-white/[0.06]"
+							style={{
+								backgroundColor: style.bg,
+								borderColor: style.border,
+							}}
+							title={alert.reason}
+						>
+							<span
+								className="text-[9px] font-bold uppercase tracking-[0.12em]"
+								style={{ color: style.color }}
+							>
+								{style.label}
+							</span>
+							<span className="mt-0.5 block truncate text-xs font-semibold text-[#e6e6e6]">
+								{alert.code} · {alert.type}
+							</span>
+							<span className="mt-1 block font-mono text-[10px] text-[#a4a4a4]">
+								Margen {alert.margin?.toFixed(1)} dB
+							</span>
+						</button>
+					);
+				})}
+			</div>
+		</div>
+	);
+}
+
+function OpticalAlertCountPill({
+	color,
+	label,
+	value,
+}: {
+	color: string;
+	label: string;
+	value: number;
+}) {
+	return (
+		<div className="rounded-md border border-white/10 bg-white/[0.035] px-2 py-1.5">
+			<p className="font-mono text-xs font-bold" style={{ color }}>
+				{value}
+			</p>
+			<p className="text-[9px] font-semibold uppercase text-[#777879]">
+				{label}
+			</p>
 		</div>
 	);
 }
@@ -864,6 +1505,7 @@ function EditorLeftPanel({
 function SelectionInspector({
 	equipment,
 	feature,
+	opticalAlert,
 	onClose,
 	onFocus,
 	onUpdateElement,
@@ -871,6 +1513,7 @@ function SelectionInspector({
 }: {
 	equipment: EquipmentMapItem[];
 	feature: SelectedFeature;
+	opticalAlert: OpticalBudgetAlert | null;
 	onClose: () => void;
 	onFocus: () => void;
 	onUpdateElement?: (id: string, patch: Partial<InfrastructureElement>) => void;
@@ -913,6 +1556,7 @@ function SelectionInspector({
 				<ElementInspectorDetails
 					element={feature.item}
 					isEditing={inspectorMode === "edit"}
+					opticalAlert={opticalAlert}
 					onCancelEdit={() => setInspectorMode("view")}
 					onStartEdit={() => setInspectorMode("edit")}
 					onUpdateElement={onUpdateElement}
@@ -938,12 +1582,14 @@ function SelectionInspector({
 function ElementInspectorDetails({
 	element,
 	isEditing,
+	opticalAlert,
 	onCancelEdit,
 	onStartEdit,
 	onUpdateElement,
 }: {
 	element: EquipmentMapItem;
 	isEditing: boolean;
+	opticalAlert: OpticalBudgetAlert | null;
 	onCancelEdit: () => void;
 	onStartEdit: () => void;
 	onUpdateElement?: (id: string, patch: Partial<InfrastructureElement>) => void;
@@ -1104,6 +1750,7 @@ function ElementInspectorDetails({
 
 	return (
 		<div className="space-y-3">
+			{opticalAlert && <OpticalAlertInspectorCard alert={opticalAlert} />}
 			<InspectorSection title="Identificación">
 				<InspectorRow label="Tipo" value={formatElementType(element.type)} />
 				<InspectorRow
@@ -1185,6 +1832,39 @@ function ElementInspectorDetails({
 					Editar propiedades
 				</button>
 			)}
+		</div>
+	);
+}
+
+function OpticalAlertInspectorCard({ alert }: { alert: OpticalBudgetAlert }) {
+	const style = ALERT_LEVEL_STYLES[alert.level];
+	const recommendation =
+		alert.level === "deficient"
+			? "Revisar split ratio, pérdida medida del tramo y clase óptica antes de activar nuevos clientes."
+			: "Priorizar verificación de empalmes, conectores y reservas antes de ampliar cobertura.";
+
+	return (
+		<div
+			className="rounded-md border px-3 py-2 text-xs"
+			style={{ backgroundColor: style.bg, borderColor: style.border }}
+		>
+			<div className="flex items-center justify-between gap-3">
+				<span
+					className="text-[10px] font-bold uppercase tracking-[0.12em]"
+					style={{ color: style.color }}
+				>
+					Presupuesto {style.label.toLowerCase()}
+				</span>
+				<span className="font-mono text-[11px]" style={{ color: style.color }}>
+					{alert.margin?.toFixed(1)} dB
+				</span>
+			</div>
+			<p className="mt-1 text-[11px] leading-4 text-[#c8c8c8]">
+				{alert.reason}.
+			</p>
+			<p className="mt-2 border-t border-white/10 pt-2 text-[11px] leading-4 text-[#a4a4a4]">
+				{recommendation}
+			</p>
 		</div>
 	);
 }
@@ -1453,9 +2133,15 @@ function RouteInspectorDetails({
 }
 
 function RoutePointInspectorDetails({ point }: { point: RoutePoint }) {
+	const mufaDescription =
+		point.type === "mufa" ? describeMufaProperties(point.properties) : null;
+
 	return (
 		<div className="space-y-2">
 			<InspectorRow label="Tipo" value={point.type} />
+			{mufaDescription && (
+				<InspectorRow label="Configuración" value={mufaDescription} />
+			)}
 			<InspectorRow label="Estado" value={point.status} />
 			<InspectorRow label="Ruta" value={point.fiber_route_id} />
 			<InspectorRow label="Calidad ubicación" value={point.location_quality} />
@@ -1474,8 +2160,49 @@ function RoutePointInspectorDetails({ point }: { point: RoutePoint }) {
 			<InspectorRow label="Reserva" value={point.reserve_length_m} />
 			<InspectorRow label="Riesgo" value={point.risk_level} />
 			<InspectorRow label="Referencia" value={point.reference_text} />
+			{point.type === "mufa" && (
+				<>
+					<InspectorRow
+						label="Sangrado"
+						value={point.properties.has_midspan_access === true ? "Sí" : "No"}
+					/>
+					<InspectorRow
+						label="Empalme"
+						value={point.properties.has_splice === true ? "Sí" : "No"}
+					/>
+					<InspectorRow
+						label="Splitter"
+						value={
+							point.properties.has_splitter === true
+								? `Sí (${String(point.properties.split_ratio ?? "sin ratio")})`
+								: "No"
+						}
+					/>
+				</>
+			)}
 		</div>
 	);
+}
+
+function describeMufaProperties(properties: Record<string, unknown>) {
+	const details = [];
+	if (properties.has_midspan_access === true) details.push("sangrado");
+	if (properties.has_splice === true) details.push("empalme");
+	if (properties.has_splitter === true) details.push("splitter");
+	return details.length > 0 ? `Mufa + ${details.join(" + ")}` : "Mufa simple";
+}
+
+function mufaVariant(properties: Record<string, unknown>) {
+	if (
+		properties.has_midspan_access === true &&
+		properties.has_splitter === true
+	) {
+		return "midspan_splitter";
+	}
+	if (properties.has_midspan_access === true) return "midspan";
+	if (properties.has_splice === true) return "splice";
+	if (properties.has_splitter === true) return "splitter";
+	return "simple";
 }
 
 function addRouteLayers(map: mapboxgl.Map) {
@@ -1563,6 +2290,26 @@ function addRouteLayers(map: mapboxgl.Map) {
 		layout: { "line-cap": "round", "line-join": "round" },
 		paint: { "line-color": "rgba(255,255,255,0)", "line-width": 18 },
 	});
+	map.addLayer({
+		id: "editor-routes-v2-labels",
+		type: "symbol",
+		source: "editor-routes-v2",
+		layout: {
+			"symbol-placement": "line-center",
+			"text-allow-overlap": false,
+			"text-field": ["coalesce", ["get", "label"], ["get", "code"], ""],
+			"text-font": ["DIN Pro Medium", "Arial Unicode MS Regular"],
+			"text-letter-spacing": 0.04,
+			"text-offset": [0, -0.7],
+			"text-size": ["interpolate", ["linear"], ["zoom"], 12, 10, 17, 12],
+		},
+		paint: {
+			"text-color": "#dff8ff",
+			"text-halo-color": "rgba(17,18,19,0.92)",
+			"text-halo-width": 1.6,
+			"text-opacity": ["interpolate", ["linear"], ["zoom"], 12, 0, 13, 0.92],
+		},
+	});
 	map.addSource("editor-selection-v2", {
 		type: "geojson",
 		data: emptyFeatureCollection(),
@@ -1605,6 +2352,35 @@ function addRouteLayers(map: mapboxgl.Map) {
 	});
 }
 
+function addDraftRouteLayers(map: mapboxgl.Map) {
+	map.addLayer({
+		id: "editor-draft-route-v2-glow",
+		type: "line",
+		source: "editor-draft-route-v2",
+		layout: { "line-cap": "round", "line-join": "round" },
+		paint: {
+			"line-color": "#38d8ff",
+			"line-width": ["interpolate", ["linear"], ["zoom"], 10, 5, 18, 9],
+			"line-opacity": 0.22,
+			"line-blur": 2.2,
+			"line-emissive-strength": 0.95,
+		},
+	});
+	map.addLayer({
+		id: "editor-draft-route-v2-line",
+		type: "line",
+		source: "editor-draft-route-v2",
+		layout: { "line-cap": "round", "line-join": "round" },
+		paint: {
+			"line-color": "#8bdff4",
+			"line-width": ["interpolate", ["linear"], ["zoom"], 10, 2, 18, 4],
+			"line-dasharray": ["literal", [1.4, 1.2]],
+			"line-opacity": 0.9,
+			"line-emissive-strength": 0.95,
+		},
+	});
+}
+
 function addRoutePointLayers(map: mapboxgl.Map) {
 	map.addLayer({
 		id: "editor-route-points-v2-circle",
@@ -1621,11 +2397,52 @@ function addRoutePointLayers(map: mapboxgl.Map) {
 				ROUTE_POINT_COLOR.reserve,
 				"splice",
 				ROUTE_POINT_COLOR.splice,
+				"mufa",
+				[
+					"match",
+					["get", "mufa_variant"],
+					"midspan_splitter",
+					"#34d399",
+					"midspan",
+					"#f6c768",
+					"splice",
+					"#fb7185",
+					"splitter",
+					"#a7f3d0",
+					ROUTE_POINT_COLOR.mufa,
+				],
 				"#d7d7d7",
 			],
-			"circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 3, 18, 6],
+			"circle-radius": [
+				"interpolate",
+				["linear"],
+				["zoom"],
+				14,
+				["case", ["==", ["get", "type"], "mufa"], 4, 3],
+				18,
+				["case", ["==", ["get", "type"], "mufa"], 8, 6],
+			],
 			"circle-stroke-color": "#1b1c1d",
 			"circle-stroke-width": 1.5,
+		},
+	});
+	map.addLayer({
+		id: "editor-route-points-v2-labels",
+		type: "symbol",
+		source: "editor-route-points-v2",
+		layout: {
+			"text-allow-overlap": false,
+			"text-field": ["coalesce", ["get", "label"], ["get", "code"], ""],
+			"text-font": ["DIN Pro Medium", "Arial Unicode MS Regular"],
+			"text-offset": [0, 1.25],
+			"text-size": ["interpolate", ["linear"], ["zoom"], 14, 9, 18, 11],
+			visibility: "none",
+		},
+		paint: {
+			"text-color": "#dff8ff",
+			"text-halo-color": "rgba(17,18,19,0.92)",
+			"text-halo-width": 1.4,
+			"text-opacity": ["interpolate", ["linear"], ["zoom"], 14, 0, 15, 0.9],
 		},
 	});
 }
@@ -1650,9 +2467,16 @@ function buildRoutesGeoJson(
 					connection_id: route.id,
 					cable_type: route.cable_type ?? route.type ?? "default",
 					code: route.code,
+					fiber_count: route.fiber_count,
+					label: formatRouteMapLabel(route),
 				},
 			})),
 	};
+}
+
+function formatRouteMapLabel(route: ConnectionMapItem) {
+	const fiberLabel = route.fiber_count == null ? null : `${route.fiber_count}F`;
+	return [route.code, fiberLabel].filter(Boolean).join(" · ");
 }
 
 function buildRoutePointsGeoJson(
@@ -1676,6 +2500,12 @@ function buildRoutePointsGeoJson(
 					fiber_route_id: point.fiber_route_id,
 					type: point.type,
 					code: point.code,
+					label:
+						point.type === "mufa"
+							? describeMufaProperties(point.properties)
+							: point.code,
+					mufa_variant:
+						point.type === "mufa" ? mufaVariant(point.properties) : null,
 				},
 			})),
 	};
@@ -1701,15 +2531,25 @@ function updateVisibility(
 	map: mapboxgl.Map,
 	filterType: string,
 	filterStatus: string,
+	filterOptical: OpticalFilter,
 ) {
 	const zoom = map.getZoom();
 	const filters = readonlyEquipmentZoomFilters(zoom);
 	if (filterType !== "all") filters.push(["==", "type", filterType]);
 	if (filterStatus !== "all") filters.push(["==", "status", filterStatus]);
+	if (filterOptical === "alerts")
+		filters.push(["!=", "optical_alert_level", "none"]);
 	setEquipmentLayersFilter(map, "editor-v2", filters);
 	if (map.getLayer("editor-route-points-v2-circle")) {
 		map.setLayoutProperty(
 			"editor-route-points-v2-circle",
+			"visibility",
+			zoom >= ZOOM_ROUTE_POINTS ? "visible" : "none",
+		);
+	}
+	if (map.getLayer("editor-route-points-v2-labels")) {
+		map.setLayoutProperty(
+			"editor-route-points-v2-labels",
 			"visibility",
 			zoom >= ZOOM_ROUTE_POINTS ? "visible" : "none",
 		);
@@ -1724,8 +2564,8 @@ function querySelection(
 	routePoints: RoutePoint[],
 ): Selection | null {
 	const bbox: [[number, number], [number, number]] = [
-		[point.x - 6, point.y - 6],
-		[point.x + 6, point.y + 6],
+		[point.x - 10, point.y - 10],
+		[point.x + 10, point.y + 10],
 	];
 
 	const equipmentLayers = [
@@ -1750,9 +2590,10 @@ function querySelection(
 		}
 	}
 
-	const routePointLayers = ["editor-route-points-v2-circle"].filter((layerId) =>
-		map.getLayer(layerId),
-	);
+	const routePointLayers = [
+		"editor-route-points-v2-circle",
+		"editor-route-points-v2-labels",
+	].filter((layerId) => map.getLayer(layerId));
 	if (routePointLayers.length > 0) {
 		const routePointFeature = map
 			.queryRenderedFeatures(bbox, { layers: routePointLayers })
@@ -1770,9 +2611,15 @@ function querySelection(
 		}
 	}
 
-	const routeLayers = ["editor-routes-v2-hitbox"].filter((layerId) =>
-		map.getLayer(layerId),
-	);
+	const routeLayers = [
+		"editor-selection-v2-line",
+		"editor-selection-v2-halo",
+		"editor-routes-v2-labels",
+		"editor-routes-v2-hitbox",
+		"editor-routes-v2-line",
+		"editor-routes-v2-glow",
+		"editor-routes-v2-halo",
+	].filter((layerId) => map.getLayer(layerId));
 	if (routeLayers.length > 0) {
 		const routeFeature = map
 			.queryRenderedFeatures(bbox, { layers: routeLayers })
@@ -1786,6 +2633,50 @@ function querySelection(
 	}
 
 	return null;
+}
+
+function updateDraftRouteGuide(
+	map: mapboxgl.Map,
+	{
+		activeTool,
+		equipment,
+		sourceId,
+		target,
+	}: {
+		activeTool: EditorTool;
+		equipment: EquipmentMapItem[];
+		sourceId: string | null;
+		target: [number, number];
+	},
+) {
+	const source = map.getSource("editor-draft-route-v2") as
+		| mapboxgl.GeoJSONSource
+		| undefined;
+	if (!source) return;
+	if (activeTool !== "fiber" || !sourceId) {
+		source.setData(emptyFeatureCollection());
+		return;
+	}
+	const origin = equipment.find((item) => item.id === sourceId);
+	if (!origin) {
+		source.setData(emptyFeatureCollection());
+		return;
+	}
+	source.setData({
+		type: "FeatureCollection",
+		features: [
+			{
+				type: "Feature",
+				geometry: {
+					type: "LineString",
+					coordinates: [[origin.lng, origin.lat], target],
+				},
+				properties: {
+					source_id: sourceId,
+				},
+			},
+		],
+	});
 }
 
 function queryRouteGeometryMidpoint(
@@ -2033,6 +2924,7 @@ function formatElementType(type: EquipmentMapItem["type"]) {
 	const labels: Record<string, string> = {
 		olt: "OLT",
 		nap: "NAP",
+		closure: "Mufa",
 		splitter: "Splitter",
 		ont: "ONT",
 	};
@@ -2110,9 +3002,9 @@ function selectionLabel(kind: Selection["kind"]) {
 }
 
 function formatEditorMode(mode: EditorMode) {
-	if (mode === "view") return "Inspección";
-	if (mode === "design") return "Diseño";
-	return "Edición";
+	if (mode === "view") return "Consulta";
+	if (mode === "design") return "Captura";
+	return "Edición de inventario";
 }
 
 function tabButtonClass(active: boolean) {

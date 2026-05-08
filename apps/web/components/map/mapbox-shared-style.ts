@@ -13,6 +13,7 @@ export const EQUIPMENT_ICON_BY_TYPE: Record<string, string> = {
 	olt: "gpon-icon-olt",
 	splitter: "gpon-icon-splitter",
 	nap: "gpon-icon-nap",
+	closure: "gpon-icon-closure",
 	ont: "gpon-icon-ont",
 };
 
@@ -63,6 +64,7 @@ export function registerEquipmentIcons(map: mapboxgl.Map) {
 		["olt", TYPE_COLOR.olt],
 		["splitter", TYPE_COLOR.splitter],
 		["nap", TYPE_COLOR.nap],
+		["closure", TYPE_COLOR.closure],
 		["ont", TYPE_COLOR.ont],
 	] as const;
 

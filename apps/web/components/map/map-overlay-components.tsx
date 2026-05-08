@@ -88,6 +88,17 @@ export function MapLegend() {
 					<span>{ELEMENT_LABELS[type]}</span>
 				</div>
 			))}
+			<p className="mb-2 mt-3 font-semibold uppercase tracking-widest text-[#777879]">
+				Óptico
+			</p>
+			<div className="mb-1.5 flex items-center gap-2">
+				<span className="size-3 rounded-full border-2 border-[#f59e0b]" />
+				<span>Margen ajustado</span>
+			</div>
+			<div className="flex items-center gap-2">
+				<span className="size-3 rounded-full border-2 border-[#fb4d6d]" />
+				<span>Deficiente</span>
+			</div>
 		</div>
 	);
 }

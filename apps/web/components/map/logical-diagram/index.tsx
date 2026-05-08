@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	AlertTriangle,
 	BarChart3,
 	Network,
 	PanelRightClose,
@@ -20,6 +21,11 @@ import {
 import { EQUIPMENT_TYPE_LABEL } from "@/lib/gpon/symbology";
 import { TYPE_COLOR } from "@/lib/map/palette";
 import { useNetworkEditorStore } from "@/lib/store/network-editor";
+import {
+	ALERT_LEVEL_STYLES,
+	buildOpticalBudgetAlerts,
+	type OpticalBudgetAlert,
+} from "./budget-alerts";
 import { LogicalDiagram } from "./diagram";
 import { layoutTree } from "./layout-engine";
 import { OpticalPowerBudgetChart } from "./optical-power-budget-chart";
@@ -254,6 +260,68 @@ function DiagramViewToggle({
 	);
 }
 
+function OpticalBudgetAlerts({
+	alerts,
+	onSelect,
+}: {
+	alerts: OpticalBudgetAlert[];
+	onSelect: (id: string) => void;
+}) {
+	if (alerts.length === 0) return null;
+
+	const deficientCount = alerts.filter(
+		(alert) => alert.level === "deficient",
+	).length;
+	const tightCount = alerts.length - deficientCount;
+
+	return (
+		<div className="flex shrink-0 items-stretch gap-2 overflow-hidden rounded-md border border-white/10 bg-[#111213] p-2">
+			<div className="flex min-w-32 shrink-0 items-center gap-2 border-r border-white/10 pr-2">
+				<AlertTriangle className="size-4 text-[#f59e0b]" aria-hidden="true" />
+				<div className="min-w-0">
+					<p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#d7d7d7]">
+						Alertas ópticas
+					</p>
+					<p className="text-[10px] text-[#858585]">
+						{deficientCount} deficientes · {tightCount} ajustadas
+					</p>
+				</div>
+			</div>
+			<div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto">
+				{alerts.slice(0, 5).map((alert) => {
+					const style = ALERT_LEVEL_STYLES[alert.level];
+					return (
+						<button
+							key={alert.id}
+							type="button"
+							onClick={() => onSelect(alert.id)}
+							className="min-w-44 rounded border px-2 py-1.5 text-left transition-colors hover:bg-white/[0.06]"
+							style={{
+								backgroundColor: style.bg,
+								borderColor: style.border,
+							}}
+							title={alert.reason}
+						>
+							<span
+								className="text-[9px] font-bold uppercase tracking-[0.12em]"
+								style={{ color: style.color }}
+							>
+								{style.label}
+							</span>
+							<span className="mt-0.5 block truncate text-[10px] font-semibold text-[#e6e6e6]">
+								{alert.code} · {alert.type}
+							</span>
+							<span className="mt-0.5 block font-mono text-[10px] text-[#a4a4a4]">
+								Margen {alert.margin?.toFixed(1)} dB
+							</span>
+						</button>
+					);
+				})}
+			</div>
+		</div>
+	);
+}
+
 function BudgetGraphView({
 	node,
 	stats,
@@ -386,28 +454,36 @@ export function DiagramPanel({ isOpen, onToggle }: DiagramPanelProps) {
 		});
 	};
 
-	const { roots, layoutNodes, totalWidth, totalHeight, stats, allBudgets } =
-		useMemo(() => {
-			const tree = buildNetworkTree(elements, routes, routePoints);
-			const oltMap = new Map<string, string | null>();
-			for (const root of tree) {
-				oltMap.set(root.element.id, root.element.optical_class ?? null);
-			}
+	const {
+		roots,
+		layoutNodes,
+		totalWidth,
+		totalHeight,
+		stats,
+		allBudgets,
+		opticalAlerts,
+	} = useMemo(() => {
+		const tree = buildNetworkTree(elements, routes, routePoints);
+		const oltMap = new Map<string, string | null>();
+		for (const root of tree) {
+			oltMap.set(root.element.id, root.element.optical_class ?? null);
+		}
 
-			const { nodes, totalHeight: h, totalWidth: w } = layoutTree(tree, oltMap);
+		const { nodes, totalHeight: h, totalWidth: w } = layoutTree(tree, oltMap);
 
-			const budgetMap = new Map<string, PathBudget>();
-			for (const n of nodes) budgetMap.set(n.tree.element.id, n.budget);
+		const budgetMap = new Map<string, PathBudget>();
+		for (const n of nodes) budgetMap.set(n.tree.element.id, n.budget);
 
-			return {
-				roots: tree,
-				layoutNodes: nodes,
-				totalWidth: w,
-				totalHeight: h,
-				stats: computeStats(nodes),
-				allBudgets: collectBudgets(tree, budgetMap),
-			};
-		}, [elements, routes, routePoints]);
+		return {
+			roots: tree,
+			layoutNodes: nodes,
+			totalWidth: w,
+			totalHeight: h,
+			stats: computeStats(nodes),
+			allBudgets: collectBudgets(tree, budgetMap),
+			opticalAlerts: buildOpticalBudgetAlerts(nodes),
+		};
+	}, [elements, routes, routePoints]);
 
 	useEffect(() => {
 		const expandableIds = layoutNodes
@@ -622,6 +698,10 @@ export function DiagramPanel({ isOpen, onToggle }: DiagramPanelProps) {
 					</div>
 				) : (
 					<div className="flex min-h-0 flex-1 flex-col gap-2.5 bg-[#151617] p-2.5">
+						<OpticalBudgetAlerts
+							alerts={opticalAlerts}
+							onSelect={onSelectElement}
+						/>
 						{/* Diagram scroll area */}
 						<div className="min-h-0 flex-1 overflow-hidden rounded-lg bg-[#1b1c1d] ring-1 ring-white/8">
 							{diagramView === "budget" ? (

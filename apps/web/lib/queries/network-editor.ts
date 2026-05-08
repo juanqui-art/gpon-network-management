@@ -163,12 +163,14 @@ export interface CreateRoutePointInput {
 	lng: number;
 	lat: number;
 	code: string | null;
+	status: string | null;
 	location_quality: DataQuality;
 	crossing_type: string | null;
 	risk_level: RiskLevel | null;
 	reserve_length_m: number | null;
 	splice_loss_db: number | null;
 	reference_text: string | null;
+	properties: Record<string, unknown>;
 	notes: string | null;
 }
 
@@ -189,6 +191,8 @@ export async function createRoutePoint(
 		p_splice_loss_db: input.splice_loss_db,
 		p_reference_text: input.reference_text,
 		p_notes: input.notes,
+		p_status: input.status,
+		p_properties: input.properties,
 	});
 
 	if (error) throw error;
@@ -254,6 +258,38 @@ export async function updateFiberRoute(input: {
 
 	if (error) throw error;
 	return (data?.[0] ?? data) as FiberRoute;
+}
+
+export async function updateRoutePoint(input: {
+	point: RoutePoint;
+	patch: Partial<RoutePoint>;
+}): Promise<RoutePoint> {
+	const { patch, point } = input;
+	const supabase = createClient();
+	const { data, error } = await supabase
+		.from("route_points")
+		.update({
+			code: patch.code ?? point.code,
+			status: patch.status ?? point.status,
+			location_quality: patch.location_quality ?? point.location_quality,
+			reserve_length_m: patch.reserve_length_m ?? point.reserve_length_m,
+			splice_loss_db: patch.splice_loss_db ?? point.splice_loss_db,
+			crossing_type: patch.crossing_type ?? point.crossing_type,
+			risk_level: patch.risk_level ?? point.risk_level,
+			reference_text: patch.reference_text ?? point.reference_text,
+			properties: patch.properties ?? point.properties,
+			notes: patch.notes ?? point.notes,
+		})
+		.eq("id", point.id)
+		.select()
+		.single();
+
+	if (error) throw error;
+	return {
+		...(data as Record<string, unknown>),
+		lng: point.lng,
+		lat: point.lat,
+	} as RoutePoint;
 }
 
 export async function deleteMapFeature(

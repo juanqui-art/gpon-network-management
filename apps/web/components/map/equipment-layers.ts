@@ -1,4 +1,5 @@
 import type mapboxgl from "mapbox-gl";
+import type { OpticalBudgetAlertLevel } from "@/components/map/logical-diagram/budget-alerts";
 import { formatMapLabel } from "@/lib/gpon/operative-code";
 import { STATUS_COLOR, TYPE_COLOR } from "@/lib/map/palette";
 import {
@@ -14,6 +15,7 @@ export const EQUIPMENT_LAYER_SUFFIXES = [
 	"halo",
 	"core",
 	"icons",
+	"optical-alert",
 	"incident",
 	"label-backing",
 	"labels",
@@ -36,11 +38,18 @@ export function buildEquipmentGeoJson(
 	incidentsByEquipment:
 		| Map<string, IncidentMapItem>
 		| Record<string, IncidentMapItem>,
+	opticalAlertsByEquipment:
+		| Map<string, OpticalBudgetAlertLevel>
+		| Record<string, OpticalBudgetAlertLevel> = {},
 ): GeoJSON.FeatureCollection {
 	const hasIncident = (id: string) =>
 		incidentsByEquipment instanceof Map
 			? incidentsByEquipment.has(id)
 			: Boolean(incidentsByEquipment[id]);
+	const getOpticalAlertLevel = (id: string) =>
+		opticalAlertsByEquipment instanceof Map
+			? (opticalAlertsByEquipment.get(id) ?? "none")
+			: (opticalAlertsByEquipment[id] ?? "none");
 
 	return {
 		type: "FeatureCollection",
@@ -60,6 +69,7 @@ export function buildEquipmentGeoJson(
 					code: item.code,
 					label: formatMapLabel(item.code, 14),
 					has_incident: hasIncident(item.id),
+					optical_alert_level: getOpticalAlertLevel(item.id),
 				},
 			})),
 	};
@@ -94,13 +104,61 @@ export async function addEquipmentSourceAndLayers({
 				["linear"],
 				["zoom"],
 				10,
-				["match", ["get", "type"], "olt", 22, "splitter", 18, "nap", 18, 16],
+				[
+					"match",
+					["get", "type"],
+					"olt",
+					22,
+					"splitter",
+					18,
+					"closure",
+					18,
+					"nap",
+					18,
+					16,
+				],
 				14,
-				["match", ["get", "type"], "olt", 30, "splitter", 25, "nap", 25, 21],
+				[
+					"match",
+					["get", "type"],
+					"olt",
+					30,
+					"splitter",
+					25,
+					"closure",
+					25,
+					"nap",
+					25,
+					21,
+				],
 				16,
-				["match", ["get", "type"], "olt", 38, "splitter", 31, "nap", 31, 26],
+				[
+					"match",
+					["get", "type"],
+					"olt",
+					38,
+					"splitter",
+					31,
+					"closure",
+					31,
+					"nap",
+					31,
+					26,
+				],
 				18,
-				["match", ["get", "type"], "olt", 46, "splitter", 38, "nap", 38, 31],
+				[
+					"match",
+					["get", "type"],
+					"olt",
+					46,
+					"splitter",
+					38,
+					"closure",
+					38,
+					"nap",
+					38,
+					31,
+				],
 			],
 			"circle-color": [
 				"match",
@@ -135,13 +193,61 @@ export async function addEquipmentSourceAndLayers({
 				["linear"],
 				["zoom"],
 				10,
-				["match", ["get", "type"], "olt", 18, "splitter", 15, "nap", 15, 13],
+				[
+					"match",
+					["get", "type"],
+					"olt",
+					18,
+					"splitter",
+					15,
+					"closure",
+					15,
+					"nap",
+					15,
+					13,
+				],
 				14,
-				["match", ["get", "type"], "olt", 25, "splitter", 21, "nap", 21, 17],
+				[
+					"match",
+					["get", "type"],
+					"olt",
+					25,
+					"splitter",
+					21,
+					"closure",
+					21,
+					"nap",
+					21,
+					17,
+				],
 				16,
-				["match", ["get", "type"], "olt", 33, "splitter", 27, "nap", 27, 22],
+				[
+					"match",
+					["get", "type"],
+					"olt",
+					33,
+					"splitter",
+					27,
+					"closure",
+					27,
+					"nap",
+					27,
+					22,
+				],
 				18,
-				["match", ["get", "type"], "olt", 41, "splitter", 34, "nap", 34, 27],
+				[
+					"match",
+					["get", "type"],
+					"olt",
+					41,
+					"splitter",
+					34,
+					"closure",
+					34,
+					"nap",
+					34,
+					27,
+				],
 			],
 			"circle-color": [
 				"match",
@@ -150,6 +256,8 @@ export async function addEquipmentSourceAndLayers({
 				TYPE_COLOR.olt,
 				"splitter",
 				TYPE_COLOR.splitter,
+				"closure",
+				TYPE_COLOR.closure,
 				"nap",
 				TYPE_COLOR.nap,
 				"ont",
@@ -176,6 +284,8 @@ export async function addEquipmentSourceAndLayers({
 				EQUIPMENT_ICON_BY_TYPE.olt,
 				"splitter",
 				EQUIPMENT_ICON_BY_TYPE.splitter,
+				"closure",
+				EQUIPMENT_ICON_BY_TYPE.closure,
 				"nap",
 				EQUIPMENT_ICON_BY_TYPE.nap,
 				"ont",
@@ -197,6 +307,98 @@ export async function addEquipmentSourceAndLayers({
 			],
 			"icon-allow-overlap": true,
 			"icon-ignore-placement": true,
+		},
+	});
+
+	map.addLayer({
+		id: equipmentLayerId(layerPrefix, "optical-alert"),
+		type: "circle",
+		source: sourceId,
+		layout: { visibility },
+		filter: ["!=", ["get", "optical_alert_level"], "none"],
+		paint: {
+			"circle-radius": [
+				"interpolate",
+				["linear"],
+				["zoom"],
+				10,
+				[
+					"match",
+					["get", "type"],
+					"olt",
+					24,
+					"splitter",
+					20,
+					"closure",
+					20,
+					"nap",
+					20,
+					18,
+				],
+				14,
+				[
+					"match",
+					["get", "type"],
+					"olt",
+					33,
+					"splitter",
+					27,
+					"closure",
+					27,
+					"nap",
+					27,
+					23,
+				],
+				16,
+				[
+					"match",
+					["get", "type"],
+					"olt",
+					42,
+					"splitter",
+					34,
+					"closure",
+					34,
+					"nap",
+					34,
+					28,
+				],
+				18,
+				[
+					"match",
+					["get", "type"],
+					"olt",
+					51,
+					"splitter",
+					42,
+					"closure",
+					42,
+					"nap",
+					42,
+					34,
+				],
+			],
+			"circle-color": "rgba(0,0,0,0)",
+			"circle-stroke-color": [
+				"match",
+				["get", "optical_alert_level"],
+				"deficient",
+				"#fb4d6d",
+				"tight",
+				"#f59e0b",
+				"#777879",
+			],
+			"circle-stroke-width": [
+				"match",
+				["get", "optical_alert_level"],
+				"deficient",
+				3.2,
+				"tight",
+				2.4,
+				1.8,
+			],
+			"circle-opacity": 0.94,
+			"circle-emissive-strength": 0.8,
 		},
 	});
 
@@ -307,6 +509,12 @@ export function setEquipmentLayersFilter(
 		if (!map.getLayer(layerId)) continue;
 		if (suffix === "incident") {
 			map.setFilter(layerId, ["all", ...filters, ["==", "has_incident", true]]);
+		} else if (suffix === "optical-alert") {
+			map.setFilter(layerId, [
+				"all",
+				...filters,
+				["!=", "optical_alert_level", "none"],
+			]);
 		} else {
 			map.setFilter(layerId, filter);
 		}
