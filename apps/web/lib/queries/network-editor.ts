@@ -229,6 +229,9 @@ export async function updateInfrastructureElement(input: {
 		p_properties: patch.properties ?? element.properties,
 		p_address_reference: patch.address_reference ?? element.address_reference,
 		p_notes: patch.notes ?? element.notes,
+		p_management_ip: hasPatch("management_ip")
+			? patch.management_ip
+			: element.management_ip,
 	});
 
 	if (error) throw error;

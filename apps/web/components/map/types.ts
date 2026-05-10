@@ -54,6 +54,10 @@ export interface InfrastructureElement {
 	ports_used: number | null;
 	ports_reserved: number | null;
 
+	// SNMP/CLI management address — solo aplica a OLTs en MVP.
+	// Se enlaza con ont_current_state.olt_host en /monitoring.
+	management_ip: string | null;
+
 	properties: Record<string, unknown>;
 	notes: string | null;
 	created_by: string | null;

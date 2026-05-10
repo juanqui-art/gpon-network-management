@@ -425,6 +425,7 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 			pon_standard: elementType === "olt" ? "gpon" : null,
 			total_pon_ports: elementType === "olt" ? 16 : null,
 			optical_class: elementType === "olt" ? "B+" : null,
+			management_ip: null,
 			split_ratio:
 				closureSplitRatio ??
 				(elementType === "olt" || defaults.splitRatio === ""

@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils";
 
 interface Props {
 	oltHost: string;
+	elementCode: string | null;
+	elementName: string | null;
 	networkNames: string[];
 	initialReadings: OntCurrentState[];
 }
@@ -32,6 +34,8 @@ const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
 
 export function MonitoringDetailClient({
 	oltHost,
+	elementCode,
+	elementName,
 	networkNames,
 	initialReadings,
 }: Props) {
@@ -60,6 +64,11 @@ export function MonitoringDetailClient({
 
 	const networkLabel =
 		networkNames.length === 0 ? "Sin red asociada" : networkNames.join(" · ");
+	const title = elementName ?? elementCode ?? `OLT ${oltHost}`;
+	const subtitleParts = [
+		elementCode || elementName ? oltHost : null,
+		networkLabel,
+	].filter(Boolean);
 
 	return (
 		<div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden px-6 py-6">
@@ -72,11 +81,9 @@ export function MonitoringDetailClient({
 				</Link>
 				<div className="mt-2 flex flex-wrap items-baseline justify-between gap-3">
 					<div>
-						<h1 className="font-mono text-xl font-semibold text-foreground">
-							OLT {oltHost}
-						</h1>
-						<p className="mt-0.5 text-xs text-muted-foreground">
-							{networkLabel}
+						<h1 className="text-xl font-semibold text-foreground">{title}</h1>
+						<p className="mt-0.5 font-mono text-xs text-muted-foreground">
+							{subtitleParts.join(" · ")}
 						</p>
 					</div>
 					<RealtimeIndicator

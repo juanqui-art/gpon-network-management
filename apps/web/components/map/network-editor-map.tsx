@@ -1612,6 +1612,7 @@ function ElementInspectorDetails({
 		element.address_reference ?? "",
 	);
 	const [notes, setNotes] = useState(element.notes ?? "");
+	const [managementIp, setManagementIp] = useState(element.management_ip ?? "");
 
 	useEffect(() => {
 		setName(element.name ?? "");
@@ -1626,6 +1627,7 @@ function ElementInspectorDetails({
 		);
 		setAddressReference(element.address_reference ?? "");
 		setNotes(element.notes ?? "");
+		setManagementIp(element.management_ip ?? "");
 	}, [element]);
 
 	const applyChanges = () => {
@@ -1640,6 +1642,7 @@ function ElementInspectorDetails({
 			patch.optical_class = emptyToNull(opticalClass ?? "");
 			patch.total_pon_ports = totalPonPorts;
 			patch.properties = properties;
+			patch.management_ip = emptyToNull(managementIp);
 		}
 		onUpdateElement?.(element.id, patch);
 		onCancelEdit();
@@ -1698,6 +1701,21 @@ function ElementInspectorDetails({
 								}}
 							/>
 						</div>
+						<label className="block">
+							<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+								IP de gestión (SNMP)
+							</span>
+							<input
+								value={managementIp}
+								onChange={(event) => setManagementIp(event.target.value)}
+								placeholder="192.168.1.100"
+								className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 font-mono text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							/>
+							<span className="mt-1 block text-[10px] leading-4 text-[#777879]">
+								Se enlaza con el colector SNMP. Aparecerá como nombre del OLT en
+								/monitoring cuando llegue telemetría.
+							</span>
+						</label>
 						<OltTechnicalEditor
 							properties={properties}
 							totalPonPorts={totalPonPorts}
@@ -1769,6 +1787,7 @@ function ElementInspectorDetails({
 							"Sin modelo",
 						)}
 					/>
+					<InspectorRow label="IP gestión" value={element.management_ip} />
 					<InspectorRow label="Clase óptica" value={element.optical_class} />
 					<InspectorRow
 						label="PON instalados"

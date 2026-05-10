@@ -90,6 +90,7 @@ const BASE_ELEMENT = {
 	insertion_loss_db: null,
 	ports_used: null,
 	ports_reserved: null,
+	management_ip: null,
 	properties: {} as Record<string, unknown>,
 	created_by: null,
 	updated_by: null,

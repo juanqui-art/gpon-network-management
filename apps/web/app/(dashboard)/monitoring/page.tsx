@@ -24,17 +24,31 @@ type MonitoringRow = Pick<
 	| "updated_at"
 >;
 
+interface OltElementRow {
+	id: string;
+	code: string;
+	name: string | null;
+	management_ip: string;
+}
+
 export default async function MonitoringIndexPage() {
 	const supabase = await createClient();
 
-	const [{ data: networks }, { data: ontRows }] = await Promise.all([
-		supabase.from("networks").select("id, name"),
-		supabase
-			.from("ont_current_state")
-			.select(
-				"id, network_id, olt_host, ont_logical_id, status, rx_power_dbm, last_seen_at, updated_at",
-			),
-	]);
+	const [{ data: networks }, { data: ontRows }, { data: oltElements }] =
+		await Promise.all([
+			supabase.from("networks").select("id, name"),
+			supabase
+				.from("ont_current_state")
+				.select(
+					"id, network_id, olt_host, ont_logical_id, status, rx_power_dbm, last_seen_at, updated_at",
+				),
+			// OLTs con management_ip configurado — para resolver nombre humano por host
+			supabase
+				.from("infrastructure_elements")
+				.select("id, code, name, management_ip")
+				.eq("type", "olt")
+				.not("management_ip", "is", null),
+		]);
 
 	const networkNameById = new Map<string, string>();
 	for (const network of networks ?? []) {
@@ -44,7 +58,16 @@ export default async function MonitoringIndexPage() {
 		);
 	}
 
-	const olts = groupByOlt((ontRows ?? []) as MonitoringRow[], networkNameById);
+	const oltElementByHost = new Map<string, OltElementRow>();
+	for (const row of (oltElements ?? []) as OltElementRow[]) {
+		oltElementByHost.set(row.management_ip, row);
+	}
+
+	const olts = groupByOlt(
+		(ontRows ?? []) as MonitoringRow[],
+		networkNameById,
+		oltElementByHost,
+	);
 
 	return (
 		<div className="mx-auto h-full w-full max-w-5xl overflow-auto px-6 py-8">
@@ -84,6 +107,12 @@ function OltCard({ entry }: { entry: OltMonitorEntry }) {
 			? "Sin red asociada"
 			: entry.network_names.join(" · ");
 
+	const title =
+		entry.element_name ?? entry.element_code ?? `OLT ${entry.olt_host}`;
+	const subtitle = entry.element_id
+		? `${entry.olt_host} · ${networkLabel}`
+		: networkLabel;
+
 	return (
 		<Link
 			href={`/monitoring/olt/${encodeURIComponent(entry.olt_host)}`}
@@ -92,18 +121,23 @@ function OltCard({ entry }: { entry: OltMonitorEntry }) {
 			<div className="flex items-start justify-between gap-4">
 				<div className="min-w-0 flex-1">
 					<div className="flex items-center gap-2">
-						<h2 className="truncate font-mono text-sm font-semibold text-foreground">
-							OLT {entry.olt_host}
+						<h2 className="truncate text-sm font-semibold text-foreground">
+							{title}
 						</h2>
+						{!entry.element_id && (
+							<span className="rounded border border-border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+								sin equipo asociado
+							</span>
+						)}
 					</div>
-					<p className="mt-0.5 truncate text-xs text-muted-foreground">
-						{networkLabel}
+					<p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
+						{subtitle}
 					</p>
 					<div className="mt-3">
 						<HealthSummary health={entry.health} compact />
 					</div>
 				</div>
-				<div className="text-right text-xs text-muted-foreground shrink-0">
+				<div className="shrink-0 text-right text-xs text-muted-foreground">
 					{lastUpdate && <p>Última lectura: {lastUpdate}</p>}
 					<p className="mt-1 text-primary opacity-0 transition-opacity group-hover:opacity-100">
 						Ver detalle →
@@ -117,16 +151,13 @@ function OltCard({ entry }: { entry: OltMonitorEntry }) {
 function groupByOlt(
 	rows: MonitoringRow[],
 	networkNameById: Map<string, string>,
+	oltElementByHost: Map<string, OltElementRow>,
 ): OltMonitorEntry[] {
 	const byHost = new Map<string, OltMonitorEntry>();
 
 	for (const row of rows) {
-		const entry = byHost.get(row.olt_host) ?? {
-			olt_host: row.olt_host,
-			network_ids: [],
-			network_names: [],
-			health: emptyHealth(),
-		};
+		const entry =
+			byHost.get(row.olt_host) ?? createEmpty(row.olt_host, oltElementByHost);
 
 		if (!entry.network_ids.includes(row.network_id)) {
 			entry.network_ids.push(row.network_id);
@@ -156,6 +187,22 @@ function groupByOlt(
 	return Array.from(byHost.values()).sort((a, b) =>
 		a.olt_host.localeCompare(b.olt_host),
 	);
+}
+
+function createEmpty(
+	host: string,
+	oltElementByHost: Map<string, OltElementRow>,
+): OltMonitorEntry {
+	const matched = oltElementByHost.get(host);
+	return {
+		olt_host: host,
+		element_id: matched?.id ?? null,
+		element_code: matched?.code ?? null,
+		element_name: matched?.name ?? null,
+		network_ids: [],
+		network_names: [],
+		health: emptyHealth(),
+	};
 }
 
 function emptyHealth(): OntHealthSummary {

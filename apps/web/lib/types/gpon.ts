@@ -82,6 +82,10 @@ export interface InfrastructureElement {
 	insertion_loss_db: number | null;
 	total_ports: number | null;
 
+	// SNMP/CLI management address — solo aplica a OLTs en MVP.
+	// Se enlaza con ont_current_state.olt_host en la sección /monitoring.
+	management_ip: string | null;
+
 	properties: Record<string, unknown>;
 	notes: string | null;
 	created_by: string | null;
@@ -276,9 +280,14 @@ export interface OntHealthSummary {
 	last_update: string | null;
 }
 
-// Entrada del índice /monitoring — una OLT con su contexto (red(es) a las que sirve).
+// Entrada del índice /monitoring — una OLT con su contexto (red(es) a las que sirve)
+// y, cuando el match con infrastructure_elements existe, su nombre/código humano.
 export interface OltMonitorEntry {
 	olt_host: string;
+	// Match con infrastructure_elements.management_ip (null si no hay match)
+	element_id: string | null;
+	element_code: string | null;
+	element_name: string | null;
 	network_ids: string[]; // normalmente 1, soporta caso de OLT que sirve a varias redes
 	network_names: string[];
 	health: OntHealthSummary;
