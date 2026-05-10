@@ -222,3 +222,81 @@ export function canDeleteInfrastructure(
 ): boolean {
 	return role === "admin";
 }
+
+// ─── ONT MONITORING (telemetría en tiempo real, migración 021) ───────────────
+
+export type OntStatus = "online" | "offline" | "los" | "lof" | "unknown";
+
+export type OntHistoryTrigger = "change" | "degradation" | "sample";
+
+// Espejo de ont_current_state — estado vivo de cada ONT.
+export interface OntCurrentState {
+	id: string;
+	network_id: string;
+	ont_serial: string | null;
+	ont_logical_id: string;
+	ont_description: string | null;
+	olt_host: string;
+	pon_port: string | null;
+	rx_power_dbm: number | null;
+	tx_power_dbm: number | null;
+	temperature_c: number | null;
+	status: OntStatus;
+	distance_m: number | null;
+	last_disconnect_reason: string | null;
+	last_seen_at: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+// Fila individual de ont_signal_history.
+export interface OntSignalHistoryEntry {
+	id: string;
+	ont_current_state_id: string;
+	network_id: string;
+	ont_logical_id: string;
+	rx_power_dbm: number | null;
+	tx_power_dbm: number | null;
+	status: OntStatus;
+	trigger: OntHistoryTrigger;
+	recorded_at: string;
+}
+
+// Resumen agregado de salud por red — usado en el índice /monitoring.
+export interface NetworkOntHealth {
+	network_id: string;
+	total: number;
+	online: number;
+	offline: number;
+	los: number;
+	lof: number;
+	unknown: number;
+	warning_signal: number; // ONTs online pero con rx_power en zona de alerta
+	last_update: string | null;
+}
+
+export const ONT_STATUS_LABELS: Record<OntStatus, string> = {
+	online: "Online",
+	offline: "Offline",
+	los: "Pérdida de señal",
+	lof: "Pérdida de trama",
+	unknown: "Desconocido",
+};
+
+// Considera una ONT "saludable" si está online Y la señal no está en warning/critical.
+export function isOntHealthy(reading: OntCurrentState): boolean {
+	if (reading.status !== "online") return false;
+	const signal = classifySignal(reading.rx_power_dbm);
+	return signal === "good";
+}
+
+// Calcula los segundos transcurridos desde el último contacto reportado.
+export function secondsSinceLastSeen(
+	lastSeenAt: string | null,
+	now: Date = new Date(),
+): number | null {
+	if (!lastSeenAt) return null;
+	const seen = new Date(lastSeenAt).getTime();
+	if (Number.isNaN(seen)) return null;
+	return Math.floor((now.getTime() - seen) / 1000);
+}

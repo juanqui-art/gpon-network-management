@@ -37,6 +37,12 @@ export default function DashboardLayout({
 							Mapa
 						</Link>
 						<Link
+							href="/monitoring"
+							className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+						>
+							Monitoreo
+						</Link>
+						<Link
 							href="/admin/users"
 							className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
 						>
