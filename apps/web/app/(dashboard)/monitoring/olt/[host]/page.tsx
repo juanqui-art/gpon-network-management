@@ -9,6 +9,17 @@ interface Props {
 	params: Promise<{ host: string }>;
 }
 
+export interface OltElementInfo {
+	id: string;
+	code: string;
+	name: string | null;
+	status: string;
+	optical_class: string | null;
+	total_pon_ports: number | null;
+	properties: Record<string, unknown>;
+	updated_at: string;
+}
+
 export default async function MonitoringOltDetailPage({ params }: Props) {
 	const { host: rawHost } = await params;
 	const host = decodeURIComponent(rawHost);
@@ -16,7 +27,6 @@ export default async function MonitoringOltDetailPage({ params }: Props) {
 
 	const supabase = await createClient();
 
-	// Match con infrastructure_elements para tener nombre humano + match con redes
 	const [{ data: ontRows }, { data: oltElement }] = await Promise.all([
 		supabase
 			.from("ont_current_state")
@@ -25,7 +35,9 @@ export default async function MonitoringOltDetailPage({ params }: Props) {
 			.order("ont_logical_id", { ascending: true }),
 		supabase
 			.from("infrastructure_elements")
-			.select("id, code, name, network_id")
+			.select(
+				"id, code, name, status, optical_class, total_pon_ports, properties, network_id, updated_at",
+			)
 			.eq("type", "olt")
 			.eq("management_ip", host)
 			.maybeSingle(),
@@ -33,7 +45,6 @@ export default async function MonitoringOltDetailPage({ params }: Props) {
 
 	const readings = (ontRows ?? []) as OntCurrentState[];
 
-	// Recoger redes desde dos fuentes: telemetría real + elemento OLT (si existe)
 	const networkIdSet = new Set<string>(readings.map((r) => r.network_id));
 	if (oltElement?.network_id) networkIdSet.add(oltElement.network_id);
 
@@ -49,17 +60,23 @@ export default async function MonitoringOltDetailPage({ params }: Props) {
 		(n) => (n as { id: string; name: string }).name,
 	);
 
-	const matched = oltElement as {
-		id: string;
-		code: string;
-		name: string | null;
-	} | null;
+	const elementInfo: OltElementInfo | null = oltElement
+		? {
+				id: oltElement.id,
+				code: oltElement.code,
+				name: oltElement.name,
+				status: oltElement.status,
+				optical_class: oltElement.optical_class,
+				total_pon_ports: oltElement.total_pon_ports,
+				properties: (oltElement.properties as Record<string, unknown>) ?? {},
+				updated_at: oltElement.updated_at,
+			}
+		: null;
 
 	return (
 		<MonitoringDetailClient
 			oltHost={host}
-			elementCode={matched?.code ?? null}
-			elementName={matched?.name ?? null}
+			elementInfo={elementInfo}
 			networkNames={networkNames}
 			initialReadings={readings}
 		/>

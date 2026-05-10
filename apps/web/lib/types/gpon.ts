@@ -288,6 +288,8 @@ export interface OltMonitorEntry {
 	element_id: string | null;
 	element_code: string | null;
 	element_name: string | null;
+	element_model: string | null; // "Huawei MA5608T", etc.
+	element_total_pon_ports: number | null;
 	network_ids: string[]; // normalmente 1, soporta caso de OLT que sirve a varias redes
 	network_names: string[];
 	health: OntHealthSummary;

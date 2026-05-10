@@ -29,6 +29,8 @@ interface OltElementRow {
 	code: string;
 	name: string | null;
 	management_ip: string;
+	total_pon_ports: number | null;
+	properties: Record<string, unknown>;
 }
 
 export default async function MonitoringIndexPage() {
@@ -45,7 +47,7 @@ export default async function MonitoringIndexPage() {
 			// OLTs con management_ip configurado — para resolver nombre humano por host
 			supabase
 				.from("infrastructure_elements")
-				.select("id, code, name, management_ip")
+				.select("id, code, name, management_ip, total_pon_ports, properties")
 				.eq("type", "olt")
 				.not("management_ip", "is", null),
 		]);
@@ -109,9 +111,13 @@ function OltCard({ entry }: { entry: OltMonitorEntry }) {
 
 	const title =
 		entry.element_name ?? entry.element_code ?? `OLT ${entry.olt_host}`;
-	const subtitle = entry.element_id
-		? `${entry.olt_host} · ${networkLabel}`
-		: networkLabel;
+
+	const techParts = [
+		entry.element_model,
+		entry.element_total_pon_ports !== null
+			? `${entry.element_total_pon_ports} PON`
+			: null,
+	].filter(Boolean);
 
 	return (
 		<Link
@@ -130,8 +136,13 @@ function OltCard({ entry }: { entry: OltMonitorEntry }) {
 							</span>
 						)}
 					</div>
-					<p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
-						{subtitle}
+					{techParts.length > 0 && (
+						<p className="mt-0.5 truncate text-xs text-muted-foreground">
+							{techParts.join(" · ")}
+						</p>
+					)}
+					<p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
+						{entry.olt_host} · {networkLabel}
 					</p>
 					<div className="mt-3">
 						<HealthSummary health={entry.health} compact />
@@ -194,11 +205,17 @@ function createEmpty(
 	oltElementByHost: Map<string, OltElementRow>,
 ): OltMonitorEntry {
 	const matched = oltElementByHost.get(host);
+	const model =
+		typeof matched?.properties?.olt_model === "string"
+			? (matched.properties.olt_model as string)
+			: null;
 	return {
 		olt_host: host,
 		element_id: matched?.id ?? null,
 		element_code: matched?.code ?? null,
 		element_name: matched?.name ?? null,
+		element_model: model,
+		element_total_pon_ports: matched?.total_pon_ports ?? null,
 		network_ids: [],
 		network_names: [],
 		health: emptyHealth(),

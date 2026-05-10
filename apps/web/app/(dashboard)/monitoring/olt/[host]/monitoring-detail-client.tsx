@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { HealthSummary } from "@/components/monitoring/health-summary";
+import { OltInfoCard } from "@/components/monitoring/olt-info-card";
 import { OntStatusBadge } from "@/components/monitoring/ont-status-badge";
 import { RxPowerCell } from "@/components/monitoring/rx-power-cell";
 import { Input } from "@/components/ui/input";
@@ -14,11 +15,11 @@ import {
 	type OntStatus,
 } from "@/lib/types/gpon";
 import { cn } from "@/lib/utils";
+import type { OltElementInfo } from "./page";
 
 interface Props {
 	oltHost: string;
-	elementCode: string | null;
-	elementName: string | null;
+	elementInfo: OltElementInfo | null;
 	networkNames: string[];
 	initialReadings: OntCurrentState[];
 }
@@ -34,11 +35,12 @@ const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
 
 export function MonitoringDetailClient({
 	oltHost,
-	elementCode,
-	elementName,
+	elementInfo,
 	networkNames,
 	initialReadings,
 }: Props) {
+	const elementCode = elementInfo?.code ?? null;
+	const elementName = elementInfo?.name ?? null;
 	const { readings, connected, lastEventAt } = useOntRealtime({
 		oltHost,
 		initialReadings,
@@ -96,6 +98,19 @@ export function MonitoringDetailClient({
 					<HealthSummary health={health} />
 				</div>
 			</header>
+
+			{elementInfo && (
+				<div className="mb-3 shrink-0">
+					<OltInfoCard
+						host={oltHost}
+						code={elementInfo.code}
+						status={elementInfo.status}
+						opticalClass={elementInfo.optical_class}
+						totalPonPorts={elementInfo.total_pon_ports}
+						properties={elementInfo.properties}
+					/>
+				</div>
+			)}
 
 			<div className="mb-3 flex flex-wrap items-center gap-2 shrink-0">
 				<div className="flex items-center gap-1 rounded-md border border-border bg-card p-0.5">
