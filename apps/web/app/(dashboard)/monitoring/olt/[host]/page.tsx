@@ -27,7 +27,10 @@ export default async function MonitoringOltDetailPage({ params }: Props) {
 
 	const supabase = await createClient();
 
-	const [{ data: ontRows }, { data: oltElement }] = await Promise.all([
+	const [
+		{ data: ontRows, error: ontError },
+		{ data: oltElement, error: oltError },
+	] = await Promise.all([
 		supabase
 			.from("ont_current_state")
 			.select("*")
@@ -43,18 +46,36 @@ export default async function MonitoringOltDetailPage({ params }: Props) {
 			.maybeSingle(),
 	]);
 
+	if (ontError) {
+		throw new Error(
+			`No se pudo cargar la telemetría de la OLT ${host}: ${ontError.message}`,
+		);
+	}
+
+	if (oltError) {
+		throw new Error(
+			`No se pudo cargar la información de infraestructura de la OLT ${host}: ${oltError.message}`,
+		);
+	}
+
 	const readings = (ontRows ?? []) as OntCurrentState[];
 
 	const networkIdSet = new Set<string>(readings.map((r) => r.network_id));
 	if (oltElement?.network_id) networkIdSet.add(oltElement.network_id);
 
-	const { data: networks } =
+	const { data: networks, error: networksError } =
 		networkIdSet.size > 0
 			? await supabase
 					.from("networks")
 					.select("id, name")
 					.in("id", Array.from(networkIdSet))
-			: { data: [] as Array<{ id: string; name: string }> };
+			: { data: [] as Array<{ id: string; name: string }>, error: null };
+
+	if (networksError) {
+		throw new Error(
+			`No se pudieron cargar las redes asociadas a la OLT ${host}: ${networksError.message}`,
+		);
+	}
 
 	const networkNames = (networks ?? []).map(
 		(n) => (n as { id: string; name: string }).name,

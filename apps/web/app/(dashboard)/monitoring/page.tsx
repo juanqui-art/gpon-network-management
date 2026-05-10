@@ -1,3 +1,4 @@
+import { AlertTriangle, EthernetPort, Server } from "lucide-react";
 import Link from "next/link";
 import { HealthSummary } from "@/components/monitoring/health-summary";
 import { Card } from "@/components/ui/card";
@@ -18,6 +19,7 @@ type MonitoringRow = Pick<
 	| "network_id"
 	| "olt_host"
 	| "ont_logical_id"
+	| "pon_port"
 	| "status"
 	| "rx_power_dbm"
 	| "last_seen_at"
@@ -42,7 +44,7 @@ export default async function MonitoringIndexPage() {
 			supabase
 				.from("ont_current_state")
 				.select(
-					"id, network_id, olt_host, ont_logical_id, status, rx_power_dbm, last_seen_at, updated_at",
+					"id, network_id, olt_host, ont_logical_id, pon_port, status, rx_power_dbm, last_seen_at, updated_at",
 				),
 			// OLTs con management_ip configurado — para resolver nombre humano por host
 			supabase
@@ -118,6 +120,10 @@ function OltCard({ entry }: { entry: OltMonitorEntry }) {
 			? `${entry.element_total_pon_ports} PON`
 			: null,
 	].filter(Boolean);
+	const activePonLabel =
+		entry.element_total_pon_ports !== null
+			? `${entry.active_pon_ports.length}/${entry.element_total_pon_ports}`
+			: String(entry.active_pon_ports.length);
 
 	return (
 		<Link
@@ -126,26 +132,45 @@ function OltCard({ entry }: { entry: OltMonitorEntry }) {
 		>
 			<div className="flex items-start justify-between gap-4">
 				<div className="min-w-0 flex-1">
-					<div className="flex items-center gap-2">
-						<h2 className="truncate text-sm font-semibold text-foreground">
-							{title}
-						</h2>
-						{!entry.element_id && (
-							<span className="rounded border border-border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
-								sin equipo asociado
-							</span>
-						)}
+					<div className="flex items-start gap-3">
+						<span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+							<Server className="size-4" aria-hidden />
+						</span>
+						<div className="min-w-0 flex-1">
+							<div className="flex flex-wrap items-center gap-2">
+								<h2 className="truncate text-sm font-semibold text-foreground">
+									{title}
+								</h2>
+								{!entry.element_id && (
+									<span className="rounded border border-border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+										sin equipo asociado
+									</span>
+								)}
+							</div>
+							{techParts.length > 0 && (
+								<p className="mt-0.5 truncate text-xs text-muted-foreground">
+									{techParts.join(" · ")}
+								</p>
+							)}
+							<p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
+								{entry.olt_host} · {networkLabel}
+							</p>
+						</div>
 					</div>
-					{techParts.length > 0 && (
-						<p className="mt-0.5 truncate text-xs text-muted-foreground">
-							{techParts.join(" · ")}
-						</p>
-					)}
-					<p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
-						{entry.olt_host} · {networkLabel}
-					</p>
 					<div className="mt-3">
 						<HealthSummary health={entry.health} compact />
+					</div>
+					<div className="mt-3 flex flex-wrap gap-2 text-xs">
+						<span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/60 px-2 py-1 text-muted-foreground">
+							<EthernetPort className="size-3.5" aria-hidden />
+							{activePonLabel} PON activos
+						</span>
+						{entry.attention_pon_ports.length > 0 && (
+							<span className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-700 dark:text-amber-300">
+								<AlertTriangle className="size-3.5" aria-hidden />
+								{entry.attention_pon_ports.length} PON con atención
+							</span>
+						)}
 					</div>
 				</div>
 				<div className="shrink-0 text-right text-xs text-muted-foreground">
@@ -176,13 +201,33 @@ function groupByOlt(
 			if (name) entry.network_names.push(name);
 		}
 
+		const ponPort = row.pon_port?.trim();
+		if (ponPort && !entry.active_pon_ports.includes(ponPort)) {
+			entry.active_pon_ports.push(ponPort);
+		}
+
 		entry.health.total += 1;
 		entry.health[row.status as OntStatus] += 1;
+		let rowNeedsAttention = false;
 		if (row.status === "online") {
 			const signal = classifySignal(row.rx_power_dbm);
 			if (signal === "warning" || signal === "critical") {
 				entry.health.warning_signal += 1;
+				rowNeedsAttention = true;
 			}
+		} else if (
+			row.status === "offline" ||
+			row.status === "los" ||
+			row.status === "lof"
+		) {
+			rowNeedsAttention = true;
+		}
+		if (
+			ponPort &&
+			rowNeedsAttention &&
+			!entry.attention_pon_ports.includes(ponPort)
+		) {
+			entry.attention_pon_ports.push(ponPort);
 		}
 		const candidate = row.last_seen_at ?? row.updated_at;
 		if (
@@ -218,6 +263,8 @@ function createEmpty(
 		element_total_pon_ports: matched?.total_pon_ports ?? null,
 		network_ids: [],
 		network_names: [],
+		active_pon_ports: [],
+		attention_pon_ports: [],
 		health: emptyHealth(),
 	};
 }

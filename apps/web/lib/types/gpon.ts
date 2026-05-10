@@ -292,6 +292,8 @@ export interface OltMonitorEntry {
 	element_total_pon_ports: number | null;
 	network_ids: string[]; // normalmente 1, soporta caso de OLT que sirve a varias redes
 	network_names: string[];
+	active_pon_ports: string[];
+	attention_pon_ports: string[];
 	health: OntHealthSummary;
 }
 

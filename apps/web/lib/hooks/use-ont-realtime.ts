@@ -31,14 +31,14 @@ export function useOntRealtime({
 }: UseOntRealtimeArgs): OntRealtimeState {
 	const supabase = useMemo(() => createClient(), []);
 
-	const [byLogicalId, setByLogicalId] = useState<Map<string, OntCurrentState>>(
-		() => buildMap(initialReadings),
+	const [byId, setById] = useState<Map<string, OntCurrentState>>(() =>
+		buildMap(initialReadings),
 	);
 	const [connected, setConnected] = useState(false);
 	const [lastEventAt, setLastEventAt] = useState<Date | null>(null);
 
-	const setByLogicalIdRef = useRef(setByLogicalId);
-	setByLogicalIdRef.current = setByLogicalId;
+	const setByIdRef = useRef(setById);
+	setByIdRef.current = setById;
 
 	useEffect(() => {
 		let cancelled = false;
@@ -54,7 +54,7 @@ export function useOntRealtime({
 				},
 				(payload: RealtimePostgresChangesPayload<OntCurrentState>) => {
 					setLastEventAt(new Date());
-					setByLogicalIdRef.current((prev) => applyChange(prev, payload));
+					setByIdRef.current((prev) => applyChange(prev, payload));
 				},
 			)
 			.subscribe((status) => {
@@ -63,7 +63,7 @@ export function useOntRealtime({
 					setConnected(true);
 					void refetch(supabase, oltHost).then((rows) => {
 						if (cancelled) return;
-						setByLogicalIdRef.current(buildMap(rows));
+						setByIdRef.current(buildMap(rows));
 					});
 				} else if (status === "CHANNEL_ERROR" || status === "CLOSED") {
 					setConnected(false);
@@ -77,12 +77,12 @@ export function useOntRealtime({
 	}, [supabase, oltHost]);
 
 	const readings = useMemo(() => {
-		return Array.from(byLogicalId.values()).sort((a, b) =>
+		return Array.from(byId.values()).sort((a, b) =>
 			a.ont_logical_id.localeCompare(b.ont_logical_id, undefined, {
 				numeric: true,
 			}),
 		);
-	}, [byLogicalId]);
+	}, [byId]);
 
 	return { readings, connected, lastEventAt };
 }
@@ -90,7 +90,7 @@ export function useOntRealtime({
 function buildMap(rows: OntCurrentState[]): Map<string, OntCurrentState> {
 	const map = new Map<string, OntCurrentState>();
 	for (const row of rows) {
-		map.set(row.ont_logical_id, row);
+		map.set(row.id, row);
 	}
 	return map;
 }
@@ -104,15 +104,15 @@ function applyChange(
 
 	if (eventType === "DELETE") {
 		const oldRow = payload.old as Partial<OntCurrentState>;
-		if (oldRow?.ont_logical_id) {
-			next.delete(oldRow.ont_logical_id);
+		if (oldRow?.id) {
+			next.delete(oldRow.id);
 		}
 		return next;
 	}
 
 	const newRow = payload.new as OntCurrentState | undefined;
-	if (newRow?.ont_logical_id) {
-		next.set(newRow.ont_logical_id, newRow);
+	if (newRow?.id) {
+		next.set(newRow.id, newRow);
 	}
 	return next;
 }

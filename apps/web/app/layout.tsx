@@ -28,7 +28,10 @@ export default function RootLayout({
 	children: React.ReactNode;
 }>) {
 	return (
-		<html lang="es" className={`h-full antialiased ${roboto.variable} ${robotoMono.variable}`}>
+		<html
+			lang="es"
+			className={`h-full antialiased ${roboto.variable} ${robotoMono.variable}`}
+		>
 			<body className="h-full" suppressHydrationWarning>
 				<QueryProvider>{children}</QueryProvider>
 			</body>
