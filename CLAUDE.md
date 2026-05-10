@@ -109,6 +109,37 @@ apps/web/
 ├── biome.json
 └── package.json
 
+apps/collector/                           # ✨ Node.js SNMP colector → Supabase (Fase 2a — implementado)
+├── src/
+│   ├── config.ts                          # Variables de entorno (OLT, Supabase, cadencia)
+│   ├── index.ts                           # Poll loop + graceful shutdown (SIGTERM/SIGINT)
+│   ├── net-snmp.d.ts                      # TypeScript types para net-snmp@3.26.3
+│   ├── snmp/
+│   │   ├── types.ts                       # RawOntRow, SnmpSession interface
+│   │   ├── huawei-oids.ts                 # OID definitions + conversiones
+│   │   ├── mock-session.ts                # 16 ONTs sintéticas (5% status flip)
+│   │   └── session.ts                     # net-snmp wrapper (subtree walks paralelos)
+│   ├── parser/
+│   │   └── ont-parser.ts                  # Raw SNMP → OntReading tipado
+│   ├── decide/
+│   │   └── history-trigger.ts             # ¿guardar en signal_history? (change/degradation/sample)
+│   └── persist/
+│       └── supabase.ts                    # UPSERT estado + INSERT historial
+├── package.json
+├── tsconfig.json
+├── biome.json
+├── .env.example
+└── README.md
+
+**Modo mock:** `MOCK_MODE=true` → 16 ONTs sintéticas sin OLT real
+**Modo real:** `MOCK_MODE=false` + OLT_HOST → polls vía SNMP v2c UDP 161
+
+**Política de historial:** UPSERT estado siempre, INSERT signal_history solo:
+- `change` → status cambió
+- `degradation` → |rx_power| > 1.5 dB
+- `sample` → cada 10 polls (baseline)
+→ Reduce ~94% volumen vs guardar cada poll
+
 database/migrations/                      # ✅ 001-021 APLICADAS en Supabase
 ├── 001_initial_schema.sql                # 3 tablas + 13 ENUMs + indices + trigger
 ├── 002_rls_policies.sql                  # RLS para 5 roles + get_user_role()
@@ -188,22 +219,28 @@ docs/
 
 ## Pendiente de construir (priorizado)
 
-### Alta prioridad
-1. Completar flujo de creación en `NetworkEditorMap`
-2. Herramienta measure (Turf.js `@turf/length` ya instalado)
-3. Consolidar formularios compartidos del inspector
+### 🔴 Fase 2b (Realtime frontend — próximo)
+1. **Realtime subscriber en frontend** — escuchar ont_current_state + ont_signal_history via WebSocket
+2. **Actualizar marcadores del mapa** — cambios en vivo (status, rx_power, distancia)
+3. **Inspector ONT** — mostrar telemetría actual (rx_power, temperature, distance, último disconnect)
+4. **Diagnostics** — locate_fault_along_route(): correlacionar distancia ONT con topología
 
-### Media prioridad
-5. Zona operativa configurable en el código (Z05 hardcoded → seleccionable)
-6. Historial de cambios (quién modificó qué y cuándo)
-7. Splitters desbalanceados (ratios 10/90, 20/80, etc.)
-8. Vista árbol lógico más completa (con longitudes y pérdidas por tramo)
+### 🟡 Fase 2c (Editor)
+5. **Completar flujo de creación en `NetworkEditorMap`**
+6. **Herramienta `measure`** — Turf.js `@turf/length` ya instalado
+7. **Consolidar formularios compartidos del inspector**
 
-### Baja prioridad / Fase 4
-9. Registro: definir rol inicial y flujo de asignación
-10. Instalar shadcn/ui (cuando haya pantallas de admin/inventario)
-11. Clientes, ONTs, acometidas (ADR 0003)
-12. Monitoreo SNMP, TR-069, APIs de OLT
+### 🟢 Media prioridad
+8. Zona operativa configurable en código (Z05 hardcoded → seleccionable)
+9. Historial de cambios (quién modificó qué y cuándo)
+10. Splitters desbalanceados (ratios 10/90, 20/80, etc.)
+11. Vista árbol lógico más completa (con longitudes y pérdidas por tramo)
+
+### 🔵 Baja prioridad / Fase 4
+12. Registro: definir rol inicial y flujo de asignación
+13. Instalar shadcn/ui (cuando haya pantallas admin/inventario)
+14. Tablas operativas: clientes, ONTs, drops (ADR 0003)
+15. Implementar colector en RPi con systemd, monitoreo, rotate logs
 
 ## Base de datos (Supabase)
 - **Proyecto:** `ybijrwyenlfemjjueopo` — migraciones 001-017 aplicadas
