@@ -63,8 +63,8 @@
   --accent-hover:    #d7d7d7;
 
   /* Fonts */
-  --font-sans:  "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  --font-mono:  "SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  --font-sans:  Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono:  "Roboto Mono", "SFMono-Regular", Consolas, monospace;
 
   /* shadcn/ui */
   --background:      var(--surface-bg);
