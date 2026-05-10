@@ -2,22 +2,22 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { NetworkHealthSummary } from "@/components/monitoring/network-health-summary";
+import { HealthSummary } from "@/components/monitoring/health-summary";
 import { OntStatusBadge } from "@/components/monitoring/ont-status-badge";
 import { RxPowerCell } from "@/components/monitoring/rx-power-cell";
 import { Input } from "@/components/ui/input";
 import { useOntRealtime } from "@/lib/hooks/use-ont-realtime";
 import {
 	classifySignal,
-	type NetworkOntHealth,
 	type OntCurrentState,
+	type OntHealthSummary,
 	type OntStatus,
 } from "@/lib/types/gpon";
-import type { Network } from "@/lib/types/network";
 import { cn } from "@/lib/utils";
 
 interface Props {
-	network: Network;
+	oltHost: string;
+	networkNames: string[];
 	initialReadings: OntCurrentState[];
 }
 
@@ -30,19 +30,20 @@ const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
 	{ value: "alerts", label: "Alertas señal" },
 ];
 
-export function MonitoringDetailClient({ network, initialReadings }: Props) {
+export function MonitoringDetailClient({
+	oltHost,
+	networkNames,
+	initialReadings,
+}: Props) {
 	const { readings, connected, lastEventAt } = useOntRealtime({
-		networkId: network.id,
+		oltHost,
 		initialReadings,
 	});
 
 	const [filter, setFilter] = useState<StatusFilter>("all");
 	const [search, setSearch] = useState("");
 
-	const health = useMemo(
-		() => buildHealth(readings, network.id),
-		[readings, network.id],
-	);
+	const health = useMemo(() => buildHealth(readings), [readings]);
 
 	const filtered = useMemo(() => {
 		const term = search.trim().toLowerCase();
@@ -57,6 +58,9 @@ export function MonitoringDetailClient({ network, initialReadings }: Props) {
 		});
 	}, [readings, filter, search]);
 
+	const networkLabel =
+		networkNames.length === 0 ? "Sin red asociada" : networkNames.join(" · ");
+
 	return (
 		<div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden px-6 py-6">
 			<header className="mb-4 shrink-0">
@@ -64,12 +68,17 @@ export function MonitoringDetailClient({ network, initialReadings }: Props) {
 					href="/monitoring"
 					className="text-xs text-muted-foreground hover:text-foreground"
 				>
-					← Volver a redes
+					← Volver a OLTs
 				</Link>
 				<div className="mt-2 flex flex-wrap items-baseline justify-between gap-3">
-					<h1 className="text-xl font-semibold text-foreground">
-						{network.name}
-					</h1>
+					<div>
+						<h1 className="font-mono text-xl font-semibold text-foreground">
+							OLT {oltHost}
+						</h1>
+						<p className="mt-0.5 text-xs text-muted-foreground">
+							{networkLabel}
+						</p>
+					</div>
 					<RealtimeIndicator
 						connected={connected}
 						lastEventAt={lastEventAt}
@@ -77,7 +86,7 @@ export function MonitoringDetailClient({ network, initialReadings }: Props) {
 					/>
 				</div>
 				<div className="mt-3">
-					<NetworkHealthSummary health={health} />
+					<HealthSummary health={health} />
 				</div>
 			</header>
 
@@ -124,9 +133,10 @@ function OntTable({
 	if (totalCount === 0) {
 		return (
 			<div className="p-12 text-center text-sm text-muted-foreground">
-				Esta red aún no tiene telemetría reportada. Cuando el colector empiece a
-				escribir en <code className="font-mono">ont_current_state</code>,
-				aparecerá aquí.
+				Esta OLT aún no tiene telemetría reportada. Cuando el colector empiece a
+				escribir en <code className="font-mono">ont_current_state</code> con
+				este <code className="font-mono">olt_host</code>, aparecerán las ONTs
+				aquí.
 			</div>
 		);
 	}
@@ -257,7 +267,6 @@ function RealtimeIndicator({
 }) {
 	const [, force] = useState(0);
 
-	// Re-render cada 5s para refrescar el "hace Xs"
 	useEffect(() => {
 		const interval = setInterval(() => force((n) => n + 1), 5000);
 		return () => clearInterval(interval);
@@ -285,12 +294,8 @@ function RealtimeIndicator({
 	);
 }
 
-function buildHealth(
-	readings: OntCurrentState[],
-	networkId: string,
-): NetworkOntHealth {
-	const health: NetworkOntHealth = {
-		network_id: networkId,
+function buildHealth(readings: OntCurrentState[]): OntHealthSummary {
+	const health: OntHealthSummary = {
 		total: readings.length,
 		online: 0,
 		offline: 0,

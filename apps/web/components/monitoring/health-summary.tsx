@@ -1,8 +1,8 @@
-import type { NetworkOntHealth } from "@/lib/types/gpon";
+import type { OntHealthSummary } from "@/lib/types/gpon";
 import { cn } from "@/lib/utils";
 
-interface NetworkHealthSummaryProps {
-	health: NetworkOntHealth;
+interface HealthSummaryProps {
+	health: OntHealthSummary;
 	compact?: boolean;
 }
 
@@ -26,10 +26,7 @@ const TONE_DOT: Record<Counter["tone"], string> = {
 	neutral: "bg-muted-foreground/50",
 };
 
-export function NetworkHealthSummary({
-	health,
-	compact = false,
-}: NetworkHealthSummaryProps) {
+export function HealthSummary({ health, compact = false }: HealthSummaryProps) {
 	const offlineLike = health.offline + health.los + health.lof;
 
 	const counters: Counter[] = [

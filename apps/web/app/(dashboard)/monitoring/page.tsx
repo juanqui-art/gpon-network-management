@@ -1,104 +1,106 @@
 import Link from "next/link";
-import { NetworkHealthSummary } from "@/components/monitoring/network-health-summary";
+import { HealthSummary } from "@/components/monitoring/health-summary";
 import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import {
 	classifySignal,
-	type NetworkOntHealth,
+	type OltMonitorEntry,
 	type OntCurrentState,
+	type OntHealthSummary,
 	type OntStatus,
 } from "@/lib/types/gpon";
-import type { NetworkSummary } from "@/lib/types/network";
 
-export const metadata = { title: "Monitoreo — Redes GPON" };
+export const metadata = { title: "Monitoreo de OLTs" };
 
-interface MonitoredNetwork extends NetworkSummary {
-	health: NetworkOntHealth;
-}
+type MonitoringRow = Pick<
+	OntCurrentState,
+	| "id"
+	| "network_id"
+	| "olt_host"
+	| "ont_logical_id"
+	| "status"
+	| "rx_power_dbm"
+	| "last_seen_at"
+	| "updated_at"
+>;
 
 export default async function MonitoringIndexPage() {
 	const supabase = await createClient();
 
 	const [{ data: networks }, { data: ontRows }] = await Promise.all([
-		supabase.rpc("list_networks"),
+		supabase.from("networks").select("id, name"),
 		supabase
 			.from("ont_current_state")
 			.select(
-				"id, network_id, ont_logical_id, status, rx_power_dbm, last_seen_at, updated_at",
+				"id, network_id, olt_host, ont_logical_id, status, rx_power_dbm, last_seen_at, updated_at",
 			),
 	]);
 
-	const monitored = buildMonitored(
-		(networks ?? []) as NetworkSummary[],
-		(ontRows ?? []) as Pick<
-			OntCurrentState,
-			| "network_id"
-			| "status"
-			| "rx_power_dbm"
-			| "last_seen_at"
-			| "updated_at"
-			| "ont_logical_id"
-			| "id"
-		>[],
-	);
+	const networkNameById = new Map<string, string>();
+	for (const network of networks ?? []) {
+		networkNameById.set(
+			(network as { id: string; name: string }).id,
+			(network as { id: string; name: string }).name,
+		);
+	}
+
+	const olts = groupByOlt((ontRows ?? []) as MonitoringRow[], networkNameById);
 
 	return (
 		<div className="mx-auto h-full w-full max-w-5xl overflow-auto px-6 py-8">
 			<header className="mb-6">
 				<h1 className="text-xl font-semibold text-foreground">
-					Monitoreo de redes
+					Monitoreo de OLTs
 				</h1>
 				<p className="mt-1 text-sm text-muted-foreground">
-					Salud en tiempo real de las ONTs por red. Selecciona una red para ver
-					detalle.
+					Salud en tiempo real de cada OLT y sus ONTs. Selecciona una OLT para
+					ver el detalle.
 				</p>
 			</header>
 
-			{monitored.length === 0 && (
+			{olts.length === 0 && (
 				<Card className="p-8 text-center">
 					<p className="text-sm text-muted-foreground">
-						No hay redes para monitorear.
+						Aún no hay OLTs reportando. Cuando el colector empiece a escribir en{" "}
+						<code className="font-mono">ont_current_state</code>, aparecerán
+						aquí.
 					</p>
 				</Card>
 			)}
 
 			<div className="grid gap-3">
-				{monitored.map((network) => (
-					<NetworkCard key={network.id} network={network} />
+				{olts.map((entry) => (
+					<OltCard key={entry.olt_host} entry={entry} />
 				))}
 			</div>
 		</div>
 	);
 }
 
-function NetworkCard({ network }: { network: MonitoredNetwork }) {
-	const { health } = network;
-	const lastUpdate = formatLastUpdate(health.last_update);
-	const noData = health.total === 0;
+function OltCard({ entry }: { entry: OltMonitorEntry }) {
+	const lastUpdate = formatRelative(entry.health.last_update);
+	const networkLabel =
+		entry.network_names.length === 0
+			? "Sin red asociada"
+			: entry.network_names.join(" · ");
 
 	return (
 		<Link
-			href={`/monitoring/${network.id}`}
+			href={`/monitoring/olt/${encodeURIComponent(entry.olt_host)}`}
 			className="group block rounded-lg border border-border bg-card p-4 transition-colors hover:border-primary/50 hover:bg-muted/30"
 		>
 			<div className="flex items-start justify-between gap-4">
 				<div className="min-w-0 flex-1">
-					<h2 className="truncate text-sm font-semibold text-foreground">
-						{network.name}
-					</h2>
-					{network.description && (
-						<p className="mt-0.5 truncate text-xs text-muted-foreground">
-							{network.description}
-						</p>
-					)}
+					<div className="flex items-center gap-2">
+						<h2 className="truncate font-mono text-sm font-semibold text-foreground">
+							OLT {entry.olt_host}
+						</h2>
+					</div>
+					<p className="mt-0.5 truncate text-xs text-muted-foreground">
+						{networkLabel}
+					</p>
 					<div className="mt-3">
-						{noData ? (
-							<p className="text-xs text-muted-foreground">
-								Sin telemetría reportada todavía
-							</p>
-						) : (
-							<NetworkHealthSummary health={health} compact />
-						)}
+						<HealthSummary health={entry.health} compact />
 					</div>
 				</div>
 				<div className="text-right text-xs text-muted-foreground shrink-0">
@@ -112,51 +114,52 @@ function NetworkCard({ network }: { network: MonitoredNetwork }) {
 	);
 }
 
-function buildMonitored(
-	networks: NetworkSummary[],
-	rows: Pick<
-		OntCurrentState,
-		| "network_id"
-		| "status"
-		| "rx_power_dbm"
-		| "last_seen_at"
-		| "updated_at"
-		| "ont_logical_id"
-		| "id"
-	>[],
-): MonitoredNetwork[] {
-	const healthByNetwork = new Map<string, NetworkOntHealth>();
+function groupByOlt(
+	rows: MonitoringRow[],
+	networkNameById: Map<string, string>,
+): OltMonitorEntry[] {
+	const byHost = new Map<string, OltMonitorEntry>();
 
 	for (const row of rows) {
-		const current =
-			healthByNetwork.get(row.network_id) ?? emptyHealth(row.network_id);
-		current.total += 1;
-		current[row.status as OntStatus] += 1;
+		const entry = byHost.get(row.olt_host) ?? {
+			olt_host: row.olt_host,
+			network_ids: [],
+			network_names: [],
+			health: emptyHealth(),
+		};
+
+		if (!entry.network_ids.includes(row.network_id)) {
+			entry.network_ids.push(row.network_id);
+			const name = networkNameById.get(row.network_id);
+			if (name) entry.network_names.push(name);
+		}
+
+		entry.health.total += 1;
+		entry.health[row.status as OntStatus] += 1;
 		if (row.status === "online") {
 			const signal = classifySignal(row.rx_power_dbm);
 			if (signal === "warning" || signal === "critical") {
-				current.warning_signal += 1;
+				entry.health.warning_signal += 1;
 			}
 		}
 		const candidate = row.last_seen_at ?? row.updated_at;
 		if (
 			candidate &&
-			(!current.last_update || candidate > current.last_update)
+			(!entry.health.last_update || candidate > entry.health.last_update)
 		) {
-			current.last_update = candidate;
+			entry.health.last_update = candidate;
 		}
-		healthByNetwork.set(row.network_id, current);
+
+		byHost.set(row.olt_host, entry);
 	}
 
-	return networks.map((network) => ({
-		...network,
-		health: healthByNetwork.get(network.id) ?? emptyHealth(network.id),
-	}));
+	return Array.from(byHost.values()).sort((a, b) =>
+		a.olt_host.localeCompare(b.olt_host),
+	);
 }
 
-function emptyHealth(networkId: string): NetworkOntHealth {
+function emptyHealth(): OntHealthSummary {
 	return {
-		network_id: networkId,
 		total: 0,
 		online: 0,
 		offline: 0,
@@ -168,7 +171,7 @@ function emptyHealth(networkId: string): NetworkOntHealth {
 	};
 }
 
-function formatLastUpdate(iso: string | null): string | null {
+function formatRelative(iso: string | null): string | null {
 	if (!iso) return null;
 	const seen = new Date(iso).getTime();
 	if (Number.isNaN(seen)) return null;

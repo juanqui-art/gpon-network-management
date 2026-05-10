@@ -262,9 +262,10 @@ export interface OntSignalHistoryEntry {
 	recorded_at: string;
 }
 
-// Resumen agregado de salud por red — usado en el índice /monitoring.
-export interface NetworkOntHealth {
-	network_id: string;
+// Resumen agregado de salud — usado en /monitoring tanto a nivel global (por OLT)
+// como dentro del detalle. Los conteos son los mismos sin importar cómo se agrupe;
+// el contexto del agrupador (OLT, red) se mantiene fuera del struct.
+export interface OntHealthSummary {
 	total: number;
 	online: number;
 	offline: number;
@@ -273,6 +274,14 @@ export interface NetworkOntHealth {
 	unknown: number;
 	warning_signal: number; // ONTs online pero con rx_power en zona de alerta
 	last_update: string | null;
+}
+
+// Entrada del índice /monitoring — una OLT con su contexto (red(es) a las que sirve).
+export interface OltMonitorEntry {
+	olt_host: string;
+	network_ids: string[]; // normalmente 1, soporta caso de OLT que sirve a varias redes
+	network_names: string[];
+	health: OntHealthSummary;
 }
 
 export const ONT_STATUS_LABELS: Record<OntStatus, string> = {

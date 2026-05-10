@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { OntCurrentState } from "@/lib/types/gpon";
 
 interface UseOntRealtimeArgs {
-	networkId: string;
+	oltHost: string;
 	initialReadings: OntCurrentState[];
 }
 
@@ -19,14 +19,14 @@ export interface OntRealtimeState {
 	lastEventAt: Date | null;
 }
 
-// Mantiene el estado vivo de las ONTs de una red. Carga inicial via SSR
-// (initialReadings), después escucha cambios por Realtime.
+// Mantiene el estado vivo de las ONTs de una OLT. Carga inicial via SSR
+// (initialReadings), después escucha cambios por Realtime filtrando por olt_host.
 //
 // Política frente a desconexión: la suscripción de Supabase reintenta sola.
 // Cuando el canal vuelve a SUBSCRIBED, hacemos un refetch completo para
 // recuperar cualquier evento perdido durante el corte.
 export function useOntRealtime({
-	networkId,
+	oltHost,
 	initialReadings,
 }: UseOntRealtimeArgs): OntRealtimeState {
 	const supabase = useMemo(() => createClient(), []);
@@ -37,22 +37,20 @@ export function useOntRealtime({
 	const [connected, setConnected] = useState(false);
 	const [lastEventAt, setLastEventAt] = useState<Date | null>(null);
 
-	// Stable ref con el setter para que el callback de Supabase no necesite
-	// dependencias dinámicas
 	const setByLogicalIdRef = useRef(setByLogicalId);
 	setByLogicalIdRef.current = setByLogicalId;
 
 	useEffect(() => {
 		let cancelled = false;
 		const channel: RealtimeChannel = supabase
-			.channel(`ont-monitoring:${networkId}`)
+			.channel(`ont-monitoring:olt:${oltHost}`)
 			.on(
 				"postgres_changes",
 				{
 					event: "*",
 					schema: "public",
 					table: "ont_current_state",
-					filter: `network_id=eq.${networkId}`,
+					filter: `olt_host=eq.${oltHost}`,
 				},
 				(payload: RealtimePostgresChangesPayload<OntCurrentState>) => {
 					setLastEventAt(new Date());
@@ -63,8 +61,7 @@ export function useOntRealtime({
 				if (cancelled) return;
 				if (status === "SUBSCRIBED") {
 					setConnected(true);
-					// Refetch para reconciliar después de (re)conectar
-					void refetch(supabase, networkId).then((rows) => {
+					void refetch(supabase, oltHost).then((rows) => {
 						if (cancelled) return;
 						setByLogicalIdRef.current(buildMap(rows));
 					});
@@ -77,9 +74,8 @@ export function useOntRealtime({
 			cancelled = true;
 			void supabase.removeChannel(channel);
 		};
-	}, [supabase, networkId]);
+	}, [supabase, oltHost]);
 
-	// Convertimos el Map a array ordenado por logical_id solo cuando cambia.
 	const readings = useMemo(() => {
 		return Array.from(byLogicalId.values()).sort((a, b) =>
 			a.ont_logical_id.localeCompare(b.ont_logical_id, undefined, {
@@ -123,12 +119,12 @@ function applyChange(
 
 async function refetch(
 	supabase: ReturnType<typeof createClient>,
-	networkId: string,
+	oltHost: string,
 ): Promise<OntCurrentState[]> {
 	const { data, error } = await supabase
 		.from("ont_current_state")
 		.select("*")
-		.eq("network_id", networkId);
+		.eq("olt_host", oltHost);
 	if (error) {
 		console.error("ont_current_state refetch failed", error);
 		return [];
