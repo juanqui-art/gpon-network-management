@@ -1,4 +1,8 @@
-import { mapHuaweiStatus, snmpIntToDbm } from "../snmp/huawei-oids.js";
+import {
+	decodeOltPort,
+	mapHuaweiStatus,
+	snmpIntToDbm,
+} from "../snmp/huawei-oids.js";
 import type { RawOntRow } from "../snmp/types.js";
 
 // Lectura ya tipada y convertida — lista para persistir en Supabase.
@@ -21,12 +25,17 @@ export function parseOntRows(rows: RawOntRow[]): OntReading[] {
 		ontLogicalId: row.logicalId,
 		ontSerial: row.serial ?? null,
 		ontDescription: row.description ?? null,
-		pon_port: row.oltPort,
-		rxPowerDbm: typeof row.rxPowerRaw === "number" ? snmpIntToDbm(row.rxPowerRaw) : null,
-		txPowerDbm: typeof row.txPowerRaw === "number" ? snmpIntToDbm(row.txPowerRaw) : null,
-		temperatureC: typeof row.temperatureRaw === "number" ? row.temperatureRaw : null,
+		pon_port: decodeOltPort(row.oltPort),
+		rxPowerDbm:
+			typeof row.rxPowerRaw === "number" ? snmpIntToDbm(row.rxPowerRaw) : null,
+		txPowerDbm:
+			typeof row.txPowerRaw === "number" ? snmpIntToDbm(row.txPowerRaw) : null,
+		temperatureC:
+			typeof row.temperatureRaw === "number" ? row.temperatureRaw : null,
 		status:
-			typeof row.statusRaw === "number" ? mapHuaweiStatus(row.statusRaw) : "unknown",
+			typeof row.statusRaw === "number"
+				? mapHuaweiStatus(row.statusRaw)
+				: "unknown",
 		distanceM: typeof row.distanceM === "number" ? row.distanceM : null,
 		lastDisconnectReason: row.lastDisconnectReason ?? null,
 	}));

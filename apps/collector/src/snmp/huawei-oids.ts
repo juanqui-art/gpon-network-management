@@ -40,20 +40,50 @@ export function mapHuaweiStatus(
 	return STATUS_MAP[rawStatus] ?? "unknown";
 }
 
-// Construye el ont_logical_id a partir del index SNMP devuelto por tableColumns
-// Formato: "<olt_port>.<ont_id>" (ej: "4194312192.5")
-// El olt_port codifica F/S/P (frame/slot/port) — no lo decodificamos aquí,
-// se queda como identificador opaco. La decodificación humana ("0/2/1") se hace
-// en otro punto si hace falta.
+const HUAWEI_GPON_TYPE = 125;
+const HUAWEI_TYPE_SHIFT = 25;
+const HUAWEI_FRAME_SHIFT = 19;
+const HUAWEI_SLOT_SHIFT = 13;
+const HUAWEI_PORT_SHIFT = 8;
+const HUAWEI_TYPE_BLOCK = 2 ** HUAWEI_TYPE_SHIFT;
+const HUAWEI_FRAME_BLOCK = 2 ** HUAWEI_FRAME_SHIFT;
+const HUAWEI_SLOT_BLOCK = 2 ** HUAWEI_SLOT_SHIFT;
+const HUAWEI_PORT_BLOCK = 2 ** HUAWEI_PORT_SHIFT;
+
+// Construye el ont_logical_id a partir del index SNMP devuelto por los walks.
+// Formato: "<olt_port>.<ont_id>" (ej: "4194312192.5").
+// Este identificador se mantiene crudo porque es la identidad estable que usa SNMP.
 export function buildLogicalId(oltPort: string, ontId: string): string {
 	return `${oltPort}.${ontId}`;
 }
 
 // Decodifica el olt_port codificado a F/S/P legible.
-// Huawei usa: base + slot * baseStep + port. baseStep ≈ 8192 entre slots.
-// Esta función es heurística — para diagnóstico, no para identidad.
-export function decodeOltPort(encoded: number): string {
-	// Implementación pendiente: requiere validar con OLT real.
-	// Por ahora retornamos el valor crudo como string.
-	return String(encoded);
+// Huawei compone el ifIndex GPON aproximadamente así:
+//   (125 << 25) + (frame << 19) + (slotIndex << 13) + (portIndex << 8)
+// En la UI usamos la convención operativa documentada del proyecto:
+//   4194312192 -> 0/2/1
+// Por eso frame queda 0-based, y slot/port se muestran 1-based.
+export function decodeOltPort(encoded: number | string): string {
+	const numeric =
+		typeof encoded === "number" ? encoded : Number.parseInt(encoded, 10);
+
+	if (!Number.isSafeInteger(numeric) || numeric < 0) {
+		return String(encoded);
+	}
+
+	const type = Math.floor(numeric / HUAWEI_TYPE_BLOCK);
+	if (type !== HUAWEI_GPON_TYPE) {
+		return String(encoded);
+	}
+
+	let remainder = numeric - type * HUAWEI_TYPE_BLOCK;
+	const frame = Math.floor(remainder / HUAWEI_FRAME_BLOCK);
+	remainder -= frame * HUAWEI_FRAME_BLOCK;
+
+	const slotIndex = Math.floor(remainder / HUAWEI_SLOT_BLOCK);
+	remainder -= slotIndex * HUAWEI_SLOT_BLOCK;
+
+	const portIndex = Math.floor(remainder / HUAWEI_PORT_BLOCK);
+
+	return `${frame}/${slotIndex + 1}/${portIndex + 1}`;
 }
