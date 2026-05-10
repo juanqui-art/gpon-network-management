@@ -106,8 +106,6 @@ interface Accumulated {
 	warnings: string[];
 }
 
-const CABLE_FACTOR = 1.02;
-
 function routeLabel(route: TreeNode["routeFromParent"]): string {
 	return route?.code ?? "Tramo sin codigo";
 }
@@ -263,7 +261,8 @@ function buildBudgets(
 			if (route.length_meters) {
 				const attenuationDbPerKm =
 					route.attenuation_db_per_km ?? ATTENUATION_DB_PER_KM["1490"] ?? 0.3;
-				segLength = route.length_meters * CABLE_FACTOR;
+				const reservation = route.reservation_m ?? 0;
+				segLength = route.length_meters + reservation;
 				segFiber = (segLength / 1000) * attenuationDbPerKm;
 				if (route.attenuation_db_per_km == null) {
 					segmentWarnings.push(

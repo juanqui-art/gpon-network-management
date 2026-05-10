@@ -96,6 +96,7 @@ export interface OpticalBudgetResult {
 
 export interface OpticalBudgetInput {
 	lengthMeters: number | null;
+	reservationMeters?: number | null; // slack físico (bucles, holgura) sobre la longitud GIS
 	attenuationDbPerKm?: number | null; // usa valor de BD si disponible; si null usa tabla por wavelength
 	fiberType: FiberStandard | null;
 	splitRatio: string | null; // "1:8", "1:16", etc.
@@ -113,18 +114,18 @@ export function calculateOpticalBudget(
 ): OpticalBudgetResult {
 	const warnings: string[] = [];
 
-	// Factor de trenzado: el cable instalado es ~2% más largo que la ruta GIS
-	const CABLE_FACTOR = 1.02;
-
-	// Atenuación por longitud
+	// Atenuación por longitud: cable real = longitud GIS + reserva física (bucles, holgura).
+	// La reserva contribuye porque la luz recorre ese cable adicional.
 	const wavelength = input.wavelength ?? "1490";
 	const dbPerKm = input.attenuationDbPerKm ?? ATTENUATION_DB_PER_KM[wavelength];
+	const reservationMeters = input.reservationMeters ?? 0;
 	let fiberLoss = 0;
 
 	if (!input.lengthMeters) {
 		warnings.push("Longitud de ruta no calculada");
 	} else {
-		fiberLoss = ((input.lengthMeters * CABLE_FACTOR) / 1000) * dbPerKm;
+		const totalFiberMeters = input.lengthMeters + reservationMeters;
+		fiberLoss = (totalFiberMeters / 1000) * dbPerKm;
 	}
 
 	// Pérdida del splitter

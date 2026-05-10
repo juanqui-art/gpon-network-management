@@ -1901,6 +1901,9 @@ function RouteInspectorDetails({
 	const [fiberCount, setFiberCount] = useState(
 		route.fiber_count == null ? "" : String(route.fiber_count),
 	);
+	const [reservation, setReservation] = useState(
+		route.reservation_m == null ? "" : String(route.reservation_m),
+	);
 	const [notes, setNotes] = useState(route.notes ?? "");
 
 	useEffect(() => {
@@ -1911,10 +1914,16 @@ function RouteInspectorDetails({
 		setInstallationType(route.installation_type ?? "");
 		setFiberType(route.fiber_type ?? "");
 		setFiberCount(route.fiber_count == null ? "" : String(route.fiber_count));
+		setReservation(
+			route.reservation_m == null ? "" : String(route.reservation_m),
+		);
 		setNotes(route.notes ?? "");
 	}, [route]);
 
 	const applyChanges = () => {
+		const reservationTrim = reservation.trim();
+		const reservationValue =
+			reservationTrim === "" ? 0 : Math.max(0, Number(reservationTrim));
 		onUpdateRoute?.(route.id, {
 			code: emptyToNull(code),
 			type,
@@ -1923,6 +1932,7 @@ function RouteInspectorDetails({
 			installation_type: installationType === "" ? null : installationType,
 			fiber_type: fiberType === "" ? null : fiberType,
 			fiber_count: fiberCount.trim() === "" ? null : Number(fiberCount),
+			reservation_m: Number.isFinite(reservationValue) ? reservationValue : 0,
 			notes: emptyToNull(notes),
 		});
 		onCancelEdit();
@@ -2053,6 +2063,24 @@ function RouteInspectorDetails({
 								: `${route.length_meters.toFixed(1)} m`
 						}
 					/>
+					<label className="block">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+							Reserva (m)
+						</span>
+						<input
+							min={0}
+							step={0.1}
+							type="number"
+							value={reservation}
+							onChange={(event) => setReservation(event.target.value)}
+							placeholder="0"
+							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+						/>
+						<span className="mt-1 block text-[10px] text-[#777879]">
+							Slack físico (bucles, holgura). Suma a la pérdida óptica del
+							tramo.
+						</span>
+					</label>
 				</InspectorSection>
 				<InspectorSection title="Notas">
 					<textarea
@@ -2099,6 +2127,14 @@ function RouteInspectorDetails({
 						route.length_meters == null
 							? null
 							: `${route.length_meters.toFixed(1)} m`
+					}
+				/>
+				<InspectorRow
+					label="Reserva"
+					value={
+						route.reservation_m > 0
+							? `${route.reservation_m.toFixed(1)} m`
+							: "—"
 					}
 				/>
 			</InspectorSection>

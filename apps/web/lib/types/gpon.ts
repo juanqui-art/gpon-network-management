@@ -108,6 +108,7 @@ export interface FiberRoute {
 	fiber_type: FiberType | null;
 	fiber_count: number | null;
 	length_meters: number | null;
+	reservation_m: number;
 
 	attenuation_db_per_km: number | null;
 	splice_loss_db: number | null;

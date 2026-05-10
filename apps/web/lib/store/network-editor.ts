@@ -799,6 +799,7 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 							fiber_type: route.fiber_type,
 							fiber_count: route.fiber_count,
 							length_meters: route.length_meters,
+							reservation_m: route.reservation_m ?? 0,
 							attenuation_db_per_km: route.attenuation_db_per_km,
 							splice_loss_db: route.splice_loss_db,
 							connector_loss_db: route.connector_loss_db,

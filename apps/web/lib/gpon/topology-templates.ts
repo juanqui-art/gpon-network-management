@@ -100,6 +100,7 @@ const BASE_ROUTE = {
 	organization_id: null,
 	route_quality: "gps_captured" as DataQuality,
 	installation_type: null,
+	reservation_m: 0,
 	attenuation_db_per_km: null,
 	splice_loss_db: null,
 	connector_loss_db: null,

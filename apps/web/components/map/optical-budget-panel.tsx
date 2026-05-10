@@ -22,6 +22,7 @@ export function OpticalBudgetPanel({
 }: OpticalBudgetPanelProps) {
 	const result = calculateOpticalBudget({
 		lengthMeters: route.length_meters,
+		reservationMeters: route.reservation_m,
 		attenuationDbPerKm: route.attenuation_db_per_km ?? null,
 		fiberType: route.fiber_type as FiberStandard | null,
 		splitRatio: splitterRatio ?? null,
@@ -64,7 +65,9 @@ export function OpticalBudgetPanel({
 					value={`${result.fiberLoss.toFixed(2)} dB`}
 					sub={
 						route.length_meters
-							? `${(route.length_meters / 1000).toFixed(2)} km ×1.02`
+							? route.reservation_m > 0
+								? `${(route.length_meters / 1000).toFixed(2)} km + ${route.reservation_m.toFixed(0)} m reserva`
+								: `${(route.length_meters / 1000).toFixed(2)} km`
 							: "—"
 					}
 				/>

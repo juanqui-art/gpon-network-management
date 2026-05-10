@@ -781,7 +781,7 @@ function getRouteLossLabel(
 	if (!route) return "";
 	const fiberLoss =
 		route.length_meters != null
-			? ((route.length_meters * 1.02) / 1000) *
+			? ((route.length_meters + (route.reservation_m ?? 0)) / 1000) *
 				(route.attenuation_db_per_km ?? ATTENUATION_DB_PER_KM["1490"])
 			: 0;
 	const routeLoss =

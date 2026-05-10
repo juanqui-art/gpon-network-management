@@ -528,6 +528,7 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 			fiber_type: null,
 			fiber_count: 12,
 			length_meters: calculateRouteLengthMeters(coordinates),
+			reservation_m: 0,
 			attenuation_db_per_km: null,
 			splice_loss_db: null,
 			connector_loss_db: null,

@@ -125,6 +125,7 @@ export interface CreateRouteInput {
 	fiber_type: FiberType | null;
 	fiber_count: number | null;
 	length_meters: number | null;
+	reservation_m: number;
 	attenuation_db_per_km: number | null;
 	splice_loss_db: number | null;
 	connector_loss_db: number | null;
@@ -151,6 +152,7 @@ export async function createFiberRoute(
 		p_splice_loss_db: input.splice_loss_db,
 		p_connector_loss_db: input.connector_loss_db,
 		p_notes: input.notes,
+		p_reservation_m: input.reservation_m,
 	});
 
 	if (error) throw error;
@@ -254,6 +256,7 @@ export async function updateFiberRoute(input: {
 		p_fiber_count: patch.fiber_count ?? route.fiber_count,
 		p_length_meters: patch.length_meters ?? route.length_meters,
 		p_notes: patch.notes ?? route.notes,
+		p_reservation_m: patch.reservation_m ?? route.reservation_m,
 	});
 
 	if (error) throw error;

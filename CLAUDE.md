@@ -109,7 +109,7 @@ apps/web/
 ├── biome.json
 └── package.json
 
-database/migrations/                      # ✅ 001-017 APLICADAS en Supabase
+database/migrations/                      # ✅ 001-020 APLICADAS en Supabase
 ├── 001_initial_schema.sql                # 3 tablas + 13 ENUMs + indices + trigger
 ├── 002_rls_policies.sql                  # RLS para 5 roles + get_user_role()
 ├── 003_seed_dev.sql                      # Red mínima Quito (8 elementos, 7 rutas, 3 puntos)
@@ -127,7 +127,10 @@ database/migrations/                      # ✅ 001-017 APLICADAS en Supabase
 ├── 014_seed_cuenca.sql                   # Red Cuenca — Star 1:16, El Ejido/San Sebastián
 ├── 015_fix_update_infrastructure_element_ambiguous_id.sql  # Fix columna id ambigua en RPC
 ├── 016_fix_update_fiber_route_ambiguous_id.sql             # Fix columna id ambigua en RPC
-└── 017_use_geometry_length_for_fiber_routes.sql            # Longitud desde geometría GIS
+├── 017_use_geometry_length_for_fiber_routes.sql            # Longitud desde geometría GIS
+├── 018_closure_mufa_capture_persistence.sql                # ENUMs closure y mufa
+├── 019_capture_closure_mufa_rpcs.sql                       # RPCs captura de closure/mufa
+└── 020_fiber_route_reservation.sql                         # fiber_routes.reservation_m (slack óptico)
 
 docs/
 ├── MVP_SCOPE.md                          # Alcance y criterios de cierre del MVP
@@ -179,7 +182,6 @@ docs/
 
 ### Pendiente en el editor
 - ❌ **Herramienta `measure`**: medir distancia sobre el mapa (Turf.js ya instalado)
-- ❌ **Reserva de fibra** (`reservation_m`): requiere migración DB + campo en panel de rutas
 - ⚠️ **Creación de elementos/rutas en NetworkEditorMap**: continuar consolidando flujo de diseño
 
 ## Pendiente de construir (priorizado)
@@ -187,8 +189,7 @@ docs/
 ### Alta prioridad
 1. Completar flujo de creación en `NetworkEditorMap`
 2. Herramienta measure (Turf.js `@turf/length` ya instalado)
-3. Reserva de fibra — campo `reservation_m` en rutas
-4. Consolidar formularios compartidos del inspector
+3. Consolidar formularios compartidos del inspector
 
 ### Media prioridad
 5. Zona operativa configurable en el código (Z05 hardcoded → seleccionable)
@@ -257,8 +258,10 @@ Pérdida total =
   + margen_seguridad
 ```
 Valores conservadores para Ecuador (UV, humedad, reparaciones frecuentes).
-Parámetros activos: longitud GIS * 1.02, conector 0.5 dB, empalme 0.1 dB,
+Parámetros activos: longitud_GIS + reservation_m, conector 0.5 dB, empalme 0.1 dB,
 margen de seguridad 4.0 dB (tropical Ecuador: UV, humedad, reparaciones), downstream base 1490 nm.
+La reserva física (bucles, holgura) se modela explícitamente en `fiber_routes.reservation_m`
+y suma a la longitud para calcular la atenuación.
 Semáforo: verde (>3dB margen) / ámbar (1-3dB) / rojo (<1dB) / gris (sin clase óptica del OLT).
 Referencia canónica: `docs/GPON_FTTH_ECUADOR_RESEARCH.md#presupuesto-optico-consolidado`.
 
