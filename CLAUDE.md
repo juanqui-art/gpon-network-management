@@ -109,7 +109,7 @@ apps/web/
 ├── biome.json
 └── package.json
 
-database/migrations/                      # ✅ 001-020 APLICADAS en Supabase
+database/migrations/                      # ✅ 001-021 APLICADAS en Supabase
 ├── 001_initial_schema.sql                # 3 tablas + 13 ENUMs + indices + trigger
 ├── 002_rls_policies.sql                  # RLS para 5 roles + get_user_role()
 ├── 003_seed_dev.sql                      # Red mínima Quito (8 elementos, 7 rutas, 3 puntos)
@@ -130,7 +130,8 @@ database/migrations/                      # ✅ 001-020 APLICADAS en Supabase
 ├── 017_use_geometry_length_for_fiber_routes.sql            # Longitud desde geometría GIS
 ├── 018_closure_mufa_capture_persistence.sql                # ENUMs closure y mufa
 ├── 019_capture_closure_mufa_rpcs.sql                       # RPCs captura de closure/mufa
-└── 020_fiber_route_reservation.sql                         # fiber_routes.reservation_m (slack óptico)
+├── 020_fiber_route_reservation.sql                         # fiber_routes.reservation_m (slack óptico)
+└── 021_ont_monitoring_tables.sql                           # ont_current_state + ont_signal_history (telemetría tiempo real)
 
 docs/
 ├── MVP_SCOPE.md                          # Alcance y criterios de cierre del MVP
@@ -151,6 +152,7 @@ docs/
 ├── OLT_OPERATIONS.md                     # Guía operación OLT — Fase 4
 ├── OLT_INTEGRATION_GUIDE.md              # Integración SNMP/telemetría OLT — Fase 4
 ├── OLT_DEPLOYMENT.md                     # Runbook despliegue OLT — Fase 4
+├── REALTIME_MONITORING_RESEARCH.md       # Investigación monitoreo tiempo real (OIDs Huawei verificados, Supabase Realtime, colector RPi)
 ├── adr/
 │   ├── 0001-single-tenant-mvp.md
 │   ├── 0002-no-port-tracking.md
