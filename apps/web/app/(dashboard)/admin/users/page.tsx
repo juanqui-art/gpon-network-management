@@ -15,6 +15,7 @@ function toUserView(user: User, currentUserId: string): AdminUserView {
 		),
 		createdAt: user.created_at,
 		lastSignInAt: user.last_sign_in_at ?? null,
+		emailConfirmedAt: user.email_confirmed_at ?? null,
 		bannedUntil: user.banned_until ?? null,
 		isCurrentUser: user.id === currentUserId,
 	};

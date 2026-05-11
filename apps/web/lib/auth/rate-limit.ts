@@ -29,6 +29,8 @@ function makeLimiter(
 
 const signInLimiter = makeLimiter("rl:signin", 5, "15 m");
 const passwordResetLimiter = makeLimiter("rl:pwreset", 3, "1 h");
+const adminInviteLimiter = makeLimiter("rl:admin:invite", 10, "1 h");
+const adminWriteLimiter = makeLimiter("rl:admin:write", 60, "15 m");
 
 async function clientIp(): Promise<string> {
 	const h = await headers();
@@ -71,4 +73,16 @@ export async function checkSignInRateLimit(
 export async function checkPasswordResetRateLimit(): Promise<RateLimitResult> {
 	const ip = await clientIp();
 	return check(passwordResetLimiter, ip);
+}
+
+export async function checkAdminInviteRateLimit(
+	actorId: string,
+): Promise<RateLimitResult> {
+	return check(adminInviteLimiter, actorId);
+}
+
+export async function checkAdminWriteRateLimit(
+	actorId: string,
+): Promise<RateLimitResult> {
+	return check(adminWriteLimiter, actorId);
 }

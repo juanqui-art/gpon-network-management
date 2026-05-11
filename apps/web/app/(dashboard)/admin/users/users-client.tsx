@@ -3,15 +3,19 @@
 import {
 	CheckCircle2,
 	Clock3,
+	KeyRound,
 	MailPlus,
 	MoreHorizontal,
+	Send,
 	ShieldCheck,
 	UserCog,
 	UserRoundX,
 } from "lucide-react";
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import {
 	inviteUser,
+	resendInvitation,
+	sendPasswordReset,
 	setUserSuspended,
 	type UserActionState,
 	updateUserRole,
@@ -36,6 +40,7 @@ export interface AdminUserView {
 	role: UserRole;
 	createdAt: string;
 	lastSignInAt: string | null;
+	emailConfirmedAt: string | null;
 	bannedUntil: string | null;
 	isCurrentUser: boolean;
 }
@@ -56,6 +61,202 @@ function formatDate(value: string | null): string {
 function isSuspended(user: AdminUserView): boolean {
 	if (!user.bannedUntil) return false;
 	return new Date(user.bannedUntil).getTime() > Date.now();
+}
+
+function feedbackToneClass(status: UserActionState["status"]): string {
+	if (status === "success") {
+		return "text-[var(--status-online)]";
+	}
+	if (status === "error") {
+		return "text-[#ffb3c1]";
+	}
+	return "text-muted-foreground";
+}
+
+function UserRow({ user }: { user: AdminUserView }) {
+	const [roleState, roleAction, rolePending] = useActionState(
+		updateUserRole,
+		initialState,
+	);
+	const [suspendState, suspendAction, suspendPending] = useActionState(
+		setUserSuspended,
+		initialState,
+	);
+	const [resendState, resendAction, resendPending] = useActionState(
+		resendInvitation,
+		initialState,
+	);
+	const [resetState, resetAction, resetPending] = useActionState(
+		sendPasswordReset,
+		initialState,
+	);
+
+	const [roleValue, setRoleValue] = useState<UserRole>(user.role);
+
+	useEffect(() => {
+		setRoleValue(user.role);
+	}, [user.role]);
+
+	useEffect(() => {
+		if (roleState.status === "error") {
+			setRoleValue(user.role);
+		}
+	}, [roleState, user.role]);
+
+	const suspended = isSuspended(user);
+	const confirmed = Boolean(user.emailConfirmedAt);
+	const canResend = !user.isCurrentUser && !confirmed;
+	const canReset = !user.isCurrentUser && confirmed;
+
+	return (
+		<tr>
+			<td className="py-3 pr-4">
+				<div>
+					<p className="font-medium text-foreground">{user.email}</p>
+					<p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+						{user.id.slice(0, 8)}
+					</p>
+					{!confirmed && (
+						<Badge
+							variant="outline"
+							className="mt-1 border-amber-500/35 bg-amber-500/10 text-[11px] text-amber-200"
+						>
+							Pendiente confirmación
+						</Badge>
+					)}
+				</div>
+			</td>
+			<td className="py-3 pr-4">
+				<form action={roleAction}>
+					<input type="hidden" name="userId" value={user.id} />
+					<select
+						name="role"
+						value={roleValue}
+						disabled={user.isCurrentUser || rolePending}
+						onChange={(event) => {
+							setRoleValue(event.currentTarget.value as UserRole);
+							event.currentTarget.form?.requestSubmit();
+						}}
+						className="h-9 min-w-40 rounded-lg border border-input bg-muted/40 px-2 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-3 focus:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
+					>
+						{USER_ROLES.map((role) => (
+							<option key={role} value={role}>
+								{ROLE_LABELS[role]}
+							</option>
+						))}
+					</select>
+				</form>
+				{roleState.message && (
+					<p
+						className={`mt-1 text-xs ${feedbackToneClass(roleState.status)}`}
+						role="status"
+					>
+						{roleState.message}
+					</p>
+				)}
+			</td>
+			<td className="py-3 pr-4">
+				<Badge
+					variant="outline"
+					className={
+						suspended
+							? "border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1]"
+							: "border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]"
+					}
+				>
+					{suspended ? "Suspendido" : "Activo"}
+				</Badge>
+			</td>
+			<td className="py-3 pr-4 text-muted-foreground">
+				<span className="inline-flex items-center gap-1.5">
+					<Clock3 className="size-3.5" />
+					{formatDate(user.lastSignInAt)}
+				</span>
+			</td>
+			<td className="py-3 pr-4 text-muted-foreground">
+				{formatDate(user.createdAt)}
+			</td>
+			<td className="py-3 text-right">
+				<div className="flex flex-col items-end gap-1.5">
+					{canResend && (
+						<form action={resendAction} className="flex flex-col items-end">
+							<input type="hidden" name="userId" value={user.id} />
+							<Button
+								type="submit"
+								variant="outline"
+								size="sm"
+								disabled={resendPending}
+								title="Reenviar invitación por email"
+							>
+								<Send className="size-4" />
+								{resendPending ? "Enviando..." : "Reenviar"}
+							</Button>
+							{resendState.message && (
+								<p
+									className={`mt-1 text-xs ${feedbackToneClass(resendState.status)}`}
+									role="status"
+								>
+									{resendState.message}
+								</p>
+							)}
+						</form>
+					)}
+					{canReset && (
+						<form action={resetAction} className="flex flex-col items-end">
+							<input type="hidden" name="userId" value={user.id} />
+							<Button
+								type="submit"
+								variant="outline"
+								size="sm"
+								disabled={resetPending}
+								title="Enviar enlace de reset de contraseña"
+							>
+								<KeyRound className="size-4" />
+								{resetPending ? "Enviando..." : "Reset contraseña"}
+							</Button>
+							{resetState.message && (
+								<p
+									className={`mt-1 text-xs ${feedbackToneClass(resetState.status)}`}
+									role="status"
+								>
+									{resetState.message}
+								</p>
+							)}
+						</form>
+					)}
+					<form action={suspendAction} className="flex flex-col items-end">
+						<input type="hidden" name="userId" value={user.id} />
+						<input
+							type="hidden"
+							name="action"
+							value={suspended ? "activate" : "suspend"}
+						/>
+						<Button
+							type="submit"
+							variant="outline"
+							size="sm"
+							disabled={user.isCurrentUser || suspendPending}
+						>
+							<MoreHorizontal className="size-4" />
+							{suspendPending
+								? "Procesando..."
+								: suspended
+									? "Reactivar"
+									: "Suspender"}
+						</Button>
+						{suspendState.message && (
+							<p
+								className={`mt-1 text-xs ${feedbackToneClass(suspendState.status)}`}
+								role="status"
+							>
+								{suspendState.message}
+							</p>
+						)}
+					</form>
+				</div>
+			</td>
+		</tr>
+	);
 }
 
 export function UsersClient({ users }: { users: AdminUserView[] }) {
@@ -225,91 +426,9 @@ export function UsersClient({ users }: { users: AdminUserView[] }) {
 									</tr>
 								</thead>
 								<tbody className="divide-y divide-border">
-									{users.map((user) => {
-										const suspended = isSuspended(user);
-										return (
-											<tr key={user.id}>
-												<td className="py-3 pr-4">
-													<div>
-														<p className="font-medium text-foreground">
-															{user.email}
-														</p>
-														<p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
-															{user.id.slice(0, 8)}
-														</p>
-													</div>
-												</td>
-												<td className="py-3 pr-4">
-													<form action={updateUserRole}>
-														<input
-															type="hidden"
-															name="userId"
-															value={user.id}
-														/>
-														<select
-															name="role"
-															defaultValue={user.role}
-															disabled={user.isCurrentUser}
-															onChange={(event) =>
-																event.currentTarget.form?.requestSubmit()
-															}
-															className="h-9 min-w-40 rounded-lg border border-input bg-muted/40 px-2 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-3 focus:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
-														>
-															{USER_ROLES.map((role) => (
-																<option key={role} value={role}>
-																	{ROLE_LABELS[role]}
-																</option>
-															))}
-														</select>
-													</form>
-												</td>
-												<td className="py-3 pr-4">
-													<Badge
-														variant="outline"
-														className={
-															suspended
-																? "border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1]"
-																: "border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]"
-														}
-													>
-														{suspended ? "Suspendido" : "Activo"}
-													</Badge>
-												</td>
-												<td className="py-3 pr-4 text-muted-foreground">
-													<span className="inline-flex items-center gap-1.5">
-														<Clock3 className="size-3.5" />
-														{formatDate(user.lastSignInAt)}
-													</span>
-												</td>
-												<td className="py-3 pr-4 text-muted-foreground">
-													{formatDate(user.createdAt)}
-												</td>
-												<td className="py-3 text-right">
-													<form action={setUserSuspended}>
-														<input
-															type="hidden"
-															name="userId"
-															value={user.id}
-														/>
-														<input
-															type="hidden"
-															name="action"
-															value={suspended ? "activate" : "suspend"}
-														/>
-														<Button
-															type="submit"
-															variant="outline"
-															size="sm"
-															disabled={user.isCurrentUser}
-														>
-															<MoreHorizontal className="size-4" />
-															{suspended ? "Reactivar" : "Suspender"}
-														</Button>
-													</form>
-												</td>
-											</tr>
-										);
-									})}
+									{users.map((user) => (
+										<UserRow key={user.id} user={user} />
+									))}
 								</tbody>
 							</table>
 						</div>
