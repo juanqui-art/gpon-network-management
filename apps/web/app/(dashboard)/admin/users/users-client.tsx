@@ -39,7 +39,9 @@ export interface AdminUserView {
 	email: string;
 	role: UserRole;
 	createdAt: string;
+	createdAtLabel: string;
 	lastSignInAt: string | null;
+	lastSignInAtLabel: string;
 	emailConfirmedAt: string | null;
 	bannedUntil: string | null;
 	isCurrentUser: boolean;
@@ -49,14 +51,6 @@ const initialState: UserActionState = {
 	status: "idle",
 	message: null,
 };
-
-function formatDate(value: string | null): string {
-	if (!value) return "Sin registro";
-	return new Intl.DateTimeFormat("es-EC", {
-		dateStyle: "medium",
-		timeStyle: "short",
-	}).format(new Date(value));
-}
 
 function isSuspended(user: AdminUserView): boolean {
 	if (!user.bannedUntil) return false;
@@ -170,12 +164,10 @@ function UserRow({ user }: { user: AdminUserView }) {
 			<td className="py-3 pr-4 text-muted-foreground">
 				<span className="inline-flex items-center gap-1.5">
 					<Clock3 className="size-3.5" />
-					{formatDate(user.lastSignInAt)}
+					{user.lastSignInAtLabel}
 				</span>
 			</td>
-			<td className="py-3 pr-4 text-muted-foreground">
-				{formatDate(user.createdAt)}
-			</td>
+			<td className="py-3 pr-4 text-muted-foreground">{user.createdAtLabel}</td>
 			<td className="py-3 text-right">
 				<div className="flex flex-col items-end gap-1.5">
 					{canResend && (

@@ -6,7 +6,22 @@ import { type AdminUserView, UsersClient } from "./users-client";
 
 export const metadata = { title: "Usuarios y roles" };
 
+// Formatted server-side so the SSR HTML matches the hydrated tree.
+// Intl.DateTimeFormat output differs slightly between Node and the browser
+// (e.g., NBSP vs NARROW NO-BREAK SPACE around "p. m."), so deferring formatting
+// to the client would trigger hydration mismatches.
+const dateFormatter = new Intl.DateTimeFormat("es-EC", {
+	dateStyle: "medium",
+	timeStyle: "short",
+});
+
+function formatDate(value: string | null): string {
+	if (!value) return "Sin registro";
+	return dateFormatter.format(new Date(value));
+}
+
 function toUserView(user: User, currentUserId: string): AdminUserView {
+	const lastSignIn = user.last_sign_in_at ?? null;
 	return {
 		id: user.id,
 		email: user.email ?? "Sin email",
@@ -14,7 +29,9 @@ function toUserView(user: User, currentUserId: string): AdminUserView {
 			user.app_metadata as Record<string, unknown> | null | undefined,
 		),
 		createdAt: user.created_at,
-		lastSignInAt: user.last_sign_in_at ?? null,
+		createdAtLabel: formatDate(user.created_at),
+		lastSignInAt: lastSignIn,
+		lastSignInAtLabel: formatDate(lastSignIn),
 		emailConfirmedAt: user.email_confirmed_at ?? null,
 		bannedUntil: user.banned_until ?? null,
 		isCurrentUser: user.id === currentUserId,
