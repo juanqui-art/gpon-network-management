@@ -77,6 +77,8 @@ export async function updatePassword(
 	if (error)
 		return translateAuthError(error, "No se pudo actualizar la contraseña");
 	cookieStore.delete(RECOVERY_COOKIE);
+	// Revoke other devices in case the account was compromised before reset.
+	await supabase.auth.signOut({ scope: "others" });
 	redirect("/map");
 }
 
