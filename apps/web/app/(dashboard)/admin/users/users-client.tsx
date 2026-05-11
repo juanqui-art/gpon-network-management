@@ -71,7 +71,7 @@ function feedbackToneClass(status: UserActionState["status"]): string {
 	return "text-muted-foreground";
 }
 
-function UserRow({ user }: { user: AdminUserView }) {
+function useUserActions(user: AdminUserView) {
 	const [roleState, roleAction, rolePending] = useActionState(
 		updateUserRole,
 		initialState,
@@ -123,6 +123,102 @@ function UserRow({ user }: { user: AdminUserView }) {
 	const canResend = !user.isCurrentUser && !confirmed;
 	const canReset = !user.isCurrentUser && confirmed;
 
+	return {
+		roleState,
+		roleAction,
+		rolePending,
+		roleValue,
+		setRoleValue,
+		suspendState,
+		suspendAction,
+		suspendPending,
+		resendState,
+		resendAction,
+		resendPending,
+		resetState,
+		resetAction,
+		resetPending,
+		deleteState,
+		deleteAction,
+		deletePending,
+		suspended,
+		confirmed,
+		canResend,
+		canReset,
+		confirmingDelete,
+		setConfirmingDelete,
+	};
+}
+
+function InvitationBadges({ user }: { user: AdminUserView }) {
+	const confirmed = Boolean(user.emailConfirmedAt);
+	if (confirmed) return null;
+	if (user.invitationExpired === true) {
+		return (
+			<Badge
+				variant="outline"
+				className="border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[11px] text-[#ffb3c1]"
+				title={
+					user.invitationSentAtLabel
+						? `Última invitación enviada el ${user.invitationSentAtLabel}`
+						: undefined
+				}
+			>
+				Link caducado · reenviar invitación
+			</Badge>
+		);
+	}
+	if (user.invitationExpired === false) {
+		return (
+			<Badge
+				variant="outline"
+				className="border-amber-500/35 bg-amber-500/10 text-[11px] text-amber-200"
+				title={
+					user.invitationSentAtLabel
+						? `Enviada el ${user.invitationSentAtLabel}`
+						: undefined
+				}
+			>
+				Pendiente · enviada {user.invitationSentAtLabel}
+			</Badge>
+		);
+	}
+	return (
+		<Badge
+			variant="outline"
+			className="border-amber-500/35 bg-amber-500/10 text-[11px] text-amber-200"
+		>
+			Pendiente confirmación
+		</Badge>
+	);
+}
+
+function UserRow({ user }: { user: AdminUserView }) {
+	const {
+		roleState,
+		roleAction,
+		rolePending,
+		roleValue,
+		setRoleValue,
+		suspendState,
+		suspendAction,
+		suspendPending,
+		resendState,
+		resendAction,
+		resendPending,
+		resetState,
+		resetAction,
+		resetPending,
+		deleteState,
+		deleteAction,
+		deletePending,
+		suspended,
+		canResend,
+		canReset,
+		confirmingDelete,
+		setConfirmingDelete,
+	} = useUserActions(user);
+
 	return (
 		<tr>
 			<td className="py-3 pr-4">
@@ -131,40 +227,9 @@ function UserRow({ user }: { user: AdminUserView }) {
 					<p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
 						{user.id.slice(0, 8)}
 					</p>
-					{!confirmed && user.invitationExpired === true && (
-						<Badge
-							variant="outline"
-							className="mt-1 border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[11px] text-[#ffb3c1]"
-							title={
-								user.invitationSentAtLabel
-									? `Última invitación enviada el ${user.invitationSentAtLabel}`
-									: undefined
-							}
-						>
-							Link caducado · reenviar invitación
-						</Badge>
-					)}
-					{!confirmed && user.invitationExpired === false && (
-						<Badge
-							variant="outline"
-							className="mt-1 border-amber-500/35 bg-amber-500/10 text-[11px] text-amber-200"
-							title={
-								user.invitationSentAtLabel
-									? `Enviada el ${user.invitationSentAtLabel}`
-									: undefined
-							}
-						>
-							Pendiente · enviada {user.invitationSentAtLabel}
-						</Badge>
-					)}
-					{!confirmed && user.invitationExpired === null && (
-						<Badge
-							variant="outline"
-							className="mt-1 border-amber-500/35 bg-amber-500/10 text-[11px] text-amber-200"
-						>
-							Pendiente confirmación
-						</Badge>
-					)}
+					<div className="mt-1">
+						<InvitationBadges user={user} />
+					</div>
 				</div>
 			</td>
 			<td className="py-3 pr-4">
@@ -333,6 +398,206 @@ function UserRow({ user }: { user: AdminUserView }) {
 				</div>
 			</td>
 		</tr>
+	);
+}
+
+function UserCard({ user }: { user: AdminUserView }) {
+	const {
+		roleState,
+		roleAction,
+		rolePending,
+		roleValue,
+		setRoleValue,
+		suspendState,
+		suspendAction,
+		suspendPending,
+		resendState,
+		resendAction,
+		resendPending,
+		resetState,
+		resetAction,
+		resetPending,
+		deleteState,
+		deleteAction,
+		deletePending,
+		suspended,
+		canResend,
+		canReset,
+		confirmingDelete,
+		setConfirmingDelete,
+	} = useUserActions(user);
+
+	return (
+		<div className="space-y-3 rounded-lg border border-border bg-card/80 p-4">
+			<div className="flex items-start gap-3">
+				<div className="min-w-0 flex-1">
+					<p className="truncate font-medium text-foreground">{user.email}</p>
+					<p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+						{user.id.slice(0, 8)}
+					</p>
+				</div>
+				<Badge
+					variant="outline"
+					className={
+						suspended
+							? "shrink-0 border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1]"
+							: "shrink-0 border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]"
+					}
+				>
+					{suspended ? "Suspendido" : "Activo"}
+				</Badge>
+			</div>
+
+			<InvitationBadges user={user} />
+
+			<form action={roleAction}>
+				<input type="hidden" name="userId" value={user.id} />
+				<select
+					name="role"
+					value={roleValue}
+					disabled={user.isCurrentUser || rolePending}
+					onChange={(event) => {
+						setRoleValue(event.currentTarget.value as UserRole);
+						event.currentTarget.form?.requestSubmit();
+					}}
+					className="h-10 w-full rounded-lg border border-input bg-muted/40 px-2 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-3 focus:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
+				>
+					{USER_ROLES.map((role) => (
+						<option key={role} value={role}>
+							{ROLE_LABELS[role]}
+						</option>
+					))}
+				</select>
+				{roleState.message && (
+					<p
+						className={`mt-1 text-xs ${feedbackToneClass(roleState.status)}`}
+						role="status"
+					>
+						{roleState.message}
+					</p>
+				)}
+			</form>
+
+			<div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+				<span className="inline-flex items-center gap-1.5">
+					<Clock3 className="size-3.5" />
+					{user.lastSignInAtLabel}
+				</span>
+				<span>Creado {user.createdAtLabel}</span>
+			</div>
+
+			<div className="flex flex-col gap-2 border-t border-border pt-3">
+				{canResend && (
+					<form action={resendAction}>
+						<input type="hidden" name="userId" value={user.id} />
+						<Button
+							type="submit"
+							variant="outline"
+							disabled={resendPending}
+							className="h-10 w-full"
+						>
+							<Send className="size-4" />
+							{resendPending ? "Enviando..." : "Reenviar invitación"}
+						</Button>
+						{resendState.message && (
+							<p
+								className={`mt-1 text-xs ${feedbackToneClass(resendState.status)}`}
+								role="status"
+							>
+								{resendState.message}
+							</p>
+						)}
+					</form>
+				)}
+				{canReset && (
+					<form action={resetAction}>
+						<input type="hidden" name="userId" value={user.id} />
+						<Button
+							type="submit"
+							variant="outline"
+							disabled={resetPending}
+							className="h-10 w-full"
+						>
+							<KeyRound className="size-4" />
+							{resetPending ? "Enviando..." : "Reset contraseña"}
+						</Button>
+						{resetState.message && (
+							<p
+								className={`mt-1 text-xs ${feedbackToneClass(resetState.status)}`}
+								role="status"
+							>
+								{resetState.message}
+							</p>
+						)}
+					</form>
+				)}
+				<form action={suspendAction}>
+					<input type="hidden" name="userId" value={user.id} />
+					<input
+						type="hidden"
+						name="action"
+						value={suspended ? "activate" : "suspend"}
+					/>
+					<Button
+						type="submit"
+						variant="outline"
+						disabled={user.isCurrentUser || suspendPending}
+						className="h-10 w-full"
+					>
+						<MoreHorizontal className="size-4" />
+						{suspendPending
+							? "Procesando..."
+							: suspended
+								? "Reactivar"
+								: "Suspender"}
+					</Button>
+					{suspendState.message && (
+						<p
+							className={`mt-1 text-xs ${feedbackToneClass(suspendState.status)}`}
+							role="status"
+						>
+							{suspendState.message}
+						</p>
+					)}
+				</form>
+				{!user.isCurrentUser && (
+					<form action={deleteAction}>
+						<input type="hidden" name="userId" value={user.id} />
+						<input type="hidden" name="confirmEmail" value={user.email} />
+						{confirmingDelete ? (
+							<Button
+								type="submit"
+								variant="outline"
+								disabled={deletePending}
+								className="h-10 w-full border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1] hover:bg-[var(--status-alarm)]/20"
+							>
+								<Trash2 className="size-4" />
+								{deletePending ? "Borrando..." : "Confirmar borrado"}
+							</Button>
+						) : (
+							<Button
+								type="button"
+								variant="outline"
+								disabled={deletePending}
+								onClick={() => setConfirmingDelete(true)}
+								className="h-10 w-full"
+							>
+								<Trash2 className="size-4" />
+								Borrar usuario
+							</Button>
+						)}
+						{deleteState.message && (
+							<p
+								className={`mt-1 text-xs ${feedbackToneClass(deleteState.status)}`}
+								role="status"
+							>
+								{deleteState.message}
+							</p>
+						)}
+					</form>
+				)}
+			</div>
+		</div>
 	);
 }
 
@@ -526,7 +791,14 @@ export function UsersClient({
 						</form>
 					</CardHeader>
 					<CardContent>
-						<div className="overflow-x-auto">
+						{/* Mobile: stacked cards */}
+						<div className="flex flex-col gap-3 md:hidden">
+							{users.map((user) => (
+								<UserCard key={user.id} user={user} />
+							))}
+						</div>
+						{/* Desktop: scrollable table */}
+						<div className="hidden overflow-x-auto md:block">
 							<table className="w-full min-w-[860px] text-sm">
 								<thead>
 									<tr className="border-b border-border text-left text-xs text-muted-foreground">
