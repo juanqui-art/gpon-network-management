@@ -43,6 +43,8 @@ export interface AdminUserView {
 	lastSignInAt: string | null;
 	lastSignInAtLabel: string;
 	emailConfirmedAt: string | null;
+	invitationSentAtLabel: string | null;
+	invitationExpired: boolean | null;
 	bannedUntil: string | null;
 	isCurrentUser: boolean;
 }
@@ -110,7 +112,33 @@ function UserRow({ user }: { user: AdminUserView }) {
 					<p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
 						{user.id.slice(0, 8)}
 					</p>
-					{!confirmed && (
+					{!confirmed && user.invitationExpired === true && (
+						<Badge
+							variant="outline"
+							className="mt-1 border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[11px] text-[#ffb3c1]"
+							title={
+								user.invitationSentAtLabel
+									? `Última invitación enviada el ${user.invitationSentAtLabel}`
+									: undefined
+							}
+						>
+							Link caducado · reenviar invitación
+						</Badge>
+					)}
+					{!confirmed && user.invitationExpired === false && (
+						<Badge
+							variant="outline"
+							className="mt-1 border-amber-500/35 bg-amber-500/10 text-[11px] text-amber-200"
+							title={
+								user.invitationSentAtLabel
+									? `Enviada el ${user.invitationSentAtLabel}`
+									: undefined
+							}
+						>
+							Pendiente · enviada {user.invitationSentAtLabel}
+						</Badge>
+					)}
+					{!confirmed && user.invitationExpired === null && (
 						<Badge
 							variant="outline"
 							className="mt-1 border-amber-500/35 bg-amber-500/10 text-[11px] text-amber-200"
