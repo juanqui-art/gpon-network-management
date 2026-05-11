@@ -267,7 +267,6 @@ export default async function AdminDashboardPage() {
 
 	const role = getUserRoleFromMetadata(
 		user?.app_metadata as Record<string, unknown> | null | undefined,
-		user?.user_metadata as Record<string, unknown> | null | undefined,
 	);
 	const userEmail = user?.email ?? "usuario@sin-email";
 	const mapboxReady = Boolean(env.mapboxToken);

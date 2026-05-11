@@ -15,7 +15,6 @@ export async function requireAdmin() {
 
 	const role = getUserRoleFromMetadata(
 		user?.app_metadata as Record<string, unknown> | null | undefined,
-		user?.user_metadata as Record<string, unknown> | null | undefined,
 	);
 
 	if (!user || !canManageUsers(role)) {

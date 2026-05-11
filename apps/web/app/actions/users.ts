@@ -103,7 +103,6 @@ export async function updateUserRole(formData: FormData): Promise<void> {
 
 	const currentRole = getUserRoleFromMetadata(
 		data.user.app_metadata as Record<string, unknown> | null | undefined,
-		data.user.user_metadata as Record<string, unknown> | null | undefined,
 	);
 
 	if (currentRole === role) return;

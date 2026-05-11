@@ -12,7 +12,6 @@ function toUserView(user: User, currentUserId: string): AdminUserView {
 		email: user.email ?? "Sin email",
 		role: getUserRoleFromMetadata(
 			user.app_metadata as Record<string, unknown> | null | undefined,
-			user.user_metadata as Record<string, unknown> | null | undefined,
 		),
 		createdAt: user.created_at,
 		lastSignInAt: user.last_sign_in_at ?? null,

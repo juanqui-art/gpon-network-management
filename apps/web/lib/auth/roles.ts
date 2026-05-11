@@ -26,8 +26,7 @@ export const USER_ROLES: UserRole[] = [
 
 export function getUserRoleFromMetadata(
 	appMetadata: Record<string, unknown> | null | undefined,
-	userMetadata?: Record<string, unknown> | null,
 ): UserRole {
-	const role = appMetadata?.role ?? userMetadata?.role;
+	const role = appMetadata?.role;
 	return USER_ROLES.includes(role as UserRole) ? (role as UserRole) : "support";
 }
