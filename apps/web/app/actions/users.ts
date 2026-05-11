@@ -44,6 +44,29 @@ function isUserBanned(bannedUntil: string | null | undefined): boolean {
 	return new Date(bannedUntil).getTime() > Date.now();
 }
 
+type AdminClient = ReturnType<typeof createAdminClient>;
+
+async function setUserAppRole(
+	admin: AdminClient,
+	userId: string,
+	previousMetadata: Record<string, unknown> | null | undefined,
+	role: UserRole,
+): Promise<{ ok: true } | { ok: false; error: unknown }> {
+	const base = (previousMetadata ?? {}) as Record<string, unknown>;
+	for (let attempt = 0; attempt < 2; attempt++) {
+		const { error } = await admin.auth.admin.updateUserById(userId, {
+			app_metadata: { ...base, role },
+		});
+		if (!error) return { ok: true };
+		if (attempt === 0) {
+			await new Promise((resolve) => setTimeout(resolve, 250));
+			continue;
+		}
+		return { ok: false, error };
+	}
+	return { ok: false, error: new Error("unreachable") };
+}
+
 async function countActiveAdmins(): Promise<number> {
 	const admin = createAdminClient();
 	const { data, error } = await admin.auth.admin.listUsers({
@@ -86,9 +109,10 @@ export async function inviteUser(
 	}
 
 	const admin = createAdminClient();
+	// Don't pass `data: { role }` — that would write to user_metadata, which
+	// the user can edit themselves. Role lives in app_metadata only, set below.
 	const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
 		redirectTo: `${env.siteUrl}/auth/callback?next=/reset-password`,
-		data: { role },
 	});
 
 	if (error || !data.user) {
@@ -98,19 +122,22 @@ export async function inviteUser(
 		};
 	}
 
-	const appMetadata = {
-		...(data.user.app_metadata as Record<string, unknown>),
-		role,
-	};
-	const { error: roleError } = await admin.auth.admin.updateUserById(
+	const roleResult = await setUserAppRole(
+		admin,
 		data.user.id,
-		{ app_metadata: appMetadata },
+		data.user.app_metadata as Record<string, unknown> | null | undefined,
+		role,
 	);
 
-	if (roleError) {
+	if (!roleResult.ok) {
+		console.error(
+			"[admin/users] inviteUser: role assignment failed after retry",
+			{ userId: data.user.id, email: data.user.email, error: roleResult.error },
+		);
 		return {
 			status: "error",
-			message: "Usuario invitado, pero no se pudo asignar el rol",
+			message:
+				"Invitación enviada pero el rol no se asignó. Editá el rol manualmente desde la tabla antes de que el usuario active su cuenta.",
 		};
 	}
 
@@ -321,11 +348,12 @@ export async function resendInvitation(
 	const role = getUserRoleFromMetadata(
 		data.user.app_metadata as Record<string, unknown> | null | undefined,
 	);
+	// Role is already in app_metadata from the original invite; no need to
+	// re-send it via `data` (which would write to user_metadata).
 	const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(
 		data.user.email,
 		{
 			redirectTo: `${env.siteUrl}/auth/callback?next=/reset-password`,
-			data: { role },
 		},
 	);
 
