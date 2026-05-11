@@ -36,9 +36,7 @@ export async function proxy(request: NextRequest) {
 	const { pathname } = request.nextUrl;
 	// Paths accessible without a session (no guard, no redirect to /map when authenticated).
 	const isPublicOnlyPath =
-		pathname === "/login" ||
-		pathname === "/register" ||
-		pathname === "/forgot-password";
+		pathname === "/login" || pathname === "/forgot-password";
 	// Paths that must not redirect to /map even when authenticated.
 	const isPublicPath =
 		isPublicOnlyPath ||

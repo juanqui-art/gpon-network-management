@@ -137,13 +137,7 @@ export default function LoginPage() {
 			</form>
 
 			<div className="border-t border-border pt-5 text-center text-sm text-muted-foreground">
-				¿No tienes cuenta?{" "}
-				<Link
-					href="/register"
-					className="font-medium text-foreground transition-colors hover:text-primary"
-				>
-					Regístrate
-				</Link>
+				¿No tienes cuenta? Pide a un administrador que te envíe una invitación.
 			</div>
 		</div>
 	);
