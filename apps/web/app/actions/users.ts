@@ -8,6 +8,7 @@ import {
 	checkAdminWriteRateLimit,
 } from "@/lib/auth/rate-limit";
 import { getUserRoleFromMetadata, USER_ROLES } from "@/lib/auth/roles";
+import { env } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { UserRole } from "@/lib/types/gpon";
 
@@ -29,10 +30,6 @@ function readRole(formData: FormData): UserRole | null {
 
 function userPath() {
 	return "/admin/users";
-}
-
-function siteUrl(): string {
-	return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 }
 
 function formatRetry(seconds: number): string {
@@ -89,7 +86,7 @@ export async function inviteUser(
 
 	const admin = createAdminClient();
 	const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-		redirectTo: `${siteUrl()}/auth/callback?next=/reset-password`,
+		redirectTo: `${env.siteUrl}/auth/callback?next=/reset-password`,
 		data: { role },
 	});
 
@@ -326,7 +323,7 @@ export async function resendInvitation(
 	const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(
 		data.user.email,
 		{
-			redirectTo: `${siteUrl()}/auth/callback?next=/reset-password`,
+			redirectTo: `${env.siteUrl}/auth/callback?next=/reset-password`,
 			data: { role },
 		},
 	);
@@ -385,7 +382,7 @@ export async function sendPasswordReset(
 
 	const { error: resetError } = await admin.auth.resetPasswordForEmail(
 		data.user.email,
-		{ redirectTo: `${siteUrl()}/auth/callback?next=/reset-password` },
+		{ redirectTo: `${env.siteUrl}/auth/callback?next=/reset-password` },
 	);
 
 	if (resetError) {

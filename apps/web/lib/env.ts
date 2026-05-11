@@ -16,4 +16,5 @@ export const env = {
 		"NEXT_PUBLIC_MAPBOX_TOKEN",
 		process.env.NEXT_PUBLIC_MAPBOX_TOKEN,
 	),
+	siteUrl: requireEnv("NEXT_PUBLIC_SITE_URL", process.env.NEXT_PUBLIC_SITE_URL),
 } as const;

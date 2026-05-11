@@ -1,11 +1,15 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import {
 	checkPasswordResetRateLimit,
 	checkSignInRateLimit,
 } from "@/lib/auth/rate-limit";
+import { env } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
+
+const RECOVERY_COOKIE = "pw-recovery";
 
 function formatRetry(seconds: number): string {
 	if (seconds < 60) return `${seconds} segundos`;
@@ -42,12 +46,11 @@ export async function requestPasswordReset(
 	}
 
 	const email = formData.get("email") as string;
-	const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 	const supabase = await createClient();
 	// Always returns the same message regardless of whether the email exists
 	// to avoid user enumeration.
 	const { error } = await supabase.auth.resetPasswordForEmail(email, {
-		redirectTo: `${siteUrl}/auth/callback?next=/reset-password`,
+		redirectTo: `${env.siteUrl}/auth/callback?next=/reset-password`,
 	});
 	if (error) return "No se pudo enviar el enlace de recuperación";
 	return "Si el email existe, recibirás un enlace en breve";
@@ -57,6 +60,12 @@ export async function updatePassword(
 	_: string | null,
 	formData: FormData,
 ): Promise<string | null> {
+	const cookieStore = await cookies();
+	const recovery = cookieStore.get(RECOVERY_COOKIE);
+	if (!recovery || recovery.value !== "1") {
+		return "Enlace inválido o expirado. Solicita uno nuevo desde el login.";
+	}
+
 	const password = formData.get("password") as string;
 	const confirm = formData.get("confirm") as string;
 	if (password.length < 8)
@@ -65,6 +74,7 @@ export async function updatePassword(
 	const supabase = await createClient();
 	const { error } = await supabase.auth.updateUser({ password });
 	if (error) return "No se pudo actualizar la contraseña";
+	cookieStore.delete(RECOVERY_COOKIE);
 	redirect("/map");
 }
 
