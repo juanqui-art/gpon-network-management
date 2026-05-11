@@ -507,13 +507,13 @@ export function UsersClient({
 						<form
 							method="get"
 							action="/admin/users"
-							className="flex shrink-0 gap-2"
+							className="flex w-full flex-wrap gap-2 sm:w-auto sm:shrink-0"
 						>
 							<Input
 								name="q"
 								defaultValue={q}
 								placeholder="Buscar por email…"
-								className="h-9 w-56 bg-muted/40"
+								className="h-9 w-full bg-muted/40 sm:w-56"
 							/>
 							<Button type="submit" size="sm" variant="outline">
 								Buscar

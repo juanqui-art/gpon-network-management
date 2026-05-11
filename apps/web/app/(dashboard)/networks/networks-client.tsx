@@ -79,7 +79,7 @@ export function NetworksClient({ networks }: { networks: NetworkSummary[] }) {
 					</h2>
 					<form onSubmit={handleCreate} className="space-y-5">
 						{/* Name + description */}
-						<div className="grid grid-cols-2 gap-4">
+						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<label className="block">
 								<span className="mb-1.5 block text-xs text-[#777879]">
 									Nombre *

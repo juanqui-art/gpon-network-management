@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Roboto, Roboto_Mono } from "next/font/google";
 import { QueryProvider } from "@/lib/providers/query-provider";
 import "./globals.css";
@@ -20,6 +20,13 @@ const robotoMono = Roboto_Mono({
 export const metadata: Metadata = {
 	title: "GPON Network Management",
 	description: "Sistema de gestión de red GPON — Azuay, Ecuador",
+};
+
+export const viewport: Viewport = {
+	width: "device-width",
+	initialScale: 1,
+	viewportFit: "cover",
+	themeColor: "#1b1c1d",
 };
 
 export default function RootLayout({
