@@ -455,35 +455,122 @@ function OntTable({
 	nowMs: number | null;
 }) {
 	return (
-		<div className="overflow-x-auto">
-			<table className="min-w-[980px] w-full table-fixed text-sm">
-				<thead className="bg-muted/40 text-xs text-muted-foreground">
-					<tr className="border-b border-border">
-						<Th className="w-[150px]">Logical ID</Th>
-						<Th className="w-[260px]">Cliente</Th>
-						<Th className="w-[140px]">Serial</Th>
-						<Th className="w-[130px]">Status</Th>
-						<Th align="right" className="w-[130px]">
-							RX Power
-						</Th>
-						<Th align="right" className="w-[120px]">
-							TX Power
-						</Th>
-						<Th align="right" className="w-[110px]">
-							Distancia
-						</Th>
-						<Th align="right" className="w-[90px]">
-							Temp
-						</Th>
-						<Th className="w-[130px]">Última lectura</Th>
-					</tr>
-				</thead>
-				<tbody>
-					{readings.map((reading) => (
-						<OntRow key={reading.id} reading={reading} nowMs={nowMs} />
-					))}
-				</tbody>
-			</table>
+		<>
+			{/* Mobile: stacked cards */}
+			<div className="flex flex-col gap-2 p-3 md:hidden">
+				{readings.map((reading) => (
+					<OntCard key={reading.id} reading={reading} nowMs={nowMs} />
+				))}
+			</div>
+			{/* Desktop: scrollable table */}
+			<div className="hidden overflow-x-auto md:block">
+				<table className="w-full min-w-[980px] table-fixed text-sm">
+					<thead className="bg-muted/40 text-xs text-muted-foreground">
+						<tr className="border-b border-border">
+							<Th className="w-[150px]">Logical ID</Th>
+							<Th className="w-[260px]">Cliente</Th>
+							<Th className="w-[140px]">Serial</Th>
+							<Th className="w-[130px]">Status</Th>
+							<Th align="right" className="w-[130px]">
+								RX Power
+							</Th>
+							<Th align="right" className="w-[120px]">
+								TX Power
+							</Th>
+							<Th align="right" className="w-[110px]">
+								Distancia
+							</Th>
+							<Th align="right" className="w-[90px]">
+								Temp
+							</Th>
+							<Th className="w-[130px]">Última lectura</Th>
+						</tr>
+					</thead>
+					<tbody>
+						{readings.map((reading) => (
+							<OntRow key={reading.id} reading={reading} nowMs={nowMs} />
+						))}
+					</tbody>
+				</table>
+			</div>
+		</>
+	);
+}
+
+function OntCard({
+	reading,
+	nowMs,
+}: {
+	reading: OntCurrentState;
+	nowMs: number | null;
+}) {
+	const signal = classifySignal(reading.rx_power_dbm);
+	const isAlert =
+		reading.status === "online" &&
+		(signal === "warning" || signal === "critical");
+
+	return (
+		<div
+			className={cn(
+				"space-y-2 rounded-md border border-border bg-background/40 p-3",
+				isAlert && "border-amber-500/30 bg-amber-500/5",
+			)}
+		>
+			<div className="flex items-start justify-between gap-3">
+				<div className="min-w-0 flex-1">
+					<p className="truncate font-mono text-xs font-semibold text-foreground">
+						{reading.ont_logical_id}
+					</p>
+					{reading.ont_description && (
+						<p className="mt-0.5 truncate text-xs text-muted-foreground">
+							{reading.ont_description}
+						</p>
+					)}
+				</div>
+				<OntStatusBadge status={reading.status} />
+			</div>
+
+			<div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+				<div>
+					<p className="text-[10px] uppercase text-muted-foreground">
+						RX Power
+					</p>
+					<RxPowerCell rxPowerDbm={reading.rx_power_dbm} />
+				</div>
+				<div>
+					<p className="text-[10px] uppercase text-muted-foreground">
+						TX Power
+					</p>
+					<p className="font-mono tabular-nums text-foreground">
+						{reading.tx_power_dbm !== null
+							? `${reading.tx_power_dbm.toFixed(2)} dBm`
+							: "—"}
+					</p>
+				</div>
+				<div>
+					<p className="text-[10px] uppercase text-muted-foreground">
+						Distancia
+					</p>
+					<p className="font-mono tabular-nums text-foreground">
+						{reading.distance_m !== null ? `${reading.distance_m} m` : "—"}
+					</p>
+				</div>
+				<div>
+					<p className="text-[10px] uppercase text-muted-foreground">Temp</p>
+					<p className="font-mono tabular-nums text-foreground">
+						{reading.temperature_c !== null
+							? `${reading.temperature_c.toFixed(1)} °C`
+							: "—"}
+					</p>
+				</div>
+			</div>
+
+			<div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-1.5 text-[11px] text-muted-foreground">
+				<span className="font-mono">{reading.ont_serial ?? "Sin serial"}</span>
+				<span>
+					{formatRelative(reading.last_seen_at ?? reading.updated_at, nowMs)}
+				</span>
+			</div>
 		</div>
 	);
 }

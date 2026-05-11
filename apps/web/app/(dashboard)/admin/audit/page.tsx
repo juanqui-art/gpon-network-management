@@ -210,38 +210,32 @@ export default async function AuditPage({
 					</CardHeader>
 					<CardContent>
 						{rows.length > 0 ? (
-							<div className="overflow-x-auto">
-								<table className="w-full min-w-[920px] text-sm">
-									<thead>
-										<tr className="border-b border-border text-left text-xs text-muted-foreground">
-											<th className="py-3 pr-4 font-medium">Fecha</th>
-											<th className="py-3 pr-4 font-medium">Acción</th>
-											<th className="py-3 pr-4 font-medium">Actor</th>
-											<th className="py-3 pr-4 font-medium">Target</th>
-											<th className="py-3 font-medium">Detalle</th>
-										</tr>
-									</thead>
-									<tbody className="divide-y divide-border">
-										{rows.map((row) => (
-											<tr key={row.id}>
-												<td className="py-3 pr-4 text-muted-foreground">
-													<span className="inline-flex items-center gap-1.5">
-														<FileClock className="size-3.5" />
-														{formatDate(row.created_at)}
-													</span>
-												</td>
-												<td className="py-3 pr-4">
-													<Badge
-														variant="outline"
-														className={
-															actionTones[row.action] ?? "border-border"
-														}
-													>
-														{actionLabels[row.action] ?? row.action}
-													</Badge>
-												</td>
-												<td className="py-3 pr-4">
-													<p className="font-medium text-foreground">
+							<>
+								{/* Mobile: stacked cards */}
+								<div className="flex flex-col gap-3 md:hidden">
+									{rows.map((row) => (
+										<div
+											key={row.id}
+											className="space-y-2 rounded-lg border border-border bg-card/80 p-4"
+										>
+											<div className="flex items-start justify-between gap-3">
+												<Badge
+													variant="outline"
+													className={actionTones[row.action] ?? "border-border"}
+												>
+													{actionLabels[row.action] ?? row.action}
+												</Badge>
+												<span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+													<FileClock className="size-3.5" />
+													{formatDate(row.created_at)}
+												</span>
+											</div>
+											<div className="grid grid-cols-2 gap-3 border-t border-border pt-2">
+												<div className="min-w-0">
+													<p className="text-[11px] uppercase text-muted-foreground">
+														Actor
+													</p>
+													<p className="mt-1 truncate font-medium text-foreground">
 														{row.actor_email ?? "Sistema"}
 													</p>
 													{row.actor_user_id && (
@@ -249,23 +243,89 @@ export default async function AuditPage({
 															{row.actor_user_id.slice(0, 8)}
 														</p>
 													)}
-												</td>
-												<td className="py-3 pr-4">
-													<p className="font-medium text-foreground">
+												</div>
+												<div className="min-w-0">
+													<p className="text-[11px] uppercase text-muted-foreground">
+														Target
+													</p>
+													<p className="mt-1 truncate font-medium text-foreground">
 														{row.target_label ?? row.target_type}
 													</p>
-													<p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+													<p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
 														{row.target_id ?? row.target_type}
 													</p>
-												</td>
-												<td className="py-3 text-xs text-muted-foreground">
+												</div>
+											</div>
+											<div className="border-t border-border pt-2">
+												<p className="text-[11px] uppercase text-muted-foreground">
+													Detalle
+												</p>
+												<p className="mt-1 break-words text-xs text-muted-foreground">
 													{formatMetadata(row.metadata)}
-												</td>
+												</p>
+											</div>
+										</div>
+									))}
+								</div>
+
+								{/* Desktop: scrollable table */}
+								<div className="hidden overflow-x-auto md:block">
+									<table className="w-full min-w-[920px] text-sm">
+										<thead>
+											<tr className="border-b border-border text-left text-xs text-muted-foreground">
+												<th className="py-3 pr-4 font-medium">Fecha</th>
+												<th className="py-3 pr-4 font-medium">Acción</th>
+												<th className="py-3 pr-4 font-medium">Actor</th>
+												<th className="py-3 pr-4 font-medium">Target</th>
+												<th className="py-3 font-medium">Detalle</th>
 											</tr>
-										))}
-									</tbody>
-								</table>
-							</div>
+										</thead>
+										<tbody className="divide-y divide-border">
+											{rows.map((row) => (
+												<tr key={row.id}>
+													<td className="py-3 pr-4 text-muted-foreground">
+														<span className="inline-flex items-center gap-1.5">
+															<FileClock className="size-3.5" />
+															{formatDate(row.created_at)}
+														</span>
+													</td>
+													<td className="py-3 pr-4">
+														<Badge
+															variant="outline"
+															className={
+																actionTones[row.action] ?? "border-border"
+															}
+														>
+															{actionLabels[row.action] ?? row.action}
+														</Badge>
+													</td>
+													<td className="py-3 pr-4">
+														<p className="font-medium text-foreground">
+															{row.actor_email ?? "Sistema"}
+														</p>
+														{row.actor_user_id && (
+															<p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+																{row.actor_user_id.slice(0, 8)}
+															</p>
+														)}
+													</td>
+													<td className="py-3 pr-4">
+														<p className="font-medium text-foreground">
+															{row.target_label ?? row.target_type}
+														</p>
+														<p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+															{row.target_id ?? row.target_type}
+														</p>
+													</td>
+													<td className="py-3 text-xs text-muted-foreground">
+														{formatMetadata(row.metadata)}
+													</td>
+												</tr>
+											))}
+										</tbody>
+									</table>
+								</div>
+							</>
 						) : (
 							<div className="rounded-lg border border-dashed border-border py-12 text-center">
 								<p className="text-sm text-muted-foreground">

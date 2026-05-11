@@ -130,7 +130,7 @@ function OltCard({ entry }: { entry: OltMonitorEntry }) {
 			href={`/monitoring/olt/${encodeURIComponent(entry.olt_host)}`}
 			className="group block rounded-lg border border-border bg-card p-4 transition-colors hover:border-primary/50 hover:bg-muted/30"
 		>
-			<div className="flex items-start justify-between gap-4">
+			<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
 				<div className="min-w-0 flex-1">
 					<div className="flex items-start gap-3">
 						<span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -173,9 +173,9 @@ function OltCard({ entry }: { entry: OltMonitorEntry }) {
 						)}
 					</div>
 				</div>
-				<div className="shrink-0 text-right text-xs text-muted-foreground">
+				<div className="flex items-center justify-between gap-3 text-xs text-muted-foreground sm:flex-col sm:items-end sm:justify-start sm:gap-1 sm:text-right">
 					{lastUpdate && <p>Última lectura: {lastUpdate}</p>}
-					<p className="mt-1 text-primary opacity-0 transition-opacity group-hover:opacity-100">
+					<p className="text-primary sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
 						Ver detalle →
 					</p>
 				</div>
