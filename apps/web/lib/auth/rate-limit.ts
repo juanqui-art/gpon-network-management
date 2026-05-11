@@ -48,19 +48,35 @@ async function check(
 	limiter: Ratelimit | null,
 	key: string,
 ): Promise<RateLimitResult> {
+	const isProd = process.env.NODE_ENV === "production";
+
 	if (!limiter) {
-		if (process.env.NODE_ENV === "production") {
-			console.warn(
-				"[rate-limit] Upstash not configured — auth endpoints unprotected",
+		if (isProd) {
+			console.error(
+				"[rate-limit] Upstash not configured in production — blocking request",
 			);
+			return { ok: false, retryAfterSeconds: 60 };
 		}
 		return { ok: true, retryAfterSeconds: 0 };
 	}
-	const { success, reset } = await limiter.limit(key);
-	return {
-		ok: success,
-		retryAfterSeconds: Math.max(0, Math.ceil((reset - Date.now()) / 1000)),
-	};
+
+	try {
+		const { success, reset } = await limiter.limit(key);
+		return {
+			ok: success,
+			retryAfterSeconds: Math.max(0, Math.ceil((reset - Date.now()) / 1000)),
+		};
+	} catch (err) {
+		if (isProd) {
+			console.error(
+				"[rate-limit] Upstash call failed in production — blocking request",
+				err,
+			);
+			return { ok: false, retryAfterSeconds: 60 };
+		}
+		console.warn("[rate-limit] Upstash call failed in dev — allowing", err);
+		return { ok: true, retryAfterSeconds: 0 };
+	}
 }
 
 export async function checkSignInRateLimit(
