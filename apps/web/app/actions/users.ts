@@ -67,6 +67,28 @@ async function setUserAppRole(
 	return { ok: false, error: new Error("unreachable") };
 }
 
+// Deletes the target user's session rows so they cannot refresh their JWT.
+// Their current access token stays valid until natural expiry (default 1h),
+// after which they're forced to re-login and pick up the new role/ban state.
+async function revokeUserSessions(
+	admin: AdminClient,
+	userId: string,
+): Promise<boolean> {
+	const { error } = await admin
+		.schema("auth")
+		.from("sessions")
+		.delete()
+		.eq("user_id", userId);
+	if (error) {
+		console.warn(
+			`[admin/users] failed to revoke sessions for ${userId}`,
+			error,
+		);
+		return false;
+	}
+	return true;
+}
+
 async function countActiveAdmins(): Promise<number> {
 	const admin = createAdminClient();
 	const { data, error } = await admin.auth.admin.listUsers({
@@ -218,6 +240,8 @@ export async function updateUserRole(
 		return { status: "error", message: "No se pudo actualizar el rol" };
 	}
 
+	const sessionsRevoked = await revokeUserSessions(admin, userId);
+
 	await writeAuditLog({
 		actorUserId: actor.id,
 		actorEmail: actor.email ?? null,
@@ -225,12 +249,21 @@ export async function updateUserRole(
 		targetType: "auth.user",
 		targetId: data.user.id,
 		targetLabel: data.user.email ?? null,
-		metadata: { previousRole: currentRole, nextRole: role },
+		metadata: {
+			previousRole: currentRole,
+			nextRole: role,
+			sessionsRevoked,
+		},
 	});
 
 	revalidatePath(userPath());
 	revalidatePath("/admin/audit");
-	return { status: "success", message: "Rol actualizado" };
+	return {
+		status: "success",
+		message: sessionsRevoked
+			? "Rol actualizado. Sesiones revocadas."
+			: "Rol actualizado (no se pudieron revocar sesiones activas).",
+	};
 }
 
 export async function setUserSuspended(
@@ -290,6 +323,9 @@ export async function setUserSuspended(
 		return { status: "error", message: "No se pudo actualizar el estado" };
 	}
 
+	const sessionsRevoked =
+		action === "suspend" ? await revokeUserSessions(admin, userId) : null;
+
 	await writeAuditLog({
 		actorUserId: currentUser.id,
 		actorEmail: currentUser.email ?? null,
@@ -297,15 +333,20 @@ export async function setUserSuspended(
 		targetType: "auth.user",
 		targetId: userId,
 		targetLabel: targetEmail,
-		metadata: { action },
+		metadata: { action, sessionsRevoked },
 	});
 
 	revalidatePath(userPath());
 	revalidatePath("/admin/audit");
-	return {
-		status: "success",
-		message: action === "suspend" ? "Usuario suspendido" : "Usuario reactivado",
-	};
+	if (action === "suspend") {
+		return {
+			status: "success",
+			message: sessionsRevoked
+				? "Usuario suspendido. Sesiones revocadas."
+				: "Usuario suspendido (no se pudieron revocar sesiones activas).",
+		};
+	}
+	return { status: "success", message: "Usuario reactivado" };
 }
 
 export async function resendInvitation(
