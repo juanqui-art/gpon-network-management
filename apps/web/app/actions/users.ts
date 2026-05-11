@@ -481,3 +481,83 @@ export async function sendPasswordReset(
 	revalidatePath("/admin/audit");
 	return { status: "success", message: "Enlace de reset enviado" };
 }
+
+export async function deleteUser(
+	_: UserActionState = initialState,
+	formData: FormData,
+): Promise<UserActionState> {
+	const { user: actor } = await requireAdmin();
+
+	const userId = String(formData.get("userId") ?? "");
+	const confirmEmail = String(formData.get("confirmEmail") ?? "")
+		.trim()
+		.toLowerCase();
+	if (!userId || !confirmEmail) {
+		return { status: "error", message: "Datos inválidos" };
+	}
+	if (userId === actor.id) {
+		return {
+			status: "error",
+			message: "No puedes borrar tu propia cuenta",
+		};
+	}
+
+	const limit = await checkAdminWriteRateLimit(actor.id);
+	if (!limit.ok) {
+		return {
+			status: "error",
+			message: `Demasiadas operaciones. Inténtalo de nuevo en ${formatRetry(limit.retryAfterSeconds)}.`,
+		};
+	}
+
+	const admin = createAdminClient();
+	const { data, error } = await admin.auth.admin.getUserById(userId);
+	if (error || !data.user || !data.user.email) {
+		return { status: "error", message: "Usuario no encontrado" };
+	}
+
+	if (data.user.email.toLowerCase() !== confirmEmail) {
+		return {
+			status: "error",
+			message:
+				"El email no coincide con el registro actual. Refrescá la página y reintentá.",
+		};
+	}
+
+	const targetRole = getUserRoleFromMetadata(
+		data.user.app_metadata as Record<string, unknown> | null | undefined,
+	);
+	const targetActive = !isUserBanned(data.user.banned_until ?? null);
+
+	if (targetRole === "admin" && targetActive) {
+		const remaining = await countActiveAdmins();
+		if (remaining <= 1) {
+			return {
+				status: "error",
+				message: "Debe permanecer al menos un administrador activo",
+			};
+		}
+	}
+
+	const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
+	if (deleteError) {
+		return {
+			status: "error",
+			message: translateAuthError(deleteError, "No se pudo borrar el usuario"),
+		};
+	}
+
+	await writeAuditLog({
+		actorUserId: actor.id,
+		actorEmail: actor.email ?? null,
+		action: "user.deleted",
+		targetType: "auth.user",
+		targetId: userId,
+		targetLabel: data.user.email,
+		metadata: { role: targetRole },
+	});
+
+	revalidatePath(userPath());
+	revalidatePath("/admin/audit");
+	return { status: "success", message: "Usuario borrado" };
+}

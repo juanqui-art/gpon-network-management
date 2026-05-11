@@ -8,11 +8,13 @@ import {
 	MoreHorizontal,
 	Send,
 	ShieldCheck,
+	Trash2,
 	UserCog,
 	UserRoundX,
 } from "lucide-react";
 import { useActionState, useEffect, useState } from "react";
 import {
+	deleteUser,
 	inviteUser,
 	resendInvitation,
 	sendPasswordReset,
@@ -86,8 +88,25 @@ function UserRow({ user }: { user: AdminUserView }) {
 		sendPasswordReset,
 		initialState,
 	);
+	const [deleteState, deleteAction, deletePending] = useActionState(
+		deleteUser,
+		initialState,
+	);
 
 	const [roleValue, setRoleValue] = useState<UserRole>(user.role);
+	const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+	useEffect(() => {
+		if (!confirmingDelete) return;
+		const timeout = setTimeout(() => setConfirmingDelete(false), 5000);
+		return () => clearTimeout(timeout);
+	}, [confirmingDelete]);
+
+	useEffect(() => {
+		if (deleteState.status === "error" || deleteState.status === "success") {
+			setConfirmingDelete(false);
+		}
+	}, [deleteState.status]);
 
 	useEffect(() => {
 		setRoleValue(user.role);
@@ -273,6 +292,44 @@ function UserRow({ user }: { user: AdminUserView }) {
 							</p>
 						)}
 					</form>
+					{!user.isCurrentUser && (
+						<form action={deleteAction} className="flex flex-col items-end">
+							<input type="hidden" name="userId" value={user.id} />
+							<input type="hidden" name="confirmEmail" value={user.email} />
+							{confirmingDelete ? (
+								<Button
+									type="submit"
+									size="sm"
+									variant="outline"
+									disabled={deletePending}
+									className="border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1] hover:bg-[var(--status-alarm)]/20"
+								>
+									<Trash2 className="size-4" />
+									{deletePending ? "Borrando..." : "Confirmar borrado"}
+								</Button>
+							) : (
+								<Button
+									type="button"
+									size="sm"
+									variant="outline"
+									disabled={deletePending}
+									onClick={() => setConfirmingDelete(true)}
+									title="Borrar usuario definitivamente"
+								>
+									<Trash2 className="size-4" />
+									Borrar
+								</Button>
+							)}
+							{deleteState.message && (
+								<p
+									className={`mt-1 text-xs ${feedbackToneClass(deleteState.status)}`}
+									role="status"
+								>
+									{deleteState.message}
+								</p>
+							)}
+						</form>
+					)}
 				</div>
 			</td>
 		</tr>
