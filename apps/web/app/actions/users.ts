@@ -8,6 +8,7 @@ import {
 	checkAdminWriteRateLimit,
 } from "@/lib/auth/rate-limit";
 import { getUserRoleFromMetadata, USER_ROLES } from "@/lib/auth/roles";
+import { translateAuthError } from "@/lib/auth/supabase-errors";
 import { env } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { UserRole } from "@/lib/types/gpon";
@@ -93,7 +94,7 @@ export async function inviteUser(
 	if (error || !data.user) {
 		return {
 			status: "error",
-			message: error?.message ?? "No se pudo invitar al usuario",
+			message: translateAuthError(error, "No se pudo invitar al usuario"),
 		};
 	}
 
@@ -331,7 +332,10 @@ export async function resendInvitation(
 	if (inviteError) {
 		return {
 			status: "error",
-			message: inviteError.message || "No se pudo reenviar la invitación",
+			message: translateAuthError(
+				inviteError,
+				"No se pudo reenviar la invitación",
+			),
 		};
 	}
 
@@ -388,7 +392,10 @@ export async function sendPasswordReset(
 	if (resetError) {
 		return {
 			status: "error",
-			message: "No se pudo enviar el enlace de reset",
+			message: translateAuthError(
+				resetError,
+				"No se pudo enviar el enlace de reset",
+			),
 		};
 	}
 

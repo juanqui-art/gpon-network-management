@@ -6,6 +6,7 @@ import {
 	checkPasswordResetRateLimit,
 	checkSignInRateLimit,
 } from "@/lib/auth/rate-limit";
+import { translateAuthError } from "@/lib/auth/supabase-errors";
 import { env } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 
@@ -73,7 +74,8 @@ export async function updatePassword(
 	if (password !== confirm) return "Las contraseñas no coinciden";
 	const supabase = await createClient();
 	const { error } = await supabase.auth.updateUser({ password });
-	if (error) return "No se pudo actualizar la contraseña";
+	if (error)
+		return translateAuthError(error, "No se pudo actualizar la contraseña");
 	cookieStore.delete(RECOVERY_COOKIE);
 	redirect("/map");
 }
