@@ -336,7 +336,21 @@ function UserRow({ user }: { user: AdminUserView }) {
 	);
 }
 
-export function UsersClient({ users }: { users: AdminUserView[] }) {
+interface UsersClientProps {
+	users: AdminUserView[];
+	page: number;
+	hasNextPage: boolean;
+	hasPrevPage: boolean;
+	q: string;
+}
+
+export function UsersClient({
+	users,
+	page,
+	hasNextPage,
+	hasPrevPage,
+	q,
+}: UsersClientProps) {
 	const [inviteState, inviteAction, invitePending] = useActionState(
 		inviteUser,
 		initialState,
@@ -482,12 +496,34 @@ export function UsersClient({ users }: { users: AdminUserView[] }) {
 				</section>
 
 				<Card className="rounded-lg border-border/80 bg-card/80">
-					<CardHeader>
-						<CardTitle>Directorio de usuarios</CardTitle>
-						<CardDescription>
-							Cambia roles o suspende accesos sin exponer la service role al
-							cliente.
-						</CardDescription>
+					<CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+						<div>
+							<CardTitle>Directorio de usuarios</CardTitle>
+							<CardDescription>
+								Cambia roles o suspende accesos sin exponer la service role al
+								cliente.
+							</CardDescription>
+						</div>
+						<form
+							method="get"
+							action="/admin/users"
+							className="flex shrink-0 gap-2"
+						>
+							<Input
+								name="q"
+								defaultValue={q}
+								placeholder="Buscar por email…"
+								className="h-9 w-56 bg-muted/40"
+							/>
+							<Button type="submit" size="sm" variant="outline">
+								Buscar
+							</Button>
+							{q && (
+								<Button asChild size="sm" variant="ghost">
+									<a href="/admin/users">✕</a>
+								</Button>
+							)}
+						</form>
 					</CardHeader>
 					<CardContent>
 						<div className="overflow-x-auto">
@@ -508,6 +544,35 @@ export function UsersClient({ users }: { users: AdminUserView[] }) {
 									))}
 								</tbody>
 							</table>
+						</div>
+						<div className="flex items-center justify-between border-t border-border pt-3 text-sm">
+							<span className="text-muted-foreground">
+								{q
+									? `${users.length} resultado${users.length !== 1 ? "s" : ""} para "${q}"`
+									: `Página ${page} · ${users.length} usuarios`}
+							</span>
+							{(hasPrevPage || hasNextPage) && (
+								<div className="flex gap-2">
+									{hasPrevPage && (
+										<Button asChild size="sm" variant="outline">
+											<a
+												href={`/admin/users?page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+											>
+												← Anterior
+											</a>
+										</Button>
+									)}
+									{hasNextPage && (
+										<Button asChild size="sm" variant="outline">
+											<a
+												href={`/admin/users?page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+											>
+												Siguiente →
+											</a>
+										</Button>
+									)}
+								</div>
+							)}
 						</div>
 					</CardContent>
 				</Card>

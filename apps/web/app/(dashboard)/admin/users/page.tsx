@@ -57,21 +57,47 @@ function toUserView(user: User, currentUserId: string): AdminUserView {
 	};
 }
 
-export default async function AdminUsersPage() {
+const PAGE_SIZE = 50;
+
+export default async function AdminUsersPage({
+	searchParams,
+}: {
+	searchParams: Promise<{ page?: string; q?: string }>;
+}) {
 	const { user: currentUser } = await requireAdmin();
+	const { page: pageParam, q: queryParam } = await searchParams;
+
+	const q = queryParam?.trim().toLowerCase() ?? "";
+	const isSearch = q.length > 0;
+	// In search mode fetch a large batch and filter; otherwise paginate.
+	const page = isSearch ? 1 : Math.max(1, Number(pageParam) || 1);
+	const perPage = isSearch ? 1000 : PAGE_SIZE;
+
 	const admin = createAdminClient();
-	const { data, error } = await admin.auth.admin.listUsers({
-		page: 1,
-		perPage: 100,
-	});
+	const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
 
 	if (error) {
 		throw new Error(error.message);
 	}
 
-	const users = data.users
-		.map((user) => toUserView(user, currentUser.id))
+	const filtered = isSearch
+		? data.users.filter((u) => (u.email ?? "").toLowerCase().includes(q))
+		: data.users;
+
+	const users = filtered
+		.map((u) => toUserView(u, currentUser.id))
 		.sort((a, b) => a.email.localeCompare(b.email));
 
-	return <UsersClient users={users} />;
+	const hasNextPage = !isSearch && data.users.length === PAGE_SIZE;
+	const hasPrevPage = !isSearch && page > 1;
+
+	return (
+		<UsersClient
+			users={users}
+			page={page}
+			hasNextPage={hasNextPage}
+			hasPrevPage={hasPrevPage}
+			q={q}
+		/>
+	);
 }

@@ -90,18 +90,26 @@ async function revokeUserSessions(
 }
 
 async function countActiveAdmins(): Promise<number> {
-	const admin = createAdminClient();
-	const { data, error } = await admin.auth.admin.listUsers({
-		page: 1,
-		perPage: 100,
-	});
-	if (error || !data) return 0;
-	return data.users.filter((u) => {
-		const role = getUserRoleFromMetadata(
-			u.app_metadata as Record<string, unknown> | null | undefined,
-		);
-		return role === "admin" && !isUserBanned(u.banned_until ?? null);
-	}).length;
+	const adminClient = createAdminClient();
+	let total = 0;
+	let page = 1;
+	const perPage = 100;
+	while (true) {
+		const { data, error } = await adminClient.auth.admin.listUsers({
+			page,
+			perPage,
+		});
+		if (error || !data) break;
+		total += data.users.filter((u) => {
+			const role = getUserRoleFromMetadata(
+				u.app_metadata as Record<string, unknown> | null | undefined,
+			);
+			return role === "admin" && !isUserBanned(u.banned_until ?? null);
+		}).length;
+		if (data.users.length < perPage) break;
+		page++;
+	}
+	return total;
 }
 
 export async function inviteUser(
