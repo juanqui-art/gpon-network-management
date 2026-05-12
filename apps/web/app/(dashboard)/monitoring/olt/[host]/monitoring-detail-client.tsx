@@ -16,6 +16,10 @@ import { HealthSummary } from "@/components/monitoring/health-summary";
 import { OltInfoCard } from "@/components/monitoring/olt-info-card";
 import { OntStatusBadge } from "@/components/monitoring/ont-status-badge";
 import { RxPowerCell } from "@/components/monitoring/rx-power-cell";
+import {
+	RxSparkline,
+	type SparkPoint,
+} from "@/components/monitoring/rx-sparkline";
 import { Input } from "@/components/ui/input";
 import { useOntRealtime } from "@/lib/hooks/use-ont-realtime";
 import {
@@ -32,6 +36,7 @@ interface Props {
 	elementInfo: OltElementInfo | null;
 	networkNames: string[];
 	initialReadings: OntCurrentState[];
+	initialHistory: Record<string, SparkPoint[]>;
 }
 
 type StatusFilter = "all" | "online" | "offline" | "alerts";
@@ -58,6 +63,7 @@ export function MonitoringDetailClient({
 	elementInfo,
 	networkNames,
 	initialReadings,
+	initialHistory,
 }: Props) {
 	const elementCode = elementInfo?.code ?? null;
 	const elementName = elementInfo?.name ?? null;
@@ -236,6 +242,7 @@ export function MonitoringDetailClient({
 					totalCount={readings.length}
 					filteredCount={filtered.length}
 					expandedKeys={expandedPonKeys}
+					history={initialHistory}
 					nowMs={nowMs}
 					onToggle={(key) =>
 						setExpandedPonKeys((current) => {
@@ -300,6 +307,7 @@ function PonTree({
 	totalCount,
 	filteredCount,
 	expandedKeys,
+	history,
 	nowMs,
 	onToggle,
 	onExpandAll,
@@ -309,6 +317,7 @@ function PonTree({
 	totalCount: number;
 	filteredCount: number;
 	expandedKeys: Set<string>;
+	history: Record<string, SparkPoint[]>;
 	nowMs: number | null;
 	onToggle: (key: string) => void;
 	onExpandAll: () => void;
@@ -366,6 +375,7 @@ function PonTree({
 						key={group.key}
 						group={group}
 						expanded={expandedKeys.has(group.key)}
+						history={history}
 						nowMs={nowMs}
 						onToggle={() => onToggle(group.key)}
 					/>
@@ -378,11 +388,13 @@ function PonTree({
 function PonGroupSection({
 	group,
 	expanded,
+	history,
 	nowMs,
 	onToggle,
 }: {
 	group: PonGroup;
 	expanded: boolean;
+	history: Record<string, SparkPoint[]>;
 	nowMs: number | null;
 	onToggle: () => void;
 }) {
@@ -441,7 +453,7 @@ function PonGroupSection({
 			</button>
 			{expanded && (
 				<div className="border-t border-border/70 bg-background/35">
-					<OntTable readings={group.readings} nowMs={nowMs} />
+					<OntTable readings={group.readings} history={history} nowMs={nowMs} />
 				</div>
 			)}
 		</section>
@@ -450,9 +462,11 @@ function PonGroupSection({
 
 function OntTable({
 	readings,
+	history,
 	nowMs,
 }: {
 	readings: OntCurrentState[];
+	history: Record<string, SparkPoint[]>;
 	nowMs: number | null;
 }) {
 	return (
@@ -460,20 +474,25 @@ function OntTable({
 			{/* Mobile: stacked cards */}
 			<div className="flex flex-col gap-2 p-3 md:hidden">
 				{readings.map((reading) => (
-					<OntCard key={reading.id} reading={reading} nowMs={nowMs} />
+					<OntCard
+						key={reading.id}
+						reading={reading}
+						sparkPoints={history[reading.ont_logical_id] ?? []}
+						nowMs={nowMs}
+					/>
 				))}
 			</div>
 			{/* Desktop: scrollable table */}
 			<div className="hidden overflow-x-auto md:block">
-				<table className="w-full min-w-[980px] table-fixed text-sm">
+				<table className="w-full min-w-[1080px] table-fixed text-sm">
 					<thead className="bg-muted/40 text-xs text-muted-foreground">
 						<tr className="border-b border-border">
 							<Th className="w-[150px]">Logical ID</Th>
 							<Th className="w-[260px]">Cliente</Th>
 							<Th className="w-[140px]">Serial</Th>
 							<Th className="w-[130px]">Status</Th>
-							<Th align="right" className="w-[130px]">
-								RX Power
+							<Th align="right" className="w-[200px]">
+								RX Power · 24h
 							</Th>
 							<Th align="right" className="w-[120px]">
 								TX Power
@@ -489,7 +508,12 @@ function OntTable({
 					</thead>
 					<tbody>
 						{readings.map((reading) => (
-							<OntRow key={reading.id} reading={reading} nowMs={nowMs} />
+							<OntRow
+								key={reading.id}
+								reading={reading}
+								sparkPoints={history[reading.ont_logical_id] ?? []}
+								nowMs={nowMs}
+							/>
 						))}
 					</tbody>
 				</table>
@@ -500,9 +524,11 @@ function OntTable({
 
 function OntCard({
 	reading,
+	sparkPoints,
 	nowMs,
 }: {
 	reading: OntCurrentState;
+	sparkPoints: SparkPoint[];
 	nowMs: number | null;
 }) {
 	const signal = classifySignal(reading.rx_power_dbm);
@@ -534,9 +560,14 @@ function OntCard({
 			<div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
 				<div>
 					<p className="text-[10px] uppercase text-muted-foreground">
-						RX Power
+						RX Power · 24h
 					</p>
-					<RxPowerCell rxPowerDbm={reading.rx_power_dbm} />
+					<div className="flex items-center gap-2">
+						<RxPowerCell rxPowerDbm={reading.rx_power_dbm} />
+						{sparkPoints.length >= 2 && (
+							<RxSparkline points={sparkPoints} width={56} height={18} />
+						)}
+					</div>
 				</div>
 				<div>
 					<p className="text-[10px] uppercase text-muted-foreground">
@@ -578,9 +609,11 @@ function OntCard({
 
 function OntRow({
 	reading,
+	sparkPoints,
 	nowMs,
 }: {
 	reading: OntCurrentState;
+	sparkPoints: SparkPoint[];
 	nowMs: number | null;
 }) {
 	const signal = classifySignal(reading.rx_power_dbm);
@@ -609,7 +642,10 @@ function OntRow({
 				<OntStatusBadge status={reading.status} />
 			</Td>
 			<Td align="right">
-				<RxPowerCell rxPowerDbm={reading.rx_power_dbm} />
+				<span className="inline-flex items-center justify-end gap-3">
+					<RxSparkline points={sparkPoints} width={72} height={22} />
+					<RxPowerCell rxPowerDbm={reading.rx_power_dbm} />
+				</span>
 			</Td>
 			<Td align="right" className="font-mono text-xs tabular-nums">
 				{reading.tx_power_dbm !== null

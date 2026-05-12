@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
+import type { SparkPoint } from "@/components/monitoring/rx-sparkline";
 import { createClient } from "@/lib/supabase/server";
-import type { OntCurrentState } from "@/lib/types/gpon";
+import type { OntCurrentState, OntSignalHistoryEntry } from "@/lib/types/gpon";
 import { MonitoringDetailClient } from "./monitoring-detail-client";
 
 export const metadata = { title: "Monitoreo de OLT" };
@@ -60,6 +61,37 @@ export default async function MonitoringOltDetailPage({ params }: Props) {
 
 	const readings = (ontRows ?? []) as OntCurrentState[];
 
+	// Load 24h rx_power history for all ONTs of this OLT (for sparklines)
+	const stateIds = readings.map((r) => r.id);
+	const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+	const { data: historyRows } =
+		stateIds.length > 0
+			? await supabase
+					.from("ont_signal_history")
+					.select(
+						"ont_current_state_id, ont_logical_id, rx_power_dbm, recorded_at",
+					)
+					.in("ont_current_state_id", stateIds)
+					.gte("recorded_at", since24h)
+					.order("recorded_at", { ascending: true })
+					.limit(3000)
+			: { data: [] as Partial<OntSignalHistoryEntry>[] };
+
+	// Group history by logical_id → SparkPoint[]
+	const historyByLogicalId = new Map<string, SparkPoint[]>();
+	for (const row of historyRows ?? []) {
+		if (row.rx_power_dbm === null || row.rx_power_dbm === undefined) continue;
+		const id = row.ont_logical_id ?? "";
+		const pts = historyByLogicalId.get(id) ?? [];
+		pts.push({
+			rx_power_dbm: Number(row.rx_power_dbm),
+			recorded_at: row.recorded_at ?? "",
+		});
+		historyByLogicalId.set(id, pts);
+	}
+	// Convert Map to plain object for serialization
+	const initialHistory = Object.fromEntries(historyByLogicalId);
+
 	const networkIdSet = new Set<string>(readings.map((r) => r.network_id));
 	if (oltElement?.network_id) networkIdSet.add(oltElement.network_id);
 
@@ -100,6 +132,7 @@ export default async function MonitoringOltDetailPage({ params }: Props) {
 			elementInfo={elementInfo}
 			networkNames={networkNames}
 			initialReadings={readings}
+			initialHistory={initialHistory}
 		/>
 	);
 }
