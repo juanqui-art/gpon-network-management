@@ -100,7 +100,7 @@ export default async function SettingsPage() {
 	const serviceRoleReady = Boolean(process.env.SUPABASE_SECRET_KEY);
 
 	return (
-		<div className="min-h-full bg-background">
+		<div className="h-full overflow-y-auto bg-background">
 			<div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-5 py-6 lg:px-8">
 				<section>
 					<Badge variant="outline" className="mb-3 border-border bg-muted/60">

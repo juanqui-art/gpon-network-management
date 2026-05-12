@@ -92,12 +92,14 @@ export default async function AdminUsersPage({
 	const hasPrevPage = !isSearch && page > 1;
 
 	return (
-		<UsersClient
-			users={users}
-			page={page}
-			hasNextPage={hasNextPage}
-			hasPrevPage={hasPrevPage}
-			q={q}
-		/>
+		<div className="h-full min-h-0">
+			<UsersClient
+				users={users}
+				page={page}
+				hasNextPage={hasNextPage}
+				hasPrevPage={hasPrevPage}
+				q={q}
+			/>
+		</div>
 	);
 }

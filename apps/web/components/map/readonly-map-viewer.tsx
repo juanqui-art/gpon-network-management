@@ -657,7 +657,7 @@ export function ReadonlyMapViewer({
 			<div ref={containerRef} className="gpon-mapbox-host absolute inset-0" />
 			<div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-gradient-to-b from-[#1b1c1d]/70 to-transparent" />
 
-			<div className="absolute left-4 top-4 z-20 max-w-[calc(100vw-2rem)]">
+			<div className="absolute bottom-4 left-4 top-4 z-20 max-w-[calc(100vw-2rem)]">
 				<LeftPanel
 					tab={leftTab}
 					onTabChange={setLeftTab}
@@ -1556,11 +1556,11 @@ function LeftPanel({
 	onSelectEquipment,
 }: LeftPanelProps) {
 	return (
-		<div className="flex max-h-[calc(100%-2rem)] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md">
+		<div className="flex h-full w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md">
 			<Tabs
 				value={tab}
 				onValueChange={(value) => onTabChange(value as LeftPanelTab)}
-				className="min-h-0 flex-1 gap-0"
+				className="flex min-h-0 flex-1 flex-col gap-0"
 			>
 				<div className="border-b border-[rgba(164,164,164,0.12)] px-3 py-2.5">
 					<div className="mb-2.5 grid grid-cols-4 gap-1.5">
@@ -1629,7 +1629,7 @@ function LeftPanel({
 					</TabsList>
 				</div>
 
-				<TabsContent value="layers" className="overflow-hidden">
+				<TabsContent value="layers" className="min-h-0 flex-1 overflow-hidden">
 					<ScrollArea className="h-full px-3 py-3">
 						<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
 							Filtros de visibilidad
@@ -1656,7 +1656,7 @@ function LeftPanel({
 					</ScrollArea>
 				</TabsContent>
 
-				<TabsContent value="tree" className="overflow-hidden">
+				<TabsContent value="tree" className="min-h-0 flex-1 overflow-hidden">
 					<ScrollArea className="h-full px-3 py-3">
 						<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
 							Topología OLT → Splitter → NAP
@@ -1669,7 +1669,7 @@ function LeftPanel({
 					</ScrollArea>
 				</TabsContent>
 
-				<TabsContent value="alerts" className="overflow-hidden">
+				<TabsContent value="alerts" className="min-h-0 flex-1 overflow-hidden">
 					<ScrollArea className="h-full px-3 py-3">
 						<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
 							Alertas de red — {warnings.length} activas
@@ -2090,7 +2090,7 @@ function RightPanel({
 			description={featureSubtitle(feature)}
 			size="lg"
 			className="bg-[rgba(28,29,30,0.92)] text-[#d7d7d7] backdrop-blur-xl"
-			contentClassName="p-4 pr-5"
+			contentClassName="p-4"
 			title={featureTitle(feature)}
 		>
 			<div className="space-y-3">
