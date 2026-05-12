@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { DiagramPanel } from "@/components/map/logical-diagram";
 import { NetworkEditorMap } from "@/components/map/network-editor-map";
+import { useEditorShortcuts } from "@/lib/hooks/use-editor-shortcuts";
 import { useNetworkEditorHistoryShortcuts } from "@/lib/hooks/use-network-editor-history-shortcuts";
 import { MAPBOX_TOKEN } from "@/lib/mapbox/config";
 import {
@@ -57,6 +58,8 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 		queryKey: networkEditorKeys.detail(networkId),
 		queryFn: () => fetchNetworkEditorData(networkId),
 	});
+
+	useEditorShortcuts({ canEdit });
 
 	const { canRedo, canUndo } = useNetworkEditorHistoryShortcuts({
 		enabled: canEdit,
