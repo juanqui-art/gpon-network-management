@@ -56,16 +56,24 @@ export function MapStatChip({
 	);
 }
 
-export function MapLegend() {
+export function MapLegend({ compact = false }: { compact?: boolean }) {
+	const wrapperClass = compact
+		? "w-36 rounded-md border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.84)] p-2 text-[10px] text-[#d7d7d7] shadow-2xl backdrop-blur-md"
+		: "w-44 rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.9)] p-3 text-xs text-[#d7d7d7] shadow-2xl backdrop-blur-md";
+	const sectionLabelClass = compact
+		? "mb-1 font-semibold uppercase tracking-widest text-[9px] text-[#777879]"
+		: "mb-2 font-semibold uppercase tracking-widest text-[#777879]";
+	const itemGapClass = compact
+		? "mb-1 flex items-center gap-1.5"
+		: "mb-1.5 flex items-center gap-2";
+
 	return (
-		<div className="w-44 rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.9)] p-3 text-xs text-[#d7d7d7] shadow-2xl backdrop-blur-md">
-			<p className="mb-2 font-semibold uppercase tracking-widest text-[#777879]">
-				Fibra
-			</p>
+		<div className={wrapperClass}>
+			<p className={sectionLabelClass}>Fibra</p>
 			{(["feeder", "distribution", "drop"] as const).map((type) => (
-				<div key={type} className="mb-1.5 flex items-center gap-2">
+				<div key={type} className={itemGapClass}>
 					<span
-						className="h-px w-7"
+						className={compact ? "h-px w-5 shrink-0" : "h-px w-7"}
 						style={{
 							borderTop:
 								type === "feeder"
@@ -76,27 +84,37 @@ export function MapLegend() {
 					<span>{CABLE_LABEL[type]}</span>
 				</div>
 			))}
-			<p className="mb-2 mt-3 font-semibold uppercase tracking-widest text-[#777879]">
-				Elementos
-			</p>
+			<p className={`${sectionLabelClass} mt-2`}>Elementos</p>
 			{(["olt", "splitter", "nap"] as const).map((type) => (
-				<div key={type} className="mb-1.5 flex items-center gap-2">
+				<div key={type} className={itemGapClass}>
 					<span
-						className="size-2.5 rounded-full"
+						className={
+							compact ? "size-2 rounded-full shrink-0" : "size-2.5 rounded-full"
+						}
 						style={{ backgroundColor: TYPE_COLOR[type] }}
 					/>
 					<span>{ELEMENT_LABELS[type]}</span>
 				</div>
 			))}
-			<p className="mb-2 mt-3 font-semibold uppercase tracking-widest text-[#777879]">
-				Óptico
-			</p>
-			<div className="mb-1.5 flex items-center gap-2">
-				<span className="size-3 rounded-full border-2 border-[#f59e0b]" />
+			<p className={`${sectionLabelClass} mt-2`}>Óptico</p>
+			<div className={itemGapClass}>
+				<span
+					className={
+						compact
+							? "size-2.5 rounded-full border-2 border-[#f59e0b]"
+							: "size-3 rounded-full border-2 border-[#f59e0b]"
+					}
+				/>
 				<span>Margen ajustado</span>
 			</div>
-			<div className="flex items-center gap-2">
-				<span className="size-3 rounded-full border-2 border-[#fb4d6d]" />
+			<div className={itemGapClass}>
+				<span
+					className={
+						compact
+							? "size-2.5 rounded-full border-2 border-[#fb4d6d]"
+							: "size-3 rounded-full border-2 border-[#fb4d6d]"
+					}
+				/>
 				<span>Deficiente</span>
 			</div>
 		</div>
@@ -108,25 +126,31 @@ export function MapControls({
 	onResetNorth,
 	onZoomIn,
 	onZoomOut,
+	compact = false,
 }: {
 	onFit: () => void;
 	onResetNorth: () => void;
 	onZoomIn: () => void;
 	onZoomOut: () => void;
+	compact?: boolean;
 }) {
+	const wrapperClass = compact
+		? "flex flex-col overflow-hidden rounded-md border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.94)] shadow-xl backdrop-blur-md"
+		: "flex overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md";
+
 	return (
-		<div className="flex overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md">
-			<IconControl label="Acercar" onClick={onZoomIn}>
-				<Plus className="size-4" />
+		<div className={wrapperClass}>
+			<IconControl label="Acercar" onClick={onZoomIn} compact={compact}>
+				<Plus className={compact ? "size-3.5" : "size-4"} />
 			</IconControl>
-			<IconControl label="Alejar" onClick={onZoomOut}>
-				<Minus className="size-4" />
+			<IconControl label="Alejar" onClick={onZoomOut} compact={compact}>
+				<Minus className={compact ? "size-3.5" : "size-4"} />
 			</IconControl>
-			<IconControl label="Centrar red" onClick={onFit}>
-				<Crosshair className="size-4" />
+			<IconControl label="Centrar red" onClick={onFit} compact={compact}>
+				<Crosshair className={compact ? "size-3.5" : "size-4"} />
 			</IconControl>
-			<IconControl label="Reset norte" onClick={onResetNorth}>
-				<Compass className="size-4" />
+			<IconControl label="Reset norte" onClick={onResetNorth} compact={compact}>
+				<Compass className={compact ? "size-3.5" : "size-4"} />
 			</IconControl>
 		</div>
 	);
@@ -136,10 +160,12 @@ function IconControl({
 	children,
 	label,
 	onClick,
+	compact = false,
 }: {
 	children: ReactNode;
 	label: string;
 	onClick: () => void;
+	compact?: boolean;
 }) {
 	return (
 		<button
@@ -147,7 +173,11 @@ function IconControl({
 			aria-label={label}
 			title={label}
 			onClick={onClick}
-			className="grid size-9 place-items-center border-r border-[rgba(164,164,164,0.12)] text-[#d7d7d7] transition-colors last:border-r-0 hover:bg-white/10"
+			className={`grid place-items-center border-r border-[rgba(164,164,164,0.12)] text-[#d7d7d7] transition-colors last:border-r-0 hover:bg-white/10 ${
+				compact
+					? "size-8 border-r-0 border-b last:border-b-0 last:border-r-0"
+					: "size-9"
+			}`}
 		>
 			{children}
 		</button>

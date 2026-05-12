@@ -7,7 +7,6 @@ import {
 	Layers,
 	Network,
 	Siren,
-	X,
 } from "lucide-react";
 import mapboxgl from "mapbox-gl";
 import type {
@@ -157,7 +156,8 @@ const UNIFILAR_DEFAULT_HEIGHT = 420;
 const UNIFILAR_MIN_HEIGHT = 260;
 const UNIFILAR_MAX_HEIGHT = 760;
 const UNIFILAR_MIN_MAP_HEIGHT = 220;
-const INITIAL_FIT_PADDING = { bottom: 128, left: 400, right: 128, top: 96 };
+const DESKTOP_FIT_PADDING = { bottom: 128, left: 400, right: 128, top: 96 };
+const MOBILE_FIT_PADDING = { bottom: 112, left: 24, right: 24, top: 72 };
 
 export function ReadonlyMapViewer({
 	token,
@@ -281,21 +281,12 @@ export function ReadonlyMapViewer({
 		if (!containerRef.current) return;
 
 		const initialBounds = getEquipmentBounds(visibleEquipmentRef.current);
+		const initialFitPadding = getFitBoundsPadding();
 		const map = new mapboxgl.Map({
 			accessToken: token,
 			container: containerRef.current,
-			...(initialBounds
-				? {
-						bounds: initialBounds,
-						fitBoundsOptions: {
-							maxZoom: 15,
-							padding: INITIAL_FIT_PADDING,
-						},
-					}
-				: {
-						center: DEFAULT_CENTER,
-						zoom: DEFAULT_ZOOM,
-					}),
+			center: DEFAULT_CENTER,
+			zoom: DEFAULT_ZOOM,
 			style: MAP_STYLE,
 		});
 
@@ -319,6 +310,17 @@ export function ReadonlyMapViewer({
 			resizeFrame();
 
 			hideNoisyMapLabels(map);
+
+			if (initialBounds) {
+				requestAnimationFrame(() => {
+					fitToEquipment(
+						map,
+						visibleEquipmentRef.current,
+						false,
+						initialFitPadding,
+					);
+				});
+			}
 
 			map.addSource("readonly-routes", {
 				type: "geojson",
@@ -680,14 +682,31 @@ export function ReadonlyMapViewer({
 				/>
 			</div>
 
+			<div className="absolute bottom-4 left-4 z-20 md:hidden">
+				<MapLegend compact />
+			</div>
+
 			<div className="absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2">
-				<MapLegend />
-				<MapControls
-					onZoomIn={() => mapRef.current?.zoomIn()}
-					onZoomOut={() => mapRef.current?.zoomOut()}
-					onFit={() => fitToEquipment(mapRef.current, visibleEquipment, true)}
-					onResetNorth={() => mapRef.current?.resetNorth()}
-				/>
+				<div className="hidden md:block">
+					<MapLegend />
+				</div>
+				<div className="md:hidden">
+					<MapControls
+						compact
+						onZoomIn={() => mapRef.current?.zoomIn()}
+						onZoomOut={() => mapRef.current?.zoomOut()}
+						onFit={() => fitToEquipment(mapRef.current, visibleEquipment, true)}
+						onResetNorth={() => mapRef.current?.resetNorth()}
+					/>
+				</div>
+				<div className="hidden md:block">
+					<MapControls
+						onZoomIn={() => mapRef.current?.zoomIn()}
+						onZoomOut={() => mapRef.current?.zoomOut()}
+						onFit={() => fitToEquipment(mapRef.current, visibleEquipment, true)}
+						onResetNorth={() => mapRef.current?.resetNorth()}
+					/>
+				</div>
 			</div>
 
 			<RightPanel
@@ -904,11 +923,25 @@ function ReadonlyUnifilarPanel({
 	};
 
 	return (
-		<section
-			className={`absolute inset-x-0 bottom-0 z-30 flex flex-col overflow-hidden border-t border-[rgba(164,164,164,0.18)] bg-[#111213] shadow-[0_-18px_40px_rgba(0,0,0,0.34)] ${
+		<AppDrawer
+			open
+			onOpenChange={(open) => {
+				if (!open) onClose();
+			}}
+			title="Vista unifilar"
+			description={`${root.code}${root.name ? ` · ${root.name}` : ""}`}
+			direction="bottom"
+			modal={false}
+			dismissible={false}
+			showOverlay={false}
+			size="lg"
+			style={{
+				height: panelHeight,
+			}}
+			className={`z-30 border-t border-[rgba(164,164,164,0.18)] bg-[#111213] shadow-[0_-18px_40px_rgba(0,0,0,0.34)] ${
 				isResizing ? "" : "transition-[height] duration-200"
-			}`}
-			style={{ height: panelHeight }}
+			} md:!inset-x-0 md:!bottom-0 md:!left-0 md:!right-0 md:!top-auto md:!mx-0 md:!w-full md:!max-w-none md:!rounded-t-none`}
+			contentClassName="min-h-0 px-0 py-0"
 		>
 			{/* biome-ignore lint/a11y/useSemanticElements: This separator is an interactive drag handle, not a static horizontal rule. */}
 			<div
@@ -927,57 +960,41 @@ function ReadonlyUnifilarPanel({
 					<div className="h-0.5 w-12 rounded-full bg-[rgba(164,164,164,0.34)] transition-colors group-hover:bg-[#38d8ff]" />
 				</div>
 			</div>
-			<header className="flex shrink-0 items-center justify-between gap-4 border-b border-[rgba(164,164,164,0.12)] bg-[#111213]/96 px-4 py-2.5">
+			<div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[rgba(164,164,164,0.12)] bg-[#111213]/96 px-4 py-2.5">
 				<div className="flex min-w-0 items-center gap-3">
 					<div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-[#38d8ff]/20 bg-[#38d8ff]/10 text-[#38d8ff]">
 						<Network className="size-4" aria-hidden="true" />
 					</div>
 					<div className="min-w-0">
-						<div className="flex min-w-0 items-center gap-2">
-							<p className="truncate text-sm font-semibold text-[#e6e6e6]">
-								Vista unifilar
-							</p>
-							<span className="rounded-full border border-[rgba(56,216,255,0.22)] bg-[rgba(56,216,255,0.08)] px-2 py-0.5 text-[10px] font-medium text-[#8bdff4]">
-								Solo lectura
-							</span>
-						</div>
+						<p className="truncate text-sm font-semibold text-[#e6e6e6]">
+							Vista unifilar
+						</p>
 						<p className="mt-0.5 truncate text-[11px] text-[#777879]">
 							<span className="font-mono text-[#cfd2d4]">{root.code}</span>
 							{root.name ? ` · ${root.name}` : ""}
 						</p>
 					</div>
 				</div>
-				<div className="flex items-center gap-3">
-					<div className="hidden items-center gap-1.5 md:flex">
-						<DiagramMetric label="Splitters" value={stats.splitters} />
-						<DiagramMetric label="NAP" value={stats.naps} />
-						<DiagramMetric label="Rutas" value={stats.routes} />
-						<DiagramMetric label="Fibra" value={formatMeters(stats.length)} />
-						<DiagramMetric
-							label="Peor margen"
-							value={
-								stats.worstMargin != null
-									? `${stats.worstMargin.toFixed(1)} dB`
-									: "N/D"
-							}
-							color={
-								OPTICAL_STATUS_COLOR[
-									stats.worstStatus as keyof typeof OPTICAL_STATUS_COLOR
-								]
-							}
-						/>
-					</div>
-					<Button
-						type="button"
-						variant="ghost"
-						size="icon-sm"
-						aria-label="Cerrar diagrama"
-						onClick={onClose}
-					>
-						<X className="size-4" />
-					</Button>
+				<div className="hidden items-center gap-1.5 md:flex">
+					<DiagramMetric label="Splitters" value={stats.splitters} />
+					<DiagramMetric label="NAP" value={stats.naps} />
+					<DiagramMetric label="Rutas" value={stats.routes} />
+					<DiagramMetric label="Fibra" value={formatMeters(stats.length)} />
+					<DiagramMetric
+						label="Peor margen"
+						value={
+							stats.worstMargin != null
+								? `${stats.worstMargin.toFixed(1)} dB`
+								: "N/D"
+						}
+						color={
+							OPTICAL_STATUS_COLOR[
+								stats.worstStatus as keyof typeof OPTICAL_STATUS_COLOR
+							]
+						}
+					/>
 				</div>
-			</header>
+			</div>
 			<div className="grid min-h-0 flex-1 grid-cols-1 gap-2.5 bg-[#151617] p-2.5 lg:grid-cols-[minmax(0,1fr)_540px]">
 				{roots.length === 0 ? (
 					<div className="flex h-full items-center justify-center rounded-md border border-dashed border-white/12 bg-white/[0.025] px-6 text-center lg:col-span-2">
@@ -1018,7 +1035,7 @@ function ReadonlyUnifilarPanel({
 					</>
 				)}
 			</div>
-		</section>
+		</AppDrawer>
 	);
 }
 
@@ -1457,6 +1474,7 @@ function fitToEquipment(
 	map: mapboxgl.Map | null,
 	equipment: EquipmentMapItem[],
 	animate: boolean,
+	padding = getFitBoundsPadding(),
 ) {
 	if (!map) return;
 	const bounds = getEquipmentBounds(equipment);
@@ -1465,7 +1483,7 @@ function fitToEquipment(
 	map.fitBounds(bounds, {
 		duration: animate ? 650 : 0,
 		maxZoom: 15,
-		padding: INITIAL_FIT_PADDING,
+		padding,
 	});
 }
 
@@ -1480,6 +1498,17 @@ function getEquipmentBounds(equipment: EquipmentMapItem[]) {
 	}
 
 	return bounds.isEmpty() ? null : bounds;
+}
+
+function getFitBoundsPadding() {
+	if (
+		typeof window === "undefined" ||
+		window.matchMedia("(min-width: 768px)").matches
+	) {
+		return DESKTOP_FIT_PADDING;
+	}
+
+	return MOBILE_FIT_PADDING;
 }
 
 function buildDataWarnings(
@@ -1555,154 +1584,207 @@ function LeftPanel({
 	warnings,
 	onSelectEquipment,
 }: LeftPanelProps) {
-	return (
-		<div className="flex h-full w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md">
-			<Tabs
-				value={tab}
-				onValueChange={(value) => onTabChange(value as LeftPanelTab)}
-				className="flex min-h-0 flex-1 flex-col gap-0"
-			>
-				<div className="border-b border-[rgba(164,164,164,0.12)] px-3 py-2.5">
-					<div className="mb-2.5 grid grid-cols-4 gap-1.5">
-						<MapStatChip
-							label="OLT"
-							value={counts.olts}
-							color={TYPE_COLOR.olt}
-							active={filterType === "olt"}
-							onClick={() => {
-								onTypeChange(filterType === "olt" ? "all" : "olt");
-								onTabChange("layers");
-							}}
-						/>
-						<MapStatChip
-							label="SPL"
-							value={counts.splitters}
-							color={TYPE_COLOR.splitter}
-							active={filterType === "splitter"}
-							onClick={() => {
-								onTypeChange(filterType === "splitter" ? "all" : "splitter");
-								onTabChange("layers");
-							}}
-						/>
-						<MapStatChip
-							label="NAP"
-							value={counts.naps}
-							color={TYPE_COLOR.nap}
-							active={filterType === "nap"}
-							onClick={() => {
-								onTypeChange(filterType === "nap" ? "all" : "nap");
-								onTabChange("layers");
-							}}
-						/>
-						<MapStatChip
-							label="km"
-							value={counts.totalKm.toFixed(1)}
-							color="#a4a4a4"
-						/>
-					</div>
-					{counts.saturatedNaps > 0 && (
-						<div className="mb-2 flex items-center gap-2 rounded-md border border-[rgba(251,77,109,0.28)] bg-[rgba(251,77,109,0.08)] px-2 py-1 text-[10px] text-[#fb7185]">
-							<AlertTriangle className="size-3" aria-hidden="true" />
-							<span>
-								{counts.saturatedNaps} NAP
-								{counts.saturatedNaps > 1 ? "s" : ""} saturada
-								{counts.saturatedNaps > 1 ? "s" : ""}
-							</span>
-						</div>
-					)}
-					<TabsList className="grid w-full grid-cols-3 bg-[rgba(164,164,164,0.05)]">
-						{PANEL_TABS.map(({ value, label, icon: Icon }) => (
-							<TabsTrigger
-								key={value}
-								value={value}
-								className="relative px-1 text-[10px]"
-							>
-								<Icon className="size-3" aria-hidden="true" />
-								<span className="hidden sm:inline">{label}</span>
-								{value === "alerts" && warnings.length > 0 && (
-									<Badge className="absolute -right-1 -top-1 h-4 min-w-4 rounded-full bg-[#f59e0b] px-1 text-[9px] text-[#1b1c1d]">
-										{warnings.length}
-									</Badge>
-								)}
-							</TabsTrigger>
-						))}
-					</TabsList>
+	const [isDesktop, setIsDesktop] = useState(() =>
+		typeof window !== "undefined"
+			? window.matchMedia("(min-width: 768px)").matches
+			: false,
+	);
+	const [mobileOpen, setMobileOpen] = useState(false);
+
+	useEffect(() => {
+		const mediaQuery = window.matchMedia("(min-width: 768px)");
+		const updateBreakpoint = () => setIsDesktop(mediaQuery.matches);
+
+		updateBreakpoint();
+		mediaQuery.addEventListener("change", updateBreakpoint);
+		return () => mediaQuery.removeEventListener("change", updateBreakpoint);
+	}, []);
+
+	const panelBody = (
+		<Tabs
+			value={tab}
+			onValueChange={(value) => onTabChange(value as LeftPanelTab)}
+			className="flex min-h-0 flex-1 flex-col gap-0"
+		>
+			<div className="border-b border-[rgba(164,164,164,0.12)] px-3 py-2.5">
+				<div className="mb-2.5 grid grid-cols-4 gap-1.5">
+					<MapStatChip
+						label="OLT"
+						value={counts.olts}
+						color={TYPE_COLOR.olt}
+						active={filterType === "olt"}
+						onClick={() => {
+							onTypeChange(filterType === "olt" ? "all" : "olt");
+							onTabChange("layers");
+						}}
+					/>
+					<MapStatChip
+						label="SPL"
+						value={counts.splitters}
+						color={TYPE_COLOR.splitter}
+						active={filterType === "splitter"}
+						onClick={() => {
+							onTypeChange(filterType === "splitter" ? "all" : "splitter");
+							onTabChange("layers");
+						}}
+					/>
+					<MapStatChip
+						label="NAP"
+						value={counts.naps}
+						color={TYPE_COLOR.nap}
+						active={filterType === "nap"}
+						onClick={() => {
+							onTypeChange(filterType === "nap" ? "all" : "nap");
+							onTabChange("layers");
+						}}
+					/>
+					<MapStatChip
+						label="km"
+						value={counts.totalKm.toFixed(1)}
+						color="#a4a4a4"
+					/>
 				</div>
+				{counts.saturatedNaps > 0 && (
+					<div className="mb-2 flex items-center gap-2 rounded-md border border-[rgba(251,77,109,0.28)] bg-[rgba(251,77,109,0.08)] px-2 py-1 text-[10px] text-[#fb7185]">
+						<AlertTriangle className="size-3" aria-hidden="true" />
+						<span>
+							{counts.saturatedNaps} NAP
+							{counts.saturatedNaps > 1 ? "s" : ""} saturada
+							{counts.saturatedNaps > 1 ? "s" : ""}
+						</span>
+					</div>
+				)}
+				<TabsList className="grid w-full grid-cols-3 bg-[rgba(164,164,164,0.05)]">
+					{PANEL_TABS.map(({ value, label, icon: Icon }) => (
+						<TabsTrigger
+							key={value}
+							value={value}
+							className="relative px-1 text-[10px]"
+						>
+							<Icon className="size-3" aria-hidden="true" />
+							<span className="hidden sm:inline">{label}</span>
+							{value === "alerts" && warnings.length > 0 && (
+								<Badge className="absolute -right-1 -top-1 h-4 min-w-4 rounded-full bg-[#f59e0b] px-1 text-[9px] text-[#1b1c1d]">
+									{warnings.length}
+								</Badge>
+							)}
+						</TabsTrigger>
+					))}
+				</TabsList>
+			</div>
 
-				<TabsContent value="layers" className="min-h-0 flex-1 overflow-hidden">
-					<ScrollArea className="h-full px-3 py-3">
-						<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-							Filtros de visibilidad
-						</p>
-						<FilterBar
-							filterType={filterType}
-							filterStatus={filterStatus}
-							onTypeChange={onTypeChange}
-							onStatusChange={onStatusChange}
-							typeCounts={{
-								olt: counts.totalOlts,
-								splitter: counts.totalSplitters,
-								nap: counts.totalNaps,
-							}}
+			<TabsContent value="layers" className="min-h-0 flex-1 overflow-hidden">
+				<ScrollArea className="h-full px-3 py-3">
+					<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						Filtros de visibilidad
+					</p>
+					<FilterBar
+						filterType={filterType}
+						filterStatus={filterStatus}
+						onTypeChange={onTypeChange}
+						onStatusChange={onStatusChange}
+						typeCounts={{
+							olt: counts.totalOlts,
+							splitter: counts.totalSplitters,
+							nap: counts.totalNaps,
+						}}
+					/>
+					<div className="mt-4 space-y-1.5 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.04)] p-2.5 text-xs">
+						<StatRow
+							label="Elementos"
+							value={counts.olts + counts.splitters + counts.naps}
 						/>
-						<div className="mt-4 space-y-1.5 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.04)] p-2.5 text-xs">
-							<StatRow
-								label="Elementos"
-								value={counts.olts + counts.splitters + counts.naps}
-							/>
-							<StatRow label="Rutas" value={counts.routes} />
-							<StatRow label="Puntos de ruta" value={counts.routePoints} />
+						<StatRow label="Rutas" value={counts.routes} />
+						<StatRow label="Puntos de ruta" value={counts.routePoints} />
+					</div>
+				</ScrollArea>
+			</TabsContent>
+
+			<TabsContent value="tree" className="min-h-0 flex-1 overflow-hidden">
+				<ScrollArea className="h-full px-3 py-3">
+					<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						Topología OLT → Splitter → NAP
+					</p>
+					<NetworkTree
+						equipment={equipment}
+						connections={connections}
+						onSelectEquipment={onSelectEquipment}
+					/>
+				</ScrollArea>
+			</TabsContent>
+
+			<TabsContent value="alerts" className="min-h-0 flex-1 overflow-hidden">
+				<ScrollArea className="h-full px-3 py-3">
+					<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						Alertas de red — {warnings.length} activas
+					</p>
+					{warnings.length === 0 ? (
+						<div className="rounded-md border border-[rgba(52,211,153,0.2)] bg-[rgba(52,211,153,0.08)] px-3 py-2.5">
+							<p className="flex items-center gap-1.5 text-[11px] font-semibold text-[#34d399]">
+								Red sin alertas
+							</p>
+							<p className="mt-0.5 text-[10px] text-[#9ee8c9]">
+								Sin alertas de datos geométricos ni técnicos.
+							</p>
 						</div>
-					</ScrollArea>
-				</TabsContent>
-
-				<TabsContent value="tree" className="min-h-0 flex-1 overflow-hidden">
-					<ScrollArea className="h-full px-3 py-3">
-						<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-							Topología OLT → Splitter → NAP
-						</p>
-						<NetworkTree
-							equipment={equipment}
-							connections={connections}
-							onSelectEquipment={onSelectEquipment}
-						/>
-					</ScrollArea>
-				</TabsContent>
-
-				<TabsContent value="alerts" className="min-h-0 flex-1 overflow-hidden">
-					<ScrollArea className="h-full px-3 py-3">
-						<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-							Alertas de red — {warnings.length} activas
-						</p>
-						{warnings.length === 0 ? (
-							<div className="rounded-md border border-[rgba(52,211,153,0.2)] bg-[rgba(52,211,153,0.08)] px-3 py-2.5">
-								<p className="flex items-center gap-1.5 text-[11px] font-semibold text-[#34d399]">
-									Red sin alertas
-								</p>
-								<p className="mt-0.5 text-[10px] text-[#9ee8c9]">
-									Sin alertas de datos geométricos ni técnicos.
+					) : (
+						warnings.map((warning) => (
+							<div
+								key={warning}
+								className="mb-1.5 flex items-start gap-2 rounded-md border border-[rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.08)] px-2.5 py-2"
+							>
+								<AlertTriangle
+									className="mt-0.5 size-3 shrink-0 text-[#f59e0b]"
+									aria-hidden="true"
+								/>
+								<p className="text-[11px] leading-snug text-[#f6c768]">
+									{warning}
 								</p>
 							</div>
-						) : (
-							warnings.map((warning) => (
-								<div
-									key={warning}
-									className="mb-1.5 flex items-start gap-2 rounded-md border border-[rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.08)] px-2.5 py-2"
-								>
-									<AlertTriangle
-										className="mt-0.5 size-3 shrink-0 text-[#f59e0b]"
-										aria-hidden="true"
-									/>
-									<p className="text-[11px] leading-snug text-[#f6c768]">
-										{warning}
-									</p>
-								</div>
-							))
-						)}
-					</ScrollArea>
-				</TabsContent>
-			</Tabs>
-		</div>
+						))
+					)}
+				</ScrollArea>
+			</TabsContent>
+		</Tabs>
+	);
+
+	const open = isDesktop ? true : mobileOpen;
+	const direction = isDesktop ? "left" : "bottom";
+
+	return (
+		<>
+			{!isDesktop && !mobileOpen && (
+				<button
+					type="button"
+					onClick={() => setMobileOpen(true)}
+					aria-label="Abrir panel de mapa"
+					className="fixed left-4 top-16 z-20 inline-flex items-center gap-2 rounded-full border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] px-3 py-2 text-xs font-medium text-[#d7d7d7] shadow-2xl backdrop-blur-md transition-colors hover:bg-[rgba(34,35,36,0.98)]"
+				>
+					<Layers className="size-3.5" aria-hidden="true" />
+					<span>Mapa</span>
+				</button>
+			)}
+			<AppDrawer
+				open={open}
+				onOpenChange={isDesktop ? () => {} : setMobileOpen}
+				title="Mapa de red"
+				description="Capas, árbol lógico y alertas del mapa de solo lectura."
+				direction={direction}
+				modal={!isDesktop}
+				dismissible={!isDesktop}
+				showOverlay={!isDesktop}
+				showClose={!isDesktop}
+				size="md"
+				className={
+					isDesktop
+						? "md:!left-4 md:!right-auto md:!top-16 md:!bottom-4 md:!w-[min(22rem,calc(100vw-2rem))] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md"
+						: "bg-[rgba(34,35,36,0.95)] shadow-2xl backdrop-blur-md"
+				}
+				contentClassName="min-h-0 p-0"
+			>
+				{panelBody}
+			</AppDrawer>
+		</>
 	);
 }
 
