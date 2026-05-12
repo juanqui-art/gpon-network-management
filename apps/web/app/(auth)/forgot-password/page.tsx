@@ -11,7 +11,7 @@ export default function ForgotPasswordPage() {
 	return (
 		<>
 			<div className="mb-8 text-center">
-				<h1 className="text-2xl font-semibold tracking-tight text-[#e6e6e6]">
+				<h1 className="text-balance text-2xl font-semibold tracking-tight text-foreground">
 					Recuperar contraseña
 				</h1>
 				<p className="mt-1 text-sm text-[#a4a4a4]">

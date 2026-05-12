@@ -1,3 +1,4 @@
+import { CommandPalette } from "@/components/command/palette";
 import { DashboardNav } from "./dashboard-nav";
 
 export default function DashboardLayout({
@@ -9,6 +10,7 @@ export default function DashboardLayout({
 		<div className="flex h-dvh min-h-0 flex-col">
 			<DashboardNav />
 			<main className="min-h-0 flex-1 overflow-hidden">{children}</main>
+			<CommandPalette />
 		</div>
 	);
 }

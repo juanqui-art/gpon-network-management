@@ -9,6 +9,7 @@ import {
 	Search,
 	Server,
 } from "lucide-react";
+import { motion, useAnimation } from "motion/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { HealthSummary } from "@/components/monitoring/health-summary";
@@ -134,7 +135,7 @@ export function MonitoringDetailClient({
 									<Server className="size-4" aria-hidden />
 								</span>
 								<div className="min-w-0">
-									<h1 className="truncate text-xl font-semibold text-foreground">
+									<h1 className="truncate text-balance text-xl font-semibold text-foreground">
 										{title}
 									</h1>
 									<p className="mt-0.5 font-mono text-xs text-muted-foreground">
@@ -688,24 +689,41 @@ function RealtimeIndicator({
 	initialCount: number;
 	nowMs: number | null;
 }) {
+	const controls = useAnimation();
 	const lastText = lastEventAt
 		? formatRelative(lastEventAt.toISOString(), nowMs)
 		: initialCount > 0
 			? "esperando primer evento"
 			: "sin datos";
 
+	useEffect(() => {
+		if (!lastEventAt) return;
+		void controls.start({
+			scale: [1, 1.9, 1],
+			opacity: [1, 0.5, 1],
+			transition: { duration: 0.4, ease: "easeOut" },
+		});
+	}, [lastEventAt, controls]);
+
 	return (
-		<div className="flex items-center gap-2 text-xs text-muted-foreground">
-			<span
-				className={cn(
-					"h-2 w-2 rounded-full",
-					connected ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/40",
-				)}
-				aria-hidden
-			/>
-			<span>
-				{connected ? "Realtime activo" : "Conectando…"} · {lastText}
-			</span>
+		<div className="flex items-center gap-2 text-xs">
+			{connected ? (
+				<span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-400">
+					<motion.span
+						animate={controls}
+						className="relative flex h-1.5 w-1.5 shrink-0"
+					>
+						<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+						<span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+					</motion.span>
+					LIVE · {lastText}
+				</span>
+			) : (
+				<span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-0.5 text-muted-foreground">
+					<span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
+					Conectando…
+				</span>
+			)}
 		</div>
 	);
 }

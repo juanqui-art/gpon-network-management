@@ -1,6 +1,7 @@
 import { AlertTriangle, EthernetPort, Server } from "lucide-react";
 import Link from "next/link";
 import { HealthSummary } from "@/components/monitoring/health-summary";
+import { MonitoringKpiStrip } from "@/components/monitoring/kpi-strip";
 import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -73,10 +74,34 @@ export default async function MonitoringIndexPage() {
 		oltElementByHost,
 	);
 
+	// Aggregate totals across all OLTs for KPI strip
+	const globalTotals = olts.reduce(
+		(acc, entry) => ({
+			total: acc.total + entry.health.total,
+			online: acc.online + entry.health.online,
+			offline: acc.offline + entry.health.offline,
+			los: acc.los + entry.health.los,
+			lof: acc.lof + entry.health.lof,
+			unknown: acc.unknown + entry.health.unknown,
+			warning_signal: acc.warning_signal + entry.health.warning_signal,
+			last_update: null,
+		}),
+		{
+			total: 0,
+			online: 0,
+			offline: 0,
+			los: 0,
+			lof: 0,
+			unknown: 0,
+			warning_signal: 0,
+			last_update: null as string | null,
+		},
+	);
+
 	return (
 		<div className="mx-auto h-full w-full max-w-5xl overflow-auto px-6 py-8">
 			<header className="mb-6">
-				<h1 className="text-xl font-semibold text-foreground">
+				<h1 className="text-balance text-xl font-semibold text-foreground">
 					Monitoreo de OLTs
 				</h1>
 				<p className="mt-1 text-sm text-muted-foreground">
@@ -84,6 +109,10 @@ export default async function MonitoringIndexPage() {
 					ver el detalle.
 				</p>
 			</header>
+
+			{olts.length > 0 && (
+				<MonitoringKpiStrip totals={globalTotals} oltCount={olts.length} />
+			)}
 
 			{olts.length === 0 && (
 				<Card className="p-8 text-center">

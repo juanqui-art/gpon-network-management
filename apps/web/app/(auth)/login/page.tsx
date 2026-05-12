@@ -34,7 +34,7 @@ export default function LoginPage() {
 					<p className="mb-2 text-xs font-medium uppercase text-muted-foreground">
 						Acceso seguro
 					</p>
-					<h1 className="text-2xl font-semibold text-foreground">
+					<h1 className="text-balance text-2xl font-semibold text-foreground">
 						GPON Network
 					</h1>
 					<p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -124,7 +124,12 @@ export default function LoginPage() {
 					</div>
 				)}
 
-				<Button type="submit" disabled={pending} className="h-11 w-full gap-2">
+				<Button
+					type="submit"
+					variant="accent"
+					disabled={pending}
+					className="h-11 w-full gap-2"
+				>
 					{pending ? (
 						"Validando acceso..."
 					) : (

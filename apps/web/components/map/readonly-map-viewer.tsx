@@ -17,6 +17,7 @@ import type {
 } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
+import { AnimatePresence } from "motion/react";
 import {
 	ContextMenu,
 	type ContextMenuOption,
@@ -157,6 +158,7 @@ const UNIFILAR_DEFAULT_HEIGHT = 420;
 const UNIFILAR_MIN_HEIGHT = 260;
 const UNIFILAR_MAX_HEIGHT = 760;
 const UNIFILAR_MIN_MAP_HEIGHT = 220;
+const INITIAL_FIT_PADDING = { bottom: 128, left: 400, right: 128, top: 96 };
 
 export function ReadonlyMapViewer({
 	token,
@@ -279,12 +281,23 @@ export function ReadonlyMapViewer({
 	useEffect(() => {
 		if (!containerRef.current) return;
 
+		const initialBounds = getEquipmentBounds(visibleEquipmentRef.current);
 		const map = new mapboxgl.Map({
 			accessToken: token,
-			center: DEFAULT_CENTER,
 			container: containerRef.current,
+			...(initialBounds
+				? {
+						bounds: initialBounds,
+						fitBoundsOptions: {
+							maxZoom: 15,
+							padding: INITIAL_FIT_PADDING,
+						},
+					}
+				: {
+						center: DEFAULT_CENTER,
+						zoom: DEFAULT_ZOOM,
+					}),
 			style: MAP_STYLE,
-			zoom: DEFAULT_ZOOM,
 		});
 
 		mapRef.current = map;
@@ -517,7 +530,6 @@ export function ReadonlyMapViewer({
 			setIsMapReady(true);
 			requestAnimationFrame(() => {
 				forceResize();
-				fitToEquipment(map, visibleEquipmentRef.current, false);
 				updateMapVisibility(map);
 			});
 		});
@@ -646,7 +658,7 @@ export function ReadonlyMapViewer({
 			<div ref={containerRef} className="gpon-mapbox-host absolute inset-0" />
 			<div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-gradient-to-b from-[#1b1c1d]/70 to-transparent" />
 
-			<div className="absolute left-4 top-4 z-20">
+			<div className="absolute left-4 top-4 z-20 max-w-[calc(100vw-2rem)]">
 				<LeftPanel
 					tab={leftTab}
 					onTabChange={setLeftTab}
@@ -679,14 +691,23 @@ export function ReadonlyMapViewer({
 				/>
 			</div>
 
-			{selectedFeature && (
-				<RightPanel
-					feature={selectedFeature}
-					equipmentById={equipmentById}
-					connections={visibleConnections}
-					onClose={() => setSelectedFeature(null)}
-				/>
-			)}
+			<AnimatePresence mode="wait">
+				{selectedFeature && (
+					<RightPanel
+						key={
+							selectedFeature.kind === "element"
+								? selectedFeature.element.id
+								: selectedFeature.kind === "route"
+									? selectedFeature.route.id
+									: selectedFeature.point.id
+						}
+						feature={selectedFeature}
+						equipmentById={equipmentById}
+						connections={visibleConnections}
+						onClose={() => setSelectedFeature(null)}
+					/>
+				)}
+			</AnimatePresence>
 			{selectedDiagramRoot && (
 				<ReadonlyUnifilarPanel
 					root={selectedDiagramRoot}
@@ -1449,7 +1470,19 @@ function fitToEquipment(
 	equipment: EquipmentMapItem[],
 	animate: boolean,
 ) {
-	if (!map || equipment.length === 0) return;
+	if (!map) return;
+	const bounds = getEquipmentBounds(equipment);
+	if (!bounds) return;
+
+	map.fitBounds(bounds, {
+		duration: animate ? 650 : 0,
+		maxZoom: 15,
+		padding: INITIAL_FIT_PADDING,
+	});
+}
+
+function getEquipmentBounds(equipment: EquipmentMapItem[]) {
+	if (equipment.length === 0) return null;
 
 	const bounds = new mapboxgl.LngLatBounds();
 	for (const item of equipment) {
@@ -1457,13 +1490,8 @@ function fitToEquipment(
 			bounds.extend([item.lng, item.lat]);
 		}
 	}
-	if (bounds.isEmpty()) return;
 
-	map.fitBounds(bounds, {
-		duration: animate ? 650 : 0,
-		maxZoom: 15,
-		padding: { bottom: 128, left: 332, right: 128, top: 96 },
-	});
+	return bounds.isEmpty() ? null : bounds;
 }
 
 function buildDataWarnings(
@@ -1540,7 +1568,7 @@ function LeftPanel({
 	onSelectEquipment,
 }: LeftPanelProps) {
 	return (
-		<div className="flex max-h-[calc(100%-2rem)] w-72 flex-col overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md">
+		<div className="flex max-h-[calc(100%-2rem)] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md">
 			<Tabs
 				value={tab}
 				onValueChange={(value) => onTabChange(value as LeftPanelTab)}
@@ -1850,8 +1878,8 @@ function NetworkTree({
 
 	return (
 		<div className="space-y-2">
-			<div className="mb-1 flex items-center justify-between">
-				<span className="text-[10px] text-[#5c5d5f]">
+			<div className="mb-1 flex min-w-0 items-center justify-between gap-3">
+				<span className="min-w-0 truncate text-[10px] text-[#5c5d5f]">
 					{olts.length} OLT{olts.length !== 1 ? "s" : ""}
 				</span>
 				<button
@@ -1861,7 +1889,7 @@ function NetworkTree({
 							allExpanded ? new Set() : new Set(allExpandableIds),
 						)
 					}
-					className="text-[10px] text-[#5c5d5f] transition-colors hover:text-[#a4a4a4]"
+					className="shrink-0 whitespace-nowrap text-[10px] text-[#5c5d5f] transition-colors hover:text-[#a4a4a4]"
 				>
 					{allExpanded ? "Contraer todo" : "Expandir todo"}
 				</button>
@@ -1882,7 +1910,7 @@ function NetworkTree({
 				return (
 					<div
 						key={olt.id}
-						className="min-w-0 rounded-md border border-[rgba(56,189,248,0.2)] bg-[rgba(56,189,248,0.05)] p-2"
+						className="min-w-0 overflow-hidden rounded-md border border-[rgba(56,189,248,0.2)] bg-[rgba(56,189,248,0.05)] p-2"
 					>
 						<div className="flex min-w-0 items-center gap-1.5">
 							<button
@@ -1916,7 +1944,7 @@ function NetworkTree({
 										{olt.optical_class}
 									</span>
 								)}
-								<span className="shrink-0 text-[10px] text-[#777879]">
+								<span className="shrink-0 whitespace-nowrap text-[10px] text-[#777879]">
 									{connectedSplitters.length} spl
 								</span>
 							</button>
@@ -1967,10 +1995,10 @@ function NetworkTree({
 												className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-80"
 											>
 												<span className="h-2 w-2 shrink-0 rounded-full bg-[#a78bfa]" />
-												<span className="truncate text-[11px] text-[#d7d7d7]">
+												<span className="min-w-0 flex-1 truncate text-[11px] text-[#d7d7d7]">
 													{spl.name ?? spl.code}
 												</span>
-												<span className="ml-auto shrink-0 text-[10px] text-[#777879]">
+												<span className="shrink-0 whitespace-nowrap text-[10px] text-[#777879]">
 													{connectedNaps.length} NAPs
 												</span>
 												{spl.split_ratio && (
@@ -2000,18 +2028,18 @@ function NetworkTree({
 														<button
 															type="button"
 															onClick={() => onSelectEquipment?.(nap)}
-															className="flex w-full items-center gap-1.5 text-left hover:opacity-80"
+															className="flex w-full min-w-0 items-center gap-1.5 text-left hover:opacity-80"
 														>
 															<span
 																className="h-1.5 w-1.5 shrink-0 rounded-full"
 																style={{ background: napColor }}
 															/>
-															<span className="truncate text-[10px] text-[#a4a4a4]">
+															<span className="min-w-0 flex-1 truncate text-[10px] text-[#a4a4a4]">
 																{nap.name ?? nap.code}
 															</span>
 															{nap.total_ports && (
 																<span
-																	className="ml-auto shrink-0 text-[9px]"
+																	className="shrink-0 whitespace-nowrap text-[9px]"
 																	style={{ color: napColor }}
 																>
 																	{nap.ports_used ?? 0}/{nap.total_ports}

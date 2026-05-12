@@ -1,5 +1,7 @@
 import { X } from "lucide-react";
+import { motion } from "motion/react";
 import type { ReactNode } from "react";
+import { INSPECTOR_VARIANTS, SPRING_SNAPPY } from "@/lib/motion/config";
 
 interface MapInspectorShellProps {
 	accent: string;
@@ -19,11 +21,18 @@ export function MapInspectorShell({
 	title,
 }: MapInspectorShellProps) {
 	return (
-		<aside className="absolute bottom-4 right-4 top-4 z-20 flex w-80 flex-col overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] text-[#d7d7d7] shadow-2xl backdrop-blur-md">
+		<motion.aside
+			variants={INSPECTOR_VARIANTS}
+			initial="hidden"
+			animate="visible"
+			exit="exit"
+			transition={SPRING_SNAPPY}
+			className="absolute bottom-4 right-4 top-4 z-20 flex w-80 flex-col overflow-hidden rounded-xl border border-white/9 bg-[rgba(28,29,30,0.72)] text-[#d7d7d7] shadow-(--shadow-lg) backdrop-blur-xl"
+		>
 			<div className="h-1 shrink-0" style={{ backgroundColor: accent }} />
 			<header className="flex items-start justify-between gap-3 border-b border-[rgba(164,164,164,0.12)] px-4 py-3">
 				<div className="min-w-0">
-					<h2 className="truncate text-sm font-semibold text-[#e6e6e6]">
+					<h2 className="truncate text-sm font-semibold text-foreground">
 						{title}
 					</h2>
 					<p className="mt-0.5 text-xs text-[#777879]">{subtitle}</p>
@@ -43,6 +52,6 @@ export function MapInspectorShell({
 					{actions}
 				</div>
 			</div>
-		</aside>
+		</motion.aside>
 	);
 }

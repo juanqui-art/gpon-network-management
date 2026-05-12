@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { UserRole } from "@/lib/types/gpon";
 import {
 	type NetworkSummary,
 	type NetworkTopology,
@@ -18,7 +19,13 @@ const TOPOLOGY_ICON: Record<NetworkTopology, string> = {
 	cascade: "≡",
 };
 
-export function NetworksClient({ networks }: { networks: NetworkSummary[] }) {
+export function NetworksClient({
+	networks,
+	userRole,
+}: {
+	networks: NetworkSummary[];
+	userRole: UserRole | null;
+}) {
 	const router = useRouter();
 	const [showNew, setShowNew] = useState(networks.length === 0);
 	const [name, setName] = useState("");
@@ -26,6 +33,13 @@ export function NetworksClient({ networks }: { networks: NetworkSummary[] }) {
 	const [topology, setTopology] = useState<NetworkTopology>("blank");
 	const [creating, setCreating] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [archiveTarget, setArchiveTarget] = useState<NetworkSummary | null>(
+		null,
+	);
+	const [archiveConfirmation, setArchiveConfirmation] = useState("");
+	const [archiveReason, setArchiveReason] = useState("");
+	const [archiving, setArchiving] = useState(false);
+	const canArchive = userRole === "admin";
 
 	async function handleCreate(e: React.FormEvent) {
 		e.preventDefault();
@@ -42,10 +56,36 @@ export function NetworksClient({ networks }: { networks: NetworkSummary[] }) {
 				p_topology: topology,
 			});
 			if (rpcError) throw rpcError;
-			router.push(`/networks/${data}`);
+			router.push(`/networks/${data}/capture`);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Error al crear la red");
 			setCreating(false);
+		}
+	}
+
+	async function handleArchive(e: React.FormEvent) {
+		e.preventDefault();
+		if (!archiveTarget || archiveConfirmation !== archiveTarget.name) return;
+		setArchiving(true);
+		setError(null);
+
+		try {
+			const { createClient } = await import("@/lib/supabase/client");
+			const supabase = createClient();
+			const { error: rpcError } = await supabase.rpc("archive_network", {
+				p_network_id: archiveTarget.id,
+				p_confirm_name: archiveConfirmation,
+				p_reason: archiveReason.trim() || null,
+			});
+			if (rpcError) throw rpcError;
+			setArchiveTarget(null);
+			setArchiveConfirmation("");
+			setArchiveReason("");
+			router.refresh();
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Error al archivar la red");
+		} finally {
+			setArchiving(false);
 		}
 	}
 
@@ -54,7 +94,9 @@ export function NetworksClient({ networks }: { networks: NetworkSummary[] }) {
 			{/* Header */}
 			<div className="mb-8 flex items-center justify-between">
 				<div>
-					<h1 className="text-xl font-semibold text-[#e6e6e6]">Redes GPON</h1>
+					<h1 className="text-balance text-xl font-semibold text-foreground">
+						Redes GPON
+					</h1>
 					<p className="mt-1 text-sm text-[#777879]">
 						{networks.length} {networks.length === 1 ? "red" : "redes"}{" "}
 						configuradas
@@ -64,7 +106,7 @@ export function NetworksClient({ networks }: { networks: NetworkSummary[] }) {
 					<button
 						type="button"
 						onClick={() => setShowNew((v) => !v)}
-						className="rounded-lg border border-[rgba(56,189,248,0.35)] bg-[rgba(56,189,248,0.1)] px-4 py-2 text-sm font-medium text-[#bdeafe] transition-colors hover:bg-[rgba(56,189,248,0.18)]"
+						className="rounded-lg bg-[var(--accent-brand)] px-4 py-2 text-sm font-medium text-white shadow-[0_1px_6px_rgba(14,165,233,0.35)] transition-all hover:bg-[var(--accent-brand-hover)] hover:shadow-[0_1px_10px_rgba(14,165,233,0.45)]"
 					>
 						+ Nueva red
 					</button>
@@ -74,7 +116,7 @@ export function NetworksClient({ networks }: { networks: NetworkSummary[] }) {
 			{/* New network form */}
 			{showNew && (
 				<div className="mb-8 rounded-xl border border-[rgba(56,189,248,0.2)] bg-[rgba(34,35,36,0.9)] p-6 shadow-2xl">
-					<h2 className="mb-5 text-sm font-semibold text-[#e6e6e6]">
+					<h2 className="mb-5 text-balance text-sm font-semibold text-foreground">
 						Crear nueva red
 					</h2>
 					<form onSubmit={handleCreate} className="space-y-5">
@@ -179,27 +221,29 @@ export function NetworksClient({ networks }: { networks: NetworkSummary[] }) {
 			{networks.length > 0 && (
 				<div className="space-y-2">
 					{networks.map((net) => (
-						<button
+						<div
 							key={net.id}
-							type="button"
-							onClick={() => router.push(`/networks/${net.id}`)}
 							className="flex w-full items-center justify-between rounded-xl border border-[rgba(164,164,164,0.12)] bg-[rgba(34,35,36,0.7)] px-5 py-4 text-left transition-colors hover:border-[rgba(164,164,164,0.24)] hover:bg-[rgba(34,35,36,0.9)]"
 						>
-							<div className="flex items-center gap-4">
+							<button
+								type="button"
+								onClick={() => router.push(`/networks/${net.id}`)}
+								className="flex min-w-0 flex-1 items-center gap-4 text-left"
+							>
 								<span className="text-xl text-[#777879]">
 									{TOPOLOGY_ICON[net.topology as NetworkTopology] ?? "○"}
 								</span>
-								<div>
-									<p className="text-sm font-semibold text-[#e6e6e6]">
+								<div className="min-w-0">
+									<p className="truncate text-sm font-semibold text-[#e6e6e6]">
 										{net.name}
 									</p>
 									{net.description && (
-										<p className="mt-0.5 text-xs text-[#777879]">
+										<p className="mt-0.5 truncate text-xs text-[#777879]">
 											{net.description}
 										</p>
 									)}
 								</div>
-							</div>
+							</button>
 							<div className="flex items-center gap-6 text-right">
 								<div>
 									<p className="font-mono text-sm text-[#e6e6e6]">
@@ -213,9 +257,30 @@ export function NetworksClient({ networks }: { networks: NetworkSummary[] }) {
 									</p>
 									<p className="text-[10px] text-[#777879]">rutas</p>
 								</div>
-								<span className="text-[#5c5d5f]">→</span>
+								{canArchive && (
+									<button
+										type="button"
+										onClick={() => {
+											setArchiveTarget(net);
+											setArchiveConfirmation("");
+											setArchiveReason("");
+											setError(null);
+										}}
+										className="rounded-md border border-[rgba(251,77,109,0.25)] px-2.5 py-1 text-xs font-medium text-[#fb7185] transition-colors hover:bg-[rgba(251,77,109,0.1)]"
+									>
+										Archivar
+									</button>
+								)}
+								<button
+									type="button"
+									onClick={() => router.push(`/networks/${net.id}`)}
+									className="text-[#5c5d5f] transition-colors hover:text-[#a4a4a4]"
+									aria-label={`Abrir ${net.name}`}
+								>
+									→
+								</button>
 							</div>
-						</button>
+						</div>
 					))}
 				</div>
 			)}
@@ -225,6 +290,80 @@ export function NetworksClient({ networks }: { networks: NetworkSummary[] }) {
 					<p className="text-sm text-[#777879]">
 						No hay redes todavía. Crea la primera.
 					</p>
+				</div>
+			)}
+			{archiveTarget && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+					<div className="w-full max-w-lg rounded-xl border border-[rgba(251,77,109,0.28)] bg-[#222324] p-6 shadow-2xl">
+						<h2 className="text-base font-semibold text-[#fb7185]">
+							Archivar red crítica
+						</h2>
+						<p className="mt-2 text-sm leading-6 text-[#a4a4a4]">
+							Esta acción ocultará la red del listado principal y deshabilitará
+							su uso operativo normal. No se borrarán elementos ni rutas.
+						</p>
+						<div className="mt-4 rounded-lg border border-[rgba(164,164,164,0.12)] bg-[rgba(27,28,29,0.65)] p-3 text-xs text-[#a4a4a4]">
+							<p>
+								<span className="text-[#777879]">Red:</span>{" "}
+								<span className="font-semibold text-[#e6e6e6]">
+									{archiveTarget.name}
+								</span>
+							</p>
+							<p className="mt-1">
+								{archiveTarget.element_count} elementos ·{" "}
+								{archiveTarget.route_count} rutas
+							</p>
+						</div>
+						<form onSubmit={handleArchive} className="mt-5 space-y-4">
+							<label className="block">
+								<span className="mb-1.5 block text-xs text-[#777879]">
+									Escribe el nombre exacto para confirmar
+								</span>
+								<input
+									type="text"
+									value={archiveConfirmation}
+									onChange={(event) =>
+										setArchiveConfirmation(event.target.value)
+									}
+									className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(27,28,29,0.8)] px-3 py-2 text-sm text-[#e6e6e6] outline-none transition-colors focus:border-[rgba(251,77,109,0.45)]"
+								/>
+							</label>
+							<label className="block">
+								<span className="mb-1.5 block text-xs text-[#777879]">
+									Motivo opcional
+								</span>
+								<input
+									type="text"
+									value={archiveReason}
+									onChange={(event) => setArchiveReason(event.target.value)}
+									placeholder="Duplicada, prueba, migración..."
+									className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(27,28,29,0.8)] px-3 py-2 text-sm text-[#e6e6e6] outline-none transition-colors placeholder:text-[#5c5d5f] focus:border-[rgba(251,77,109,0.45)]"
+								/>
+							</label>
+							<div className="flex items-center justify-end gap-3">
+								<button
+									type="button"
+									onClick={() => {
+										setArchiveTarget(null);
+										setArchiveConfirmation("");
+										setArchiveReason("");
+									}}
+									className="text-sm text-[#777879] transition-colors hover:text-[#a4a4a4]"
+								>
+									Cancelar
+								</button>
+								<button
+									type="submit"
+									disabled={
+										archiving || archiveConfirmation !== archiveTarget.name
+									}
+									className="rounded-lg border border-[rgba(251,77,109,0.35)] bg-[rgba(251,77,109,0.12)] px-4 py-2 text-sm font-medium text-[#fb7185] transition-colors hover:bg-[rgba(251,77,109,0.2)] disabled:opacity-50"
+								>
+									{archiving ? "Archivando..." : "Archivar red"}
+								</button>
+							</div>
+						</form>
+					</div>
 				</div>
 			)}
 		</div>

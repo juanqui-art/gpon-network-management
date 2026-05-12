@@ -13,7 +13,17 @@
   --surface-panel:   #222324;
   --surface-card:    #282929;
   --surface-elevated:#303133;
+  --surface-overlay: rgba(34, 35, 36, 0.72);   /* glass panels over map */
   --surface-border:  rgba(164,164,164,0.18);
+
+  /* Elevation (premium dashboards) */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.32);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.36), 0 1px 3px rgba(0, 0, 0, 0.24);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.44), 0 2px 8px rgba(0, 0, 0, 0.28);
+
+  /* Brand accent — saturated GPON blue, for primary CTAs */
+  --accent-brand:       #0ea5e9;
+  --accent-brand-hover: #38bdf8;
 
   /* Text */
   --text-primary:    #e6e6e6;
@@ -62,9 +72,9 @@
   --accent:          var(--surface-elevated);
   --accent-hover:    #d7d7d7;
 
-  /* Fonts */
-  --font-sans:  Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono:  "Roboto Mono", "SFMono-Regular", Consolas, monospace;
+  /* Fonts — Geist (Vercel) loaded in app/layout.tsx via geist/font */
+  --font-sans:  var(--font-geist-sans), "Helvetica Neue", Arial, sans-serif;
+  --font-mono:  var(--font-geist-mono), "SFMono-Regular", Consolas, monospace;
 
   /* shadcn/ui */
   --background:      var(--surface-bg);
@@ -135,6 +145,12 @@
   --color-popover-foreground:      var(--popover-foreground);
   --color-popover:      var(--popover);
   --color-card-foreground:      var(--card-foreground);
+  --color-surface-overlay:      var(--surface-overlay);
+  --color-accent-brand:         var(--accent-brand);
+  --color-accent-brand-hover:   var(--accent-brand-hover);
+  --shadow-sm:      var(--shadow-sm);
+  --shadow-md:      var(--shadow-md);
+  --shadow-lg:      var(--shadow-lg);
   --radius-sm:      calc(var(--radius) * 0.6);
   --radius-md:      calc(var(--radius) * 0.8);
   --radius-lg:      var(--radius);

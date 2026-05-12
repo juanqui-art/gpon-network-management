@@ -119,7 +119,7 @@ export default async function AuditPage({
 							<ShieldCheck className="mr-1 size-3" aria-hidden="true" />
 							Trazabilidad administrativa
 						</Badge>
-						<h1 className="text-2xl font-semibold text-foreground">
+						<h1 className="text-balance text-2xl font-semibold text-foreground">
 							Auditoría
 						</h1>
 						<p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">

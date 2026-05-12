@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Layers, ListChecks, LocateFixed } from "lucide-react";
 import mapboxgl from "mapbox-gl";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import {
@@ -1179,24 +1180,26 @@ export function NetworkEditorMap({
 					</div>
 				</>
 			)}
-			{showEditorChrome && selectedFeature && (
-				<SelectionInspector
-					key={`${selectedFeature.kind}:${selectedFeature.item.id}`}
-					feature={selectedFeature}
-					equipment={equipment}
-					opticalAlert={
-						selectedFeature.kind === "element"
-							? (opticalAlerts.find(
-									(alert) => alert.id === selectedFeature.item.id,
-								) ?? null)
-							: null
-					}
-					onClose={() => onSelectionChange(null)}
-					onFocus={focusSelectedFeature}
-					onUpdateElement={onUpdateElement}
-					onUpdateRoute={onUpdateRoute}
-				/>
-			)}
+			<AnimatePresence mode="wait">
+				{showEditorChrome && selectedFeature && (
+					<SelectionInspector
+						key={`${selectedFeature.kind}:${selectedFeature.item.id}`}
+						feature={selectedFeature}
+						equipment={equipment}
+						opticalAlert={
+							selectedFeature.kind === "element"
+								? (opticalAlerts.find(
+										(alert) => alert.id === selectedFeature.item.id,
+									) ?? null)
+								: null
+						}
+						onClose={() => onSelectionChange(null)}
+						onFocus={focusSelectedFeature}
+						onUpdateElement={onUpdateElement}
+						onUpdateRoute={onUpdateRoute}
+					/>
+				)}
+			</AnimatePresence>
 		</div>
 	);
 }
@@ -3084,7 +3087,20 @@ function EditorMapStatus({
 }) {
 	return (
 		<div className="rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.9)] px-3 py-2 text-xs text-[#a4a4a4] shadow-2xl backdrop-blur-md">
-			{formatEditorMode(mode)} · {TOOL_LABELS[activeTool]}
+			<AnimatePresence mode="wait" initial={false}>
+				<motion.span
+					key={mode}
+					initial={{ opacity: 0, y: -3 }}
+					animate={{ opacity: 1, y: 0 }}
+					exit={{ opacity: 0, y: 3 }}
+					transition={{ duration: 0.14 }}
+					className="inline-block"
+				>
+					{formatEditorMode(mode)}
+				</motion.span>
+			</AnimatePresence>
+			{" · "}
+			{TOOL_LABELS[activeTool]}
 		</div>
 	);
 }

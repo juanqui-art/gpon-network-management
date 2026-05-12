@@ -107,7 +107,9 @@ export default async function SettingsPage() {
 						<SlidersHorizontal className="mr-1 size-3" aria-hidden="true" />
 						Configuración administrativa
 					</Badge>
-					<h1 className="text-2xl font-semibold text-foreground">Settings</h1>
+					<h1 className="text-balance text-2xl font-semibold text-foreground">
+						Settings
+					</h1>
 					<p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
 						Estado de entorno, seguridad, roles y parámetros base del sistema
 						GPON. Esta vista no expone secretos completos.

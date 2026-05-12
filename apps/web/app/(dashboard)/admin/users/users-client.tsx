@@ -634,7 +634,7 @@ export function UsersClient({
 							<ShieldCheck className="mr-1 size-3" aria-hidden="true" />
 							Solo administradores
 						</Badge>
-						<h1 className="text-2xl font-semibold text-foreground">
+						<h1 className="text-balance text-2xl font-semibold text-foreground">
 							Usuarios y roles
 						</h1>
 						<p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">

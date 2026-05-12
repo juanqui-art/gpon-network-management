@@ -39,7 +39,7 @@ export function TopologyPicker({ onSelect, onGenerate }: TopologyPickerProps) {
 	return (
 		<div className="w-full space-y-6">
 			<div>
-				<h2 className="text-lg font-bold text-[#e6e6e6] mb-4">
+				<h2 className="mb-4 text-balance text-lg font-bold text-foreground">
 					Selecciona una topología GPON
 				</h2>
 				<p className="text-xs text-[#a4a4a4] mb-6">

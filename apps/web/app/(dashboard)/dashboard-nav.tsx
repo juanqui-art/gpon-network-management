@@ -1,11 +1,15 @@
 "use client";
 
-import { Menu, X } from "lucide-react";
+import { Menu, Search, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { signOut } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
+
+function openPalette() {
+	window.dispatchEvent(new Event("gpon:palette"));
+}
 
 const NAV_LINKS = [
 	{ href: "/dashboard", label: "Dashboard" },
@@ -66,11 +70,25 @@ export function DashboardNav() {
 				</nav>
 			</div>
 
-			<form action={signOut} className="hidden md:block">
-				<Button type="submit" variant="ghost" size="sm">
-					Salir
-				</Button>
-			</form>
+			<div className="hidden items-center gap-2 md:flex">
+				<button
+					type="button"
+					onClick={openPalette}
+					aria-label="Abrir búsqueda (⌘K)"
+					className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+				>
+					<Search className="size-3" />
+					<span>Buscar...</span>
+					<kbd className="rounded bg-background/60 px-1.5 py-0.5 font-mono text-[10px]">
+						⌘K
+					</kbd>
+				</button>
+				<form action={signOut}>
+					<Button type="submit" variant="ghost" size="sm">
+						Salir
+					</Button>
+				</form>
+			</div>
 
 			<button
 				type="button"
