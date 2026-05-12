@@ -18,9 +18,9 @@ import {
 	Settings,
 	Users,
 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { AppDrawer } from "@/components/ui/app-drawer";
 
 const NAV_COMMANDS = [
 	{ label: "Dashboard", href: "/dashboard", icon: BarChart3, group: "Navegar" },
@@ -70,100 +70,85 @@ export function CommandPalette() {
 	}
 
 	return (
-		<AnimatePresence>
-			{open && (
-				<>
-					{/* Backdrop */}
-					<motion.div
-						key="backdrop"
-						initial={{ opacity: 0 }}
-						animate={{ opacity: 1 }}
-						exit={{ opacity: 0 }}
-						transition={{ duration: 0.15 }}
-						onClick={close}
-						className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+		<AppDrawer
+			open={open}
+			onOpenChange={setOpen}
+			title="Búsqueda de comandos"
+			description="Busca rutas, módulos administrativos y accesos rápidos."
+			size="lg"
+			accent="#8bdff4"
+			className="bg-[rgba(28,29,30,0.88)] text-[#d7d7d7] backdrop-blur-xl"
+			contentClassName="space-y-0 px-0 py-0"
+			footer={
+				<div className="flex items-center gap-4 text-[10px] text-muted-foreground">
+					<span className="flex items-center gap-1">
+						<kbd className="rounded bg-muted px-1 font-mono">↑↓</kbd>
+						navegar
+					</span>
+					<span className="flex items-center gap-1">
+						<kbd className="rounded bg-muted px-1 font-mono">↵</kbd>
+						abrir
+					</span>
+					<span className="flex items-center gap-1">
+						<kbd className="rounded bg-muted px-1 font-mono">Esc</kbd>
+						cerrar
+					</span>
+				</div>
+			}
+		>
+			<Command
+				className="flex h-full flex-col overflow-hidden bg-transparent"
+				loop
+			>
+				<div className="flex items-center border-b border-white/[0.07] px-3">
+					<CommandInput
+						placeholder="Buscar acciones, rutas..."
+						className="h-11 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
 					/>
+				</div>
 
-					{/* Palette */}
-					<motion.div
-						key="palette"
-						initial={{ opacity: 0, scale: 0.96, y: -8 }}
-						animate={{ opacity: 1, scale: 1, y: 0 }}
-						exit={{ opacity: 0, scale: 0.96, y: -8 }}
-						transition={{ type: "spring", stiffness: 460, damping: 38 }}
-						className="fixed left-1/2 top-[18%] z-50 w-full max-w-md -translate-x-1/2"
+				<CommandList className="max-h-[55dvh] flex-1 overflow-y-auto p-1.5">
+					<CommandEmpty className="py-8 text-center text-sm text-muted-foreground">
+						Sin resultados.
+					</CommandEmpty>
+
+					<CommandGroup
+						heading="Navegar"
+						className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted-foreground"
 					>
-						<Command
-							className="overflow-hidden rounded-xl border border-white/10 bg-[rgba(28,29,30,0.88)] shadow-(--shadow-lg) backdrop-blur-xl"
-							loop
-						>
-							<div className="flex items-center border-b border-white/[0.07] px-3">
-								<CommandInput
-									placeholder="Buscar acciones, rutas..."
-									className="h-11 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-								/>
-							</div>
+						{NAV_COMMANDS.map(({ label, href, icon: Icon }) => (
+							<CommandItem
+								key={href}
+								value={label}
+								onSelect={() => run(href)}
+								className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground outline-none data-[selected=true]:bg-white/[0.07] data-[selected=true]:text-foreground"
+							>
+								<Icon className="size-4 shrink-0 text-muted-foreground" />
+								{label}
+							</CommandItem>
+						))}
+					</CommandGroup>
 
-							<CommandList className="max-h-72 overflow-y-auto p-1.5">
-								<CommandEmpty className="py-8 text-center text-sm text-muted-foreground">
-									Sin resultados.
-								</CommandEmpty>
+					<CommandSeparator className="my-1 h-px bg-white/[0.06]" />
 
-								<CommandGroup
-									heading="Navegar"
-									className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted-foreground"
-								>
-									{NAV_COMMANDS.map(({ label, href, icon: Icon }) => (
-										<CommandItem
-											key={href}
-											value={label}
-											onSelect={() => run(href)}
-											className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground outline-none data-[selected=true]:bg-white/[0.07] data-[selected=true]:text-foreground"
-										>
-											<Icon className="size-4 shrink-0 text-muted-foreground" />
-											{label}
-										</CommandItem>
-									))}
-								</CommandGroup>
-
-								<CommandSeparator className="my-1 h-px bg-white/[0.06]" />
-
-								<CommandGroup
-									heading="Admin"
-									className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted-foreground"
-								>
-									{ADMIN_COMMANDS.map(({ label, href, icon: Icon }) => (
-										<CommandItem
-											key={href}
-											value={label}
-											onSelect={() => run(href)}
-											className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground outline-none data-[selected=true]:bg-white/[0.07] data-[selected=true]:text-foreground"
-										>
-											<Icon className="size-4 shrink-0 text-muted-foreground" />
-											{label}
-										</CommandItem>
-									))}
-								</CommandGroup>
-							</CommandList>
-
-							<div className="flex items-center gap-4 border-t border-white/[0.07] px-3 py-2">
-								<span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-									<kbd className="rounded bg-muted px-1 font-mono">↑↓</kbd>
-									navegar
-								</span>
-								<span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-									<kbd className="rounded bg-muted px-1 font-mono">↵</kbd>
-									abrir
-								</span>
-								<span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-									<kbd className="rounded bg-muted px-1 font-mono">Esc</kbd>
-									cerrar
-								</span>
-							</div>
-						</Command>
-					</motion.div>
-				</>
-			)}
-		</AnimatePresence>
+					<CommandGroup
+						heading="Admin"
+						className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted-foreground"
+					>
+						{ADMIN_COMMANDS.map(({ label, href, icon: Icon }) => (
+							<CommandItem
+								key={href}
+								value={label}
+								onSelect={() => run(href)}
+								className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground outline-none data-[selected=true]:bg-white/[0.07] data-[selected=true]:text-foreground"
+							>
+								<Icon className="size-4 shrink-0 text-muted-foreground" />
+								{label}
+							</CommandItem>
+						))}
+					</CommandGroup>
+				</CommandList>
+			</Command>
+		</AppDrawer>
 	);
 }

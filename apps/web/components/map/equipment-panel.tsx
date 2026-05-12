@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+import { AppDrawer } from "@/components/ui/app-drawer";
 import {
 	SEVERITY_COLOR,
 	SIGNAL_COLOR,
@@ -18,13 +20,6 @@ const TYPE_LABELS: Record<string, string> = {
 	ont: "ONT",
 	amplifier: "Amplificador",
 	wdm: "WDM",
-};
-
-const TYPE_ICONS: Record<string, string> = {
-	olt: "▣",
-	splitter: "◈",
-	nap: "◻",
-	ont: "●",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -90,55 +85,21 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 	const signalClass = isOnt ? classifyRx(eq.rx_power_dbm) : "unknown";
 
 	return (
-		<div
-			className="absolute right-3 top-3 z-10 w-72 overflow-hidden rounded-2xl shadow-2xl"
-			style={{
-				background: "rgba(34,35,36,0.92)",
-				border: "1px solid rgba(164,164,164,0.18)",
-				backdropFilter: "blur(16px)",
+		<AppDrawer
+			open
+			onOpenChange={(nextOpen) => {
+				if (!nextOpen) onClose();
 			}}
+			title={eq.name}
+			description={`${TYPE_LABELS[eq.type] ?? eq.type} · ${
+				STATUS_LABELS[eq.status] ?? eq.status
+			}`}
+			accent={typeColor}
+			size="md"
+			className="bg-[rgba(34,35,36,0.92)] text-[#d7d7d7] backdrop-blur-xl"
+			contentClassName="space-y-0"
 		>
-			{/* Color accent strip */}
-			<div className="h-1 w-full" style={{ backgroundColor: typeColor }} />
-
-			{/* Header */}
-			<div className="flex items-start justify-between px-4 pt-3 pb-2">
-				<div className="flex items-center gap-2">
-					<span className="text-base" style={{ color: typeColor }}>
-						{TYPE_ICONS[eq.type] ?? "●"}
-					</span>
-					<div>
-						<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-							{TYPE_LABELS[eq.type] ?? eq.type}
-						</p>
-						<h2 className="text-sm font-semibold text-[#e6e6e6] leading-tight">
-							{eq.name}
-						</h2>
-					</div>
-				</div>
-				<button
-					type="button"
-					onClick={onClose}
-					aria-label="Cerrar panel"
-					className="mt-0.5 rounded-lg p-1.5 text-[#777879] transition-colors hover:bg-white/8 hover:text-[#d7d7d7]"
-				>
-					<svg
-						viewBox="0 0 16 16"
-						width="14"
-						height="14"
-						fill="currentColor"
-						aria-hidden="true"
-					>
-						<path d="M3.22 3.22a.75.75 0 0 1 1.06 0L8 6.94l3.72-3.72a.75.75 0 1 1 1.06 1.06L9.06 8l3.72 3.72a.75.75 0 1 1-1.06 1.06L8 9.06l-3.72 3.72a.75.75 0 0 1-1.06-1.06L6.94 8 3.22 4.28a.75.75 0 0 1 0-1.06Z" />
-					</svg>
-				</button>
-			</div>
-
-			{/* Divider */}
-			<div className="mx-4 h-px bg-[rgba(164,164,164,0.12)]" />
-
-			{/* Body */}
-			<div className="space-y-0 px-4 py-3">
+			<div className="space-y-0">
 				{/* Status */}
 				<Row label="Estado">
 					<div className="flex items-center gap-1.5">
@@ -339,17 +300,11 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 					</>
 				)}
 			</div>
-		</div>
+		</AppDrawer>
 	);
 }
 
-function Row({
-	label,
-	children,
-}: {
-	label: string;
-	children: React.ReactNode;
-}) {
+function Row({ label, children }: { label: string; children: ReactNode }) {
 	return (
 		<div className="flex items-center justify-between py-1.5">
 			<span className="text-xs text-[#777879]">{label}</span>

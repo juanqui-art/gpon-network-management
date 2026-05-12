@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { signOut } from "@/app/actions/auth";
+import { AppDrawer } from "@/components/ui/app-drawer";
 import { Button } from "@/components/ui/button";
 
 function openPalette() {
@@ -34,15 +35,6 @@ export function DashboardNav() {
 	useEffect(() => {
 		setOpen(false);
 	}, [pathname]);
-
-	useEffect(() => {
-		if (!open) return;
-		const onKey = (e: KeyboardEvent) => {
-			if (e.key === "Escape") setOpen(false);
-		};
-		window.addEventListener("keydown", onKey);
-		return () => window.removeEventListener("keydown", onKey);
-	}, [open]);
 
 	return (
 		<header className="relative z-30 flex h-12 shrink-0 items-center justify-between border-b border-border bg-card px-4">
@@ -105,45 +97,45 @@ export function DashboardNav() {
 				)}
 			</button>
 
-			{open && (
-				<>
-					<button
-						type="button"
-						aria-label="Cerrar menú"
-						onClick={() => setOpen(false)}
-						className="fixed inset-0 top-12 z-20 bg-black/40 backdrop-blur-sm md:hidden"
-					/>
-					<div
-						id="dashboard-mobile-nav"
-						className="absolute inset-x-0 top-full z-30 border-b border-border bg-card shadow-lg md:hidden"
+			<AppDrawer
+				open={open}
+				onOpenChange={setOpen}
+				title="Navegación"
+				description="Acceso rápido a las secciones principales del sistema."
+				direction="bottom"
+				showClose={false}
+				className="md:hidden"
+				contentClassName="space-y-3"
+			>
+				<nav
+					id="dashboard-mobile-nav"
+					className="flex flex-col gap-1"
+					aria-label="Navegación principal"
+				>
+					{NAV_LINKS.map((link) => (
+						<Link
+							key={link.href}
+							href={link.href}
+							className={`rounded-md px-3 py-2.5 text-sm transition-colors hover:bg-muted hover:text-foreground ${
+								isActive(pathname, link.href)
+									? "bg-muted text-foreground"
+									: "text-muted-foreground"
+							}`}
+						>
+							{link.label}
+						</Link>
+					))}
+				</nav>
+				<form action={signOut} className="border-t border-border pt-2">
+					<Button
+						type="submit"
+						variant="ghost"
+						className="w-full justify-start"
 					>
-						<nav className="flex flex-col gap-1 px-3 py-3">
-							{NAV_LINKS.map((link) => (
-								<Link
-									key={link.href}
-									href={link.href}
-									className={`rounded-md px-3 py-2.5 text-sm transition-colors hover:bg-muted hover:text-foreground ${
-										isActive(pathname, link.href)
-											? "bg-muted text-foreground"
-											: "text-muted-foreground"
-									}`}
-								>
-									{link.label}
-								</Link>
-							))}
-							<form action={signOut} className="border-t border-border pt-2">
-								<Button
-									type="submit"
-									variant="ghost"
-									className="w-full justify-start"
-								>
-									Salir
-								</Button>
-							</form>
-						</nav>
-					</div>
-				</>
-			)}
+						Salir
+					</Button>
+				</form>
+			</AppDrawer>
 		</header>
 	);
 }

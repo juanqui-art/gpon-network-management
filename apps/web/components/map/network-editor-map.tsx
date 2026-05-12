@@ -43,6 +43,7 @@ import type {
 	InfrastructureElement,
 	RoutePoint,
 } from "@/components/map/types";
+import { AppDrawer } from "@/components/ui/app-drawer";
 import {
 	buildOltModelProperties,
 	propertyNumber,
@@ -1243,133 +1244,156 @@ function EditorLeftPanel({
 	tab: LeftPanelTab;
 }) {
 	return (
-		<div className="flex max-h-[calc(100%-2rem)] w-72 flex-col overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md">
-			<div className="border-b border-[rgba(164,164,164,0.12)] px-3 py-2.5">
-				<div className="mb-2.5 grid grid-cols-4 gap-1.5">
-					<MapStatChip label="OLT" value={counts.olts} color={TYPE_COLOR.olt} />
-					<MapStatChip
-						label="SPL"
-						value={counts.splitters}
-						color={TYPE_COLOR.splitter}
-					/>
-					<MapStatChip label="NAP" value={counts.naps} color={TYPE_COLOR.nap} />
-					<MapStatChip
-						label="km"
-						value={counts.totalKm.toFixed(1)}
-						color="#a4a4a4"
-					/>
+		<div className="hidden md:block">
+			<AppDrawer
+				open
+				onOpenChange={() => {}}
+				title="Editor de red"
+				description="Herramientas, filtros y alertas del lienzo operativo."
+				direction="left"
+				modal={false}
+				dismissible={false}
+				showOverlay={false}
+				showClose={false}
+				size="md"
+				className="md:!left-4 md:!right-auto md:!top-4 md:!bottom-4 md:!w-72 bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md"
+				contentClassName="space-y-3"
+			>
+				<div className="border-b border-[rgba(164,164,164,0.12)] px-3 py-2.5">
+					<div className="mb-2.5 grid grid-cols-4 gap-1.5">
+						<MapStatChip
+							label="OLT"
+							value={counts.olts}
+							color={TYPE_COLOR.olt}
+						/>
+						<MapStatChip
+							label="SPL"
+							value={counts.splitters}
+							color={TYPE_COLOR.splitter}
+						/>
+						<MapStatChip
+							label="NAP"
+							value={counts.naps}
+							color={TYPE_COLOR.nap}
+						/>
+						<MapStatChip
+							label="km"
+							value={counts.totalKm.toFixed(1)}
+							color="#a4a4a4"
+						/>
+					</div>
+					<div className="grid grid-cols-3 gap-1 rounded-md bg-[rgba(164,164,164,0.05)] p-1">
+						{EDITOR_PANEL_TABS.map(({ value, label, icon: Icon }) => (
+							<button
+								key={value}
+								type="button"
+								onClick={() => onTabChange(value)}
+								className={tabButtonClass(tab === value)}
+							>
+								<Icon className="size-3" aria-hidden="true" />
+								<span>{label}</span>
+								{value === "alerts" && alerts.length > 0 && (
+									<span className="rounded bg-[#f59e0b]/20 px-1 font-mono text-[9px] text-[#fbbf24]">
+										{alerts.length}
+									</span>
+								)}
+							</button>
+						))}
+					</div>
 				</div>
-				<div className="grid grid-cols-3 gap-1 rounded-md bg-[rgba(164,164,164,0.05)] p-1">
-					{EDITOR_PANEL_TABS.map(({ value, label, icon: Icon }) => (
-						<button
-							key={value}
-							type="button"
-							onClick={() => onTabChange(value)}
-							className={tabButtonClass(tab === value)}
-						>
-							<Icon className="size-3" aria-hidden="true" />
-							<span>{label}</span>
-							{value === "alerts" && alerts.length > 0 && (
-								<span className="rounded bg-[#f59e0b]/20 px-1 font-mono text-[9px] text-[#fbbf24]">
-									{alerts.length}
-								</span>
-							)}
-						</button>
-					))}
-				</div>
-			</div>
-			<div className="space-y-3 p-3">
-				{tab === "tools" ? (
-					<div className="space-y-3">
-						<div className="flex items-center justify-between rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.04)] px-3 py-2">
-							<div>
-								<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-									Área
-								</p>
-								<p className="mt-0.5 text-xs font-semibold text-[#e6e6e6]">
-									{formatEditorMode(mode)}
-								</p>
+				<div className="space-y-3 p-3">
+					{tab === "tools" ? (
+						<div className="space-y-3">
+							<div className="flex items-center justify-between rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.04)] px-3 py-2">
+								<div>
+									<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+										Área
+									</p>
+									<p className="mt-0.5 text-xs font-semibold text-[#e6e6e6]">
+										{formatEditorMode(mode)}
+									</p>
+								</div>
+								<ListChecks className="size-4 text-[#fbbf24]" />
 							</div>
-							<ListChecks className="size-4 text-[#fbbf24]" />
-						</div>
-						<div className="space-y-1.5 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.04)] p-2.5 text-xs">
-							<StatRow label="Rutas" value={counts.routes} />
-							<StatRow label="Puntos de ruta" value={counts.routePoints} />
-							<StatRow label="Herramienta" value={TOOL_LABELS[activeTool]} />
-						</div>
-						<button
-							type="button"
-							onClick={onFit}
-							className="flex w-full items-center justify-center gap-2 rounded-md border border-[rgba(164,164,164,0.14)] bg-[rgba(164,164,164,0.06)] px-3 py-2 text-xs text-[#d7d7d7] transition-colors hover:bg-[rgba(164,164,164,0.1)]"
-						>
-							<LocateFixed className="size-3.5" /> Ajustar vista
-						</button>
-					</div>
-				) : tab === "layers" ? (
-					<div className="space-y-3">
-						<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-							Filtros de visibilidad
-						</p>
-						<label className="block">
-							<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-								Tipo
-							</span>
-							<select
-								value={filterType}
-								onChange={(event) => onTypeChange(event.target.value)}
-								className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2 py-2 text-xs text-[#e6e6e6] outline-none"
+							<div className="space-y-1.5 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.04)] p-2.5 text-xs">
+								<StatRow label="Rutas" value={counts.routes} />
+								<StatRow label="Puntos de ruta" value={counts.routePoints} />
+								<StatRow label="Herramienta" value={TOOL_LABELS[activeTool]} />
+							</div>
+							<button
+								type="button"
+								onClick={onFit}
+								className="flex w-full items-center justify-center gap-2 rounded-md border border-[rgba(164,164,164,0.14)] bg-[rgba(164,164,164,0.06)] px-3 py-2 text-xs text-[#d7d7d7] transition-colors hover:bg-[rgba(164,164,164,0.1)]"
 							>
-								<option value="all">Todos</option>
-								<option value="olt">OLT</option>
-								<option value="splitter">Splitter</option>
-								<option value="nap">NAP</option>
-							</select>
-						</label>
-						<label className="block">
-							<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-								Estado
-							</span>
-							<select
-								value={filterStatus}
-								onChange={(event) => onStatusChange(event.target.value)}
-								className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2 py-2 text-xs text-[#e6e6e6] outline-none"
-							>
-								<option value="all">Todos</option>
-								<option value="planned">Planificado</option>
-								<option value="active">Activo</option>
-								<option value="inactive">Inactivo</option>
-								<option value="faulty">Con falla</option>
-							</select>
-						</label>
-						<label className="block">
-							<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-								Óptico
-							</span>
-							<select
-								value={filterOptical}
-								onChange={(event) =>
-									onOpticalChange(event.target.value as OpticalFilter)
-								}
-								className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2 py-2 text-xs text-[#e6e6e6] outline-none"
-							>
-								<option value="all">Todos</option>
-								<option value="alerts">Solo alertas</option>
-							</select>
-						</label>
-						<div className="space-y-1.5 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.04)] p-2.5 text-xs">
-							<StatRow label="Rutas" value={counts.routes} />
-							<StatRow label="Puntos de ruta" value={counts.routePoints} />
+								<LocateFixed className="size-3.5" /> Ajustar vista
+							</button>
 						</div>
-					</div>
-				) : (
-					<MapOpticalAlerts
-						alerts={alerts}
-						filterOptical={filterOptical}
-						onFilterChange={onOpticalChange}
-						onSelect={onAlertSelect}
-					/>
-				)}
-			</div>
+					) : tab === "layers" ? (
+						<div className="space-y-3">
+							<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+								Filtros de visibilidad
+							</p>
+							<label className="block">
+								<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+									Tipo
+								</span>
+								<select
+									value={filterType}
+									onChange={(event) => onTypeChange(event.target.value)}
+									className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2 py-2 text-xs text-[#e6e6e6] outline-none"
+								>
+									<option value="all">Todos</option>
+									<option value="olt">OLT</option>
+									<option value="splitter">Splitter</option>
+									<option value="nap">NAP</option>
+								</select>
+							</label>
+							<label className="block">
+								<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+									Estado
+								</span>
+								<select
+									value={filterStatus}
+									onChange={(event) => onStatusChange(event.target.value)}
+									className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2 py-2 text-xs text-[#e6e6e6] outline-none"
+								>
+									<option value="all">Todos</option>
+									<option value="planned">Planificado</option>
+									<option value="active">Activo</option>
+									<option value="inactive">Inactivo</option>
+									<option value="faulty">Con falla</option>
+								</select>
+							</label>
+							<label className="block">
+								<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+									Óptico
+								</span>
+								<select
+									value={filterOptical}
+									onChange={(event) =>
+										onOpticalChange(event.target.value as OpticalFilter)
+									}
+									className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2 py-2 text-xs text-[#e6e6e6] outline-none"
+								>
+									<option value="all">Todos</option>
+									<option value="alerts">Solo alertas</option>
+								</select>
+							</label>
+							<div className="space-y-1.5 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.04)] p-2.5 text-xs">
+								<StatRow label="Rutas" value={counts.routes} />
+								<StatRow label="Puntos de ruta" value={counts.routePoints} />
+							</div>
+						</div>
+					) : (
+						<MapOpticalAlerts
+							alerts={alerts}
+							filterOptical={filterOptical}
+							onFilterChange={onOpticalChange}
+							onSelect={onAlertSelect}
+						/>
+					)}
+				</div>
+			</AppDrawer>
 		</div>
 	);
 }

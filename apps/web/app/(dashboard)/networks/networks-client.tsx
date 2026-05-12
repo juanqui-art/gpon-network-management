@@ -107,115 +107,25 @@ export function NetworksClient({
 					{networks.length > 0 && (
 						<button
 							type="button"
-							onClick={() => setShowNew((v) => !v)}
+							onClick={() => setShowNew(true)}
 							className="rounded-lg bg-[var(--accent-brand)] px-4 py-2 text-sm font-medium text-white shadow-[0_1px_6px_rgba(14,165,233,0.35)] transition-all hover:bg-[var(--accent-brand-hover)] hover:shadow-[0_1px_10px_rgba(14,165,233,0.45)]"
 						>
 							+ Nueva red
 						</button>
 					)}
 				</div>
-
-				{/* New network form */}
-				{showNew && (
-					<div className="mb-8 rounded-xl border border-[rgba(56,189,248,0.2)] bg-[rgba(34,35,36,0.9)] p-6 shadow-2xl">
-						<h2 className="mb-5 text-balance text-sm font-semibold text-foreground">
-							Crear nueva red
-						</h2>
-						<form onSubmit={handleCreate} className="space-y-5">
-							{/* Name + description */}
-							<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-								<label className="block">
-									<span className="mb-1.5 block text-xs text-[#777879]">
-										Nombre *
-									</span>
-									<input
-										type="text"
-										required
-										placeholder="Ej. Quito Norte — Sector A"
-										value={name}
-										onChange={(e) => setName(e.target.value)}
-										className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(27,28,29,0.8)] px-3 py-2 text-sm text-[#e6e6e6] outline-none transition-colors placeholder:text-[#5c5d5f] focus:border-[rgba(56,189,248,0.45)]"
-									/>
-								</label>
-								<label className="block">
-									<span className="mb-1.5 block text-xs text-[#777879]">
-										Descripción
-									</span>
-									<input
-										type="text"
-										placeholder="Zona de cobertura, notas..."
-										value={description}
-										onChange={(e) => setDescription(e.target.value)}
-										className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(27,28,29,0.8)] px-3 py-2 text-sm text-[#e6e6e6] outline-none transition-colors placeholder:text-[#5c5d5f] focus:border-[rgba(56,189,248,0.45)]"
-									/>
-								</label>
-							</div>
-
-							{/* Topology selector */}
-							<div>
-								<span className="mb-2 block text-xs text-[#777879]">
-									Plantilla de topología
-								</span>
-								<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-									{TOPOLOGIES.map((t) => (
-										<button
-											key={t}
-											type="button"
-											onClick={() => setTopology(t)}
-											className="rounded-lg border p-3 text-left transition-colors"
-											style={{
-												borderColor:
-													topology === t
-														? "rgba(56,189,248,0.45)"
-														: "rgba(164,164,164,0.14)",
-												background:
-													topology === t
-														? "rgba(56,189,248,0.1)"
-														: "rgba(164,164,164,0.04)",
-											}}
-										>
-											<p className="mb-1 text-base">{TOPOLOGY_ICON[t]}</p>
-											<p
-												className="text-xs font-semibold"
-												style={{
-													color: topology === t ? "#bdeafe" : "#d7d7d7",
-												}}
-											>
-												{TOPOLOGY_LABELS[t]}
-											</p>
-											<p className="mt-0.5 text-[10px] text-[#777879]">
-												{TOPOLOGY_DESCRIPTIONS[t]}
-											</p>
-										</button>
-									))}
-								</div>
-							</div>
-
-							{error && (
-								<p className="rounded-md border border-[rgba(251,77,109,0.28)] bg-[rgba(251,77,109,0.08)] px-3 py-2 text-xs text-[#fb7185]">
-									{error}
-								</p>
-							)}
-
-							<div className="flex items-center gap-3">
-								<button
-									type="submit"
-									disabled={creating || !name.trim()}
-									className="rounded-lg bg-[rgba(56,189,248,0.18)] px-5 py-2 text-sm font-medium text-[#bdeafe] transition-colors hover:bg-[rgba(56,189,248,0.28)] disabled:opacity-50"
-								>
-									{creating ? "Creando..." : "Crear red"}
-								</button>
-								{networks.length > 0 && (
-									<button
-										type="button"
-										onClick={() => setShowNew(false)}
-										className="text-sm text-[#777879] hover:text-[#a4a4a4]"
-									>
-										Cancelar
-									</button>
-								)}
-							</div>
-						</form>
+				{networks.length === 0 && (
+					<div className="mb-8 rounded-xl border border-dashed border-[rgba(164,164,164,0.16)] px-6 py-16 text-center">
+						<p className="text-sm text-[#777879]">
+							No hay redes todavía. Crea la primera para empezar.
+						</p>
+						<button
+							type="button"
+							onClick={() => setShowNew(true)}
+							className="mt-5 rounded-lg bg-[var(--accent-brand)] px-4 py-2 text-sm font-medium text-white shadow-[0_1px_6px_rgba(14,165,233,0.35)] transition-all hover:bg-[var(--accent-brand-hover)] hover:shadow-[0_1px_10px_rgba(14,165,233,0.45)]"
+						>
+							+ Crear primera red
+						</button>
 					</div>
 				)}
 
@@ -287,13 +197,119 @@ export function NetworksClient({
 					</div>
 				)}
 
-				{networks.length === 0 && !showNew && (
-					<div className="rounded-xl border border-dashed border-[rgba(164,164,164,0.16)] py-16 text-center">
-						<p className="text-sm text-[#777879]">
-							No hay redes todavía. Crea la primera.
-						</p>
-					</div>
-				)}
+				<AppDrawer
+					open={showNew}
+					onOpenChange={(open) => {
+						setShowNew(open);
+						if (!open) {
+							setName("");
+							setDescription("");
+							setTopology("blank");
+							setError(null);
+						}
+					}}
+					title="Crear nueva red"
+					description="Define el nombre, una descripción opcional y la plantilla de topología para arrancar la captura."
+					size="lg"
+					footer={
+						<div className="flex items-center justify-end gap-3">
+							<button
+								type="button"
+								onClick={() => setShowNew(false)}
+								className="text-sm text-[#777879] transition-colors hover:text-[#a4a4a4]"
+							>
+								Cancelar
+							</button>
+							<button
+								type="submit"
+								form="create-network-form"
+								disabled={creating || !name.trim()}
+								className="rounded-lg bg-[rgba(56,189,248,0.18)] px-5 py-2 text-sm font-medium text-[#bdeafe] transition-colors hover:bg-[rgba(56,189,248,0.28)] disabled:opacity-50"
+							>
+								{creating ? "Creando..." : "Crear red"}
+							</button>
+						</div>
+					}
+				>
+					<form
+						id="create-network-form"
+						onSubmit={handleCreate}
+						className="space-y-5"
+					>
+						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+							<label className="block">
+								<span className="mb-1.5 block text-xs text-[#777879]">
+									Nombre *
+								</span>
+								<input
+									type="text"
+									required
+									placeholder="Ej. Quito Norte — Sector A"
+									value={name}
+									onChange={(e) => setName(e.target.value)}
+									className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(27,28,29,0.8)] px-3 py-2 text-sm text-[#e6e6e6] outline-none transition-colors placeholder:text-[#5c5d5f] focus:border-[rgba(56,189,248,0.45)]"
+								/>
+							</label>
+							<label className="block">
+								<span className="mb-1.5 block text-xs text-[#777879]">
+									Descripción
+								</span>
+								<input
+									type="text"
+									placeholder="Zona de cobertura, notas..."
+									value={description}
+									onChange={(e) => setDescription(e.target.value)}
+									className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(27,28,29,0.8)] px-3 py-2 text-sm text-[#e6e6e6] outline-none transition-colors placeholder:text-[#5c5d5f] focus:border-[rgba(56,189,248,0.45)]"
+								/>
+							</label>
+						</div>
+
+						<div>
+							<span className="mb-2 block text-xs text-[#777879]">
+								Plantilla de topología
+							</span>
+							<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+								{TOPOLOGIES.map((t) => (
+									<button
+										key={t}
+										type="button"
+										onClick={() => setTopology(t)}
+										className="rounded-lg border p-3 text-left transition-colors"
+										style={{
+											borderColor:
+												topology === t
+													? "rgba(56,189,248,0.45)"
+													: "rgba(164,164,164,0.14)",
+											background:
+												topology === t
+													? "rgba(56,189,248,0.1)"
+													: "rgba(164,164,164,0.04)",
+										}}
+									>
+										<p className="mb-1 text-base">{TOPOLOGY_ICON[t]}</p>
+										<p
+											className="text-xs font-semibold"
+											style={{
+												color: topology === t ? "#bdeafe" : "#d7d7d7",
+											}}
+										>
+											{TOPOLOGY_LABELS[t]}
+										</p>
+										<p className="mt-0.5 text-[10px] text-[#777879]">
+											{TOPOLOGY_DESCRIPTIONS[t]}
+										</p>
+									</button>
+								))}
+							</div>
+						</div>
+
+						{error && (
+							<p className="rounded-md border border-[rgba(251,77,109,0.28)] bg-[rgba(251,77,109,0.08)] px-3 py-2 text-xs text-[#fb7185]">
+								{error}
+							</p>
+						)}
+					</form>
+				</AppDrawer>
 				<AppDrawer
 					open={Boolean(archiveTarget)}
 					onOpenChange={(open) => {

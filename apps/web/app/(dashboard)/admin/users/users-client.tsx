@@ -22,6 +22,7 @@ import {
 	type UserActionState,
 	updateUserRole,
 } from "@/app/actions/users";
+import { AppDrawer } from "@/components/ui/app-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -193,32 +194,13 @@ function InvitationBadges({ user }: { user: AdminUserView }) {
 	);
 }
 
-function UserRow({ user }: { user: AdminUserView }) {
-	const {
-		roleState,
-		roleAction,
-		rolePending,
-		roleValue,
-		setRoleValue,
-		suspendState,
-		suspendAction,
-		suspendPending,
-		resendState,
-		resendAction,
-		resendPending,
-		resetState,
-		resetAction,
-		resetPending,
-		deleteState,
-		deleteAction,
-		deletePending,
-		suspended,
-		canResend,
-		canReset,
-		confirmingDelete,
-		setConfirmingDelete,
-	} = useUserActions(user);
-
+function UserRow({
+	user,
+	onOpen,
+}: {
+	user: AdminUserView;
+	onOpen: (user: AdminUserView) => void;
+}) {
 	return (
 		<tr>
 			<td className="py-3 pr-4">
@@ -233,44 +215,18 @@ function UserRow({ user }: { user: AdminUserView }) {
 				</div>
 			</td>
 			<td className="py-3 pr-4">
-				<form action={roleAction}>
-					<input type="hidden" name="userId" value={user.id} />
-					<select
-						name="role"
-						value={roleValue}
-						disabled={user.isCurrentUser || rolePending}
-						onChange={(event) => {
-							setRoleValue(event.currentTarget.value as UserRole);
-							event.currentTarget.form?.requestSubmit();
-						}}
-						className="h-9 min-w-40 rounded-lg border border-input bg-muted/40 px-2 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-3 focus:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
-					>
-						{USER_ROLES.map((role) => (
-							<option key={role} value={role}>
-								{ROLE_LABELS[role]}
-							</option>
-						))}
-					</select>
-				</form>
-				{roleState.message && (
-					<p
-						className={`mt-1 text-xs ${feedbackToneClass(roleState.status)}`}
-						role="status"
-					>
-						{roleState.message}
-					</p>
-				)}
+				<p className="text-sm text-foreground">{ROLE_LABELS[user.role]}</p>
 			</td>
 			<td className="py-3 pr-4">
 				<Badge
 					variant="outline"
 					className={
-						suspended
+						isSuspended(user)
 							? "border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1]"
 							: "border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]"
 					}
 				>
-					{suspended ? "Suspendido" : "Activo"}
+					{isSuspended(user) ? "Suspendido" : "Activo"}
 				</Badge>
 			</td>
 			<td className="py-3 pr-4 text-muted-foreground">
@@ -281,127 +237,90 @@ function UserRow({ user }: { user: AdminUserView }) {
 			</td>
 			<td className="py-3 pr-4 text-muted-foreground">{user.createdAtLabel}</td>
 			<td className="py-3 text-right">
-				<div className="flex flex-col items-end gap-1.5">
-					{canResend && (
-						<form action={resendAction} className="flex flex-col items-end">
-							<input type="hidden" name="userId" value={user.id} />
-							<Button
-								type="submit"
-								variant="outline"
-								size="sm"
-								disabled={resendPending}
-								title="Reenviar invitación por email"
-							>
-								<Send className="size-4" />
-								{resendPending ? "Enviando..." : "Reenviar"}
-							</Button>
-							{resendState.message && (
-								<p
-									className={`mt-1 text-xs ${feedbackToneClass(resendState.status)}`}
-									role="status"
-								>
-									{resendState.message}
-								</p>
-							)}
-						</form>
-					)}
-					{canReset && (
-						<form action={resetAction} className="flex flex-col items-end">
-							<input type="hidden" name="userId" value={user.id} />
-							<Button
-								type="submit"
-								variant="outline"
-								size="sm"
-								disabled={resetPending}
-								title="Enviar enlace de reset de contraseña"
-							>
-								<KeyRound className="size-4" />
-								{resetPending ? "Enviando..." : "Reset contraseña"}
-							</Button>
-							{resetState.message && (
-								<p
-									className={`mt-1 text-xs ${feedbackToneClass(resetState.status)}`}
-									role="status"
-								>
-									{resetState.message}
-								</p>
-							)}
-						</form>
-					)}
-					<form action={suspendAction} className="flex flex-col items-end">
-						<input type="hidden" name="userId" value={user.id} />
-						<input
-							type="hidden"
-							name="action"
-							value={suspended ? "activate" : "suspend"}
-						/>
-						<Button
-							type="submit"
-							variant="outline"
-							size="sm"
-							disabled={user.isCurrentUser || suspendPending}
-						>
-							<MoreHorizontal className="size-4" />
-							{suspendPending
-								? "Procesando..."
-								: suspended
-									? "Reactivar"
-									: "Suspender"}
-						</Button>
-						{suspendState.message && (
-							<p
-								className={`mt-1 text-xs ${feedbackToneClass(suspendState.status)}`}
-								role="status"
-							>
-								{suspendState.message}
-							</p>
-						)}
-					</form>
-					{!user.isCurrentUser && (
-						<form action={deleteAction} className="flex flex-col items-end">
-							<input type="hidden" name="userId" value={user.id} />
-							<input type="hidden" name="confirmEmail" value={user.email} />
-							{confirmingDelete ? (
-								<Button
-									type="submit"
-									size="sm"
-									variant="outline"
-									disabled={deletePending}
-									className="border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1] hover:bg-[var(--status-alarm)]/20"
-								>
-									<Trash2 className="size-4" />
-									{deletePending ? "Borrando..." : "Confirmar borrado"}
-								</Button>
-							) : (
-								<Button
-									type="button"
-									size="sm"
-									variant="outline"
-									disabled={deletePending}
-									onClick={() => setConfirmingDelete(true)}
-									title="Borrar usuario definitivamente"
-								>
-									<Trash2 className="size-4" />
-									Borrar
-								</Button>
-							)}
-							{deleteState.message && (
-								<p
-									className={`mt-1 text-xs ${feedbackToneClass(deleteState.status)}`}
-									role="status"
-								>
-									{deleteState.message}
-								</p>
-							)}
-						</form>
-					)}
-				</div>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					onClick={() => onOpen(user)}
+				>
+					<UserCog className="size-4" />
+					Gestionar
+				</Button>
 			</td>
 		</tr>
 	);
 }
 
-function UserCard({ user }: { user: AdminUserView }) {
+function UserCard({
+	user,
+	onOpen,
+}: {
+	user: AdminUserView;
+	onOpen: (user: AdminUserView) => void;
+}) {
+	return (
+		<div className="space-y-3 rounded-lg border border-border bg-card/80 p-4">
+			<div className="flex items-start gap-3">
+				<div className="min-w-0 flex-1">
+					<p className="truncate font-medium text-foreground">{user.email}</p>
+					<p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+						{user.id.slice(0, 8)}
+					</p>
+				</div>
+				<Badge
+					variant="outline"
+					className={
+						isSuspended(user)
+							? "shrink-0 border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1]"
+							: "shrink-0 border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]"
+					}
+				>
+					{isSuspended(user) ? "Suspendido" : "Activo"}
+				</Badge>
+			</div>
+
+			<InvitationBadges user={user} />
+
+			<div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+				<span className="inline-flex items-center gap-1.5">
+					<Clock3 className="size-3.5" />
+					{user.lastSignInAtLabel}
+				</span>
+				<span>Creado {user.createdAtLabel}</span>
+			</div>
+
+			<Button
+				type="button"
+				variant="outline"
+				className="h-10 w-full"
+				onClick={() => onOpen(user)}
+			>
+				<UserCog className="size-4" />
+				Gestionar usuario
+			</Button>
+		</div>
+	);
+}
+
+function UserActionsDrawer({
+	user,
+	onOpenChange,
+}: {
+	user: AdminUserView | null;
+	onOpenChange: (open: boolean) => void;
+}) {
+	if (!user) return null;
+
+	return <UserActionsDrawerContent user={user} onOpenChange={onOpenChange} />;
+}
+
+function UserActionsDrawerContent({
+	user,
+	onOpenChange,
+}: {
+	user: AdminUserView;
+	onOpenChange: (open: boolean) => void;
+}) {
 	const {
 		roleState,
 		roleAction,
@@ -428,31 +347,48 @@ function UserCard({ user }: { user: AdminUserView }) {
 	} = useUserActions(user);
 
 	return (
-		<div className="space-y-3 rounded-lg border border-border bg-card/80 p-4">
-			<div className="flex items-start gap-3">
-				<div className="min-w-0 flex-1">
-					<p className="truncate font-medium text-foreground">{user.email}</p>
-					<p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
-						{user.id.slice(0, 8)}
-					</p>
-				</div>
+		<AppDrawer
+			open={Boolean(user)}
+			onOpenChange={onOpenChange}
+			title={user.email}
+			description={`ID ${user.id.slice(0, 8)} · ${suspended ? "Suspendido" : "Activo"}`}
+			size="lg"
+			contentClassName="space-y-5"
+		>
+			<div className="flex flex-wrap items-center gap-2">
 				<Badge
 					variant="outline"
 					className={
 						suspended
-							? "shrink-0 border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1]"
-							: "shrink-0 border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]"
+							? "border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1]"
+							: "border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]"
 					}
 				>
 					{suspended ? "Suspendido" : "Activo"}
 				</Badge>
+				<InvitationBadges user={user} />
 			</div>
 
-			<InvitationBadges user={user} />
+			<div className="grid gap-4 sm:grid-cols-2">
+				<div className="rounded-lg border border-border bg-muted/20 p-3">
+					<p className="text-xs text-muted-foreground">Rol actual</p>
+					<p className="mt-1 text-sm font-medium text-foreground">
+						{ROLE_LABELS[user.role]}
+					</p>
+				</div>
+				<div className="rounded-lg border border-border bg-muted/20 p-3">
+					<p className="text-xs text-muted-foreground">Último acceso</p>
+					<p className="mt-1 text-sm font-medium text-foreground">
+						{user.lastSignInAtLabel}
+					</p>
+				</div>
+			</div>
 
-			<form action={roleAction}>
+			<form action={roleAction} className="space-y-2">
 				<input type="hidden" name="userId" value={user.id} />
+				<Label htmlFor="drawer-role">Cambiar rol</Label>
 				<select
+					id="drawer-role"
 					name="role"
 					value={roleValue}
 					disabled={user.isCurrentUser || rolePending}
@@ -470,7 +406,7 @@ function UserCard({ user }: { user: AdminUserView }) {
 				</select>
 				{roleState.message && (
 					<p
-						className={`mt-1 text-xs ${feedbackToneClass(roleState.status)}`}
+						className={`text-xs ${feedbackToneClass(roleState.status)}`}
 						role="status"
 					>
 						{roleState.message}
@@ -478,17 +414,9 @@ function UserCard({ user }: { user: AdminUserView }) {
 				)}
 			</form>
 
-			<div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-				<span className="inline-flex items-center gap-1.5">
-					<Clock3 className="size-3.5" />
-					{user.lastSignInAtLabel}
-				</span>
-				<span>Creado {user.createdAtLabel}</span>
-			</div>
-
-			<div className="flex flex-col gap-2 border-t border-border pt-3">
+			<div className="grid gap-3 border-t border-border pt-4">
 				{canResend && (
-					<form action={resendAction}>
+					<form action={resendAction} className="space-y-2">
 						<input type="hidden" name="userId" value={user.id} />
 						<Button
 							type="submit"
@@ -501,7 +429,7 @@ function UserCard({ user }: { user: AdminUserView }) {
 						</Button>
 						{resendState.message && (
 							<p
-								className={`mt-1 text-xs ${feedbackToneClass(resendState.status)}`}
+								className={`text-xs ${feedbackToneClass(resendState.status)}`}
 								role="status"
 							>
 								{resendState.message}
@@ -510,7 +438,7 @@ function UserCard({ user }: { user: AdminUserView }) {
 					</form>
 				)}
 				{canReset && (
-					<form action={resetAction}>
+					<form action={resetAction} className="space-y-2">
 						<input type="hidden" name="userId" value={user.id} />
 						<Button
 							type="submit"
@@ -523,7 +451,7 @@ function UserCard({ user }: { user: AdminUserView }) {
 						</Button>
 						{resetState.message && (
 							<p
-								className={`mt-1 text-xs ${feedbackToneClass(resetState.status)}`}
+								className={`text-xs ${feedbackToneClass(resetState.status)}`}
 								role="status"
 							>
 								{resetState.message}
@@ -531,7 +459,7 @@ function UserCard({ user }: { user: AdminUserView }) {
 						)}
 					</form>
 				)}
-				<form action={suspendAction}>
+				<form action={suspendAction} className="space-y-2">
 					<input type="hidden" name="userId" value={user.id} />
 					<input
 						type="hidden"
@@ -553,7 +481,7 @@ function UserCard({ user }: { user: AdminUserView }) {
 					</Button>
 					{suspendState.message && (
 						<p
-							className={`mt-1 text-xs ${feedbackToneClass(suspendState.status)}`}
+							className={`text-xs ${feedbackToneClass(suspendState.status)}`}
 							role="status"
 						>
 							{suspendState.message}
@@ -561,7 +489,7 @@ function UserCard({ user }: { user: AdminUserView }) {
 					)}
 				</form>
 				{!user.isCurrentUser && (
-					<form action={deleteAction}>
+					<form action={deleteAction} className="space-y-2">
 						<input type="hidden" name="userId" value={user.id} />
 						<input type="hidden" name="confirmEmail" value={user.email} />
 						{confirmingDelete ? (
@@ -588,7 +516,7 @@ function UserCard({ user }: { user: AdminUserView }) {
 						)}
 						{deleteState.message && (
 							<p
-								className={`mt-1 text-xs ${feedbackToneClass(deleteState.status)}`}
+								className={`text-xs ${feedbackToneClass(deleteState.status)}`}
 								role="status"
 							>
 								{deleteState.message}
@@ -597,7 +525,7 @@ function UserCard({ user }: { user: AdminUserView }) {
 					</form>
 				)}
 			</div>
-		</div>
+		</AppDrawer>
 	);
 }
 
@@ -620,6 +548,14 @@ export function UsersClient({
 		inviteUser,
 		initialState,
 	);
+	const [showInvite, setShowInvite] = useState(false);
+	const [selectedUser, setSelectedUser] = useState<AdminUserView | null>(null);
+
+	useEffect(() => {
+		if (inviteState.status === "success") {
+			setShowInvite(false);
+		}
+	}, [inviteState.status]);
 
 	const activeUsers = users.filter((user) => !isSuspended(user)).length;
 	const suspendedUsers = users.length - activeUsers;
@@ -679,58 +615,31 @@ export function UsersClient({
 						<CardHeader>
 							<CardTitle>Invitar usuario</CardTitle>
 							<CardDescription>
-								Envía una invitación y asigna el rol inicial desde el servidor.
+								Envía una invitación y asigna el rol inicial desde un panel más
+								enfocado.
 							</CardDescription>
 						</CardHeader>
-						<CardContent>
-							<form action={inviteAction} className="space-y-4">
-								<div className="space-y-2">
-									<Label htmlFor="email">Email</Label>
-									<Input
-										id="email"
-										name="email"
-										type="email"
-										required
-										placeholder="usuario@empresa.ec"
-										className="h-10 bg-muted/40"
-									/>
-								</div>
-								<div className="space-y-2">
-									<Label htmlFor="role">Rol</Label>
-									<select
-										id="role"
-										name="role"
-										defaultValue="support"
-										className="h-10 w-full rounded-lg border border-input bg-muted/40 px-2.5 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-3 focus:ring-ring/50"
-									>
-										{USER_ROLES.map((role) => (
-											<option key={role} value={role}>
-												{ROLE_LABELS[role]}
-											</option>
-										))}
-									</select>
-								</div>
-								{inviteState.message && (
-									<div
-										className={`rounded-lg border px-3 py-2 text-sm ${
-											inviteState.status === "success"
-												? "border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]"
-												: "border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1]"
-										}`}
-										role="status"
-									>
-										{inviteState.message}
-									</div>
-								)}
-								<Button
-									type="submit"
-									disabled={invitePending}
-									className="w-full"
+						<CardContent className="space-y-3">
+							<p className="text-sm leading-6 text-muted-foreground">
+								La invitación se procesa en el servidor y hereda el rol base que
+								elijas en el drawer.
+							</p>
+							<Button type="button" onClick={() => setShowInvite(true)}>
+								<MailPlus className="size-4" aria-hidden="true" />
+								Invitar usuario
+							</Button>
+							{inviteState.message && (
+								<div
+									className={`rounded-lg border px-3 py-2 text-sm ${
+										inviteState.status === "success"
+											? "border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]"
+											: "border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1]"
+									}`}
+									role="status"
 								>
-									<MailPlus className="size-4" aria-hidden="true" />
-									{invitePending ? "Enviando..." : "Enviar invitación"}
-								</Button>
-							</form>
+									{inviteState.message}
+								</div>
+							)}
 						</CardContent>
 					</Card>
 
@@ -759,6 +668,79 @@ export function UsersClient({
 						</CardContent>
 					</Card>
 				</section>
+
+				<AppDrawer
+					open={showInvite}
+					onOpenChange={(open) => setShowInvite(open)}
+					title="Invitar usuario"
+					description="Envía una invitación y asigna el rol inicial sin sacar al administrador del contexto."
+					size="md"
+					footer={
+						<div className="flex items-center justify-end gap-3">
+							<button
+								type="button"
+								onClick={() => setShowInvite(false)}
+								className="text-sm text-[#777879] transition-colors hover:text-[#a4a4a4]"
+							>
+								Cancelar
+							</button>
+							<Button
+								type="submit"
+								form="invite-user-form"
+								disabled={invitePending}
+								className="h-10"
+							>
+								<MailPlus className="size-4" aria-hidden="true" />
+								{invitePending ? "Enviando..." : "Enviar invitación"}
+							</Button>
+						</div>
+					}
+				>
+					<form
+						id="invite-user-form"
+						action={inviteAction}
+						className="space-y-4"
+					>
+						<div className="space-y-2">
+							<Label htmlFor="email">Email</Label>
+							<Input
+								id="email"
+								name="email"
+								type="email"
+								required
+								placeholder="usuario@empresa.ec"
+								className="h-10 bg-muted/40"
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="role">Rol</Label>
+							<select
+								id="role"
+								name="role"
+								defaultValue="support"
+								className="h-10 w-full rounded-lg border border-input bg-muted/40 px-2.5 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-3 focus:ring-ring/50"
+							>
+								{USER_ROLES.map((role) => (
+									<option key={role} value={role}>
+										{ROLE_LABELS[role]}
+									</option>
+								))}
+							</select>
+						</div>
+						{inviteState.message && (
+							<div
+								className={`rounded-lg border px-3 py-2 text-sm ${
+									inviteState.status === "success"
+										? "border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]"
+										: "border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1]"
+								}`}
+								role="status"
+							>
+								{inviteState.message}
+							</div>
+						)}
+					</form>
+				</AppDrawer>
 
 				<Card className="rounded-lg border-border/80 bg-card/80">
 					<CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -794,7 +776,7 @@ export function UsersClient({
 						{/* Mobile: stacked cards */}
 						<div className="flex flex-col gap-3 md:hidden">
 							{users.map((user) => (
-								<UserCard key={user.id} user={user} />
+								<UserCard key={user.id} user={user} onOpen={setSelectedUser} />
 							))}
 						</div>
 						{/* Desktop: scrollable table */}
@@ -812,7 +794,11 @@ export function UsersClient({
 								</thead>
 								<tbody className="divide-y divide-border">
 									{users.map((user) => (
-										<UserRow key={user.id} user={user} />
+										<UserRow
+											key={user.id}
+											user={user}
+											onOpen={setSelectedUser}
+										/>
 									))}
 								</tbody>
 							</table>
@@ -848,6 +834,13 @@ export function UsersClient({
 						</div>
 					</CardContent>
 				</Card>
+
+				<UserActionsDrawer
+					user={selectedUser}
+					onOpenChange={(open) => {
+						if (!open) setSelectedUser(null);
+					}}
+				/>
 			</div>
 		</div>
 	);
