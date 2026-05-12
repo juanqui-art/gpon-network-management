@@ -90,7 +90,7 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 			onOpenChange={(nextOpen) => {
 				if (!nextOpen) onClose();
 			}}
-			title={eq.name}
+			title={eq.name ?? eq.code ?? "Detalle de equipo"}
 			description={`${TYPE_LABELS[eq.type] ?? eq.type} · ${
 				STATUS_LABELS[eq.status] ?? eq.status
 			}`}
