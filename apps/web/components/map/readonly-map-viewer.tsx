@@ -17,7 +17,6 @@ import type {
 } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { AnimatePresence } from "motion/react";
 import {
 	ContextMenu,
 	type ContextMenuOption,
@@ -32,7 +31,7 @@ import {
 	RouteMetric,
 	TextBlock,
 } from "@/components/map/map-inspector-primitives";
-import { MapInspectorShell } from "@/components/map/map-inspector-shell";
+import { AppDrawer } from "@/components/ui/app-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -691,23 +690,12 @@ export function ReadonlyMapViewer({
 				/>
 			</div>
 
-			<AnimatePresence mode="wait">
-				{selectedFeature && (
-					<RightPanel
-						key={
-							selectedFeature.kind === "element"
-								? selectedFeature.element.id
-								: selectedFeature.kind === "route"
-									? selectedFeature.route.id
-									: selectedFeature.point.id
-						}
-						feature={selectedFeature}
-						equipmentById={equipmentById}
-						connections={visibleConnections}
-						onClose={() => setSelectedFeature(null)}
-					/>
-				)}
-			</AnimatePresence>
+			<RightPanel
+				feature={selectedFeature}
+				equipmentById={equipmentById}
+				connections={visibleConnections}
+				onClose={() => setSelectedFeature(null)}
+			/>
 			{selectedDiagramRoot && (
 				<ReadonlyUnifilarPanel
 					root={selectedDiagramRoot}
@@ -2075,11 +2063,15 @@ function RightPanel({
 	connections,
 	onClose,
 }: {
-	feature: SelectedFeature;
+	feature: SelectedFeature | null;
 	equipmentById: Map<string, EquipmentMapItem>;
 	connections: ConnectionMapItem[];
 	onClose: () => void;
 }) {
+	if (!feature) {
+		return null;
+	}
+
 	const accent =
 		feature.kind === "element"
 			? (TYPE_COLOR[feature.element.type] ?? TYPE_COLOR.unknown)
@@ -2089,30 +2081,38 @@ function RightPanel({
 				: (routePointColor(feature.point.type) ?? "#d7d7d7");
 
 	return (
-		<MapInspectorShell
+		<AppDrawer
+			open={Boolean(feature)}
+			onOpenChange={(open) => {
+				if (!open) onClose();
+			}}
 			accent={accent}
-			onClose={onClose}
-			subtitle={featureSubtitle(feature)}
+			description={featureSubtitle(feature)}
+			size="lg"
+			className="bg-[rgba(28,29,30,0.92)] text-[#d7d7d7] backdrop-blur-xl"
+			contentClassName="p-4 pr-5"
 			title={featureTitle(feature)}
 		>
-			{feature.kind === "element" && (
-				<ElementDetails
-					element={feature.element}
-					connections={connections}
-					equipmentById={equipmentById}
-				/>
-			)}
-			{feature.kind === "route" && (
-				<RouteDetails
-					route={feature.route}
-					equipmentById={equipmentById}
-					connections={connections}
-				/>
-			)}
-			{feature.kind === "routePoint" && (
-				<RoutePointDetails point={feature.point} />
-			)}
-		</MapInspectorShell>
+			<div className="space-y-3">
+				{feature.kind === "element" && (
+					<ElementDetails
+						element={feature.element}
+						connections={connections}
+						equipmentById={equipmentById}
+					/>
+				)}
+				{feature.kind === "route" && (
+					<RouteDetails
+						route={feature.route}
+						equipmentById={equipmentById}
+						connections={connections}
+					/>
+				)}
+				{feature.kind === "routePoint" && (
+					<RoutePointDetails point={feature.point} />
+				)}
+			</div>
+		</AppDrawer>
 	);
 }
 

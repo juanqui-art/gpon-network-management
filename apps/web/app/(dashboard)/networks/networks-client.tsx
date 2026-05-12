@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { AppDrawer } from "@/components/ui/app-drawer";
 import type { UserRole } from "@/lib/types/gpon";
 import {
 	type NetworkSummary,
@@ -292,17 +293,48 @@ export function NetworksClient({
 					</p>
 				</div>
 			)}
-			{archiveTarget && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-					<div className="w-full max-w-lg rounded-xl border border-[rgba(251,77,109,0.28)] bg-[#222324] p-6 shadow-2xl">
-						<h2 className="text-base font-semibold text-[#fb7185]">
-							Archivar red crítica
-						</h2>
-						<p className="mt-2 text-sm leading-6 text-[#a4a4a4]">
-							Esta acción ocultará la red del listado principal y deshabilitará
-							su uso operativo normal. No se borrarán elementos ni rutas.
-						</p>
-						<div className="mt-4 rounded-lg border border-[rgba(164,164,164,0.12)] bg-[rgba(27,28,29,0.65)] p-3 text-xs text-[#a4a4a4]">
+			<AppDrawer
+				open={Boolean(archiveTarget)}
+				onOpenChange={(open) => {
+					if (open) return;
+					setArchiveTarget(null);
+					setArchiveConfirmation("");
+					setArchiveReason("");
+				}}
+				title="Archivar red crítica"
+				description="Esta acción ocultará la red del listado principal y deshabilitará su uso operativo normal. No se borrarán elementos ni rutas."
+				className="border-[rgba(251,77,109,0.28)]"
+				footer={
+					archiveTarget && (
+						<div className="flex items-center justify-end gap-3">
+							<button
+								type="button"
+								onClick={() => {
+									setArchiveTarget(null);
+									setArchiveConfirmation("");
+									setArchiveReason("");
+								}}
+								className="text-sm text-[#777879] transition-colors hover:text-[#a4a4a4]"
+							>
+								Cancelar
+							</button>
+							<button
+								type="submit"
+								form="archive-network-form"
+								disabled={
+									archiving || archiveConfirmation !== archiveTarget.name
+								}
+								className="rounded-lg border border-[rgba(251,77,109,0.35)] bg-[rgba(251,77,109,0.12)] px-4 py-2 text-sm font-medium text-[#fb7185] transition-colors hover:bg-[rgba(251,77,109,0.2)] disabled:opacity-50"
+							>
+								{archiving ? "Archivando..." : "Archivar red"}
+							</button>
+						</div>
+					)
+				}
+			>
+				{archiveTarget && (
+					<>
+						<div className="rounded-lg border border-[rgba(164,164,164,0.12)] bg-[rgba(27,28,29,0.65)] p-3 text-xs text-[#a4a4a4]">
 							<p>
 								<span className="text-[#777879]">Red:</span>{" "}
 								<span className="font-semibold text-[#e6e6e6]">
@@ -314,7 +346,11 @@ export function NetworksClient({
 								{archiveTarget.route_count} rutas
 							</p>
 						</div>
-						<form onSubmit={handleArchive} className="mt-5 space-y-4">
+						<form
+							id="archive-network-form"
+							onSubmit={handleArchive}
+							className="mt-5 space-y-4"
+						>
 							<label className="block">
 								<span className="mb-1.5 block text-xs text-[#777879]">
 									Escribe el nombre exacto para confirmar
@@ -340,32 +376,10 @@ export function NetworksClient({
 									className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(27,28,29,0.8)] px-3 py-2 text-sm text-[#e6e6e6] outline-none transition-colors placeholder:text-[#5c5d5f] focus:border-[rgba(251,77,109,0.45)]"
 								/>
 							</label>
-							<div className="flex items-center justify-end gap-3">
-								<button
-									type="button"
-									onClick={() => {
-										setArchiveTarget(null);
-										setArchiveConfirmation("");
-										setArchiveReason("");
-									}}
-									className="text-sm text-[#777879] transition-colors hover:text-[#a4a4a4]"
-								>
-									Cancelar
-								</button>
-								<button
-									type="submit"
-									disabled={
-										archiving || archiveConfirmation !== archiveTarget.name
-									}
-									className="rounded-lg border border-[rgba(251,77,109,0.35)] bg-[rgba(251,77,109,0.12)] px-4 py-2 text-sm font-medium text-[#fb7185] transition-colors hover:bg-[rgba(251,77,109,0.2)] disabled:opacity-50"
-								>
-									{archiving ? "Archivando..." : "Archivar red"}
-								</button>
-							</div>
 						</form>
-					</div>
-				</div>
-			)}
+					</>
+				)}
+			</AppDrawer>
 		</div>
 	);
 }
