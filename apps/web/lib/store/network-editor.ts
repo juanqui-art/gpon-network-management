@@ -16,6 +16,15 @@ import {
 	type RouteCoordinate,
 	removeRouteVertex,
 } from "@/lib/map/route-geometry-editor";
+import {
+	applyCreatedElement,
+	applyCreatedRoute,
+	applyCreatedRoutePoint,
+	applyUpdatedElement,
+	applyUpdatedRoute,
+	applyUpdatedRoutePoint,
+	pendingChangeCount,
+} from "@/lib/store/save-progress";
 
 function getSaveErrorMessage(error: unknown) {
 	if (error instanceof Error && error.message) return error.message;
@@ -714,28 +723,28 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 			},
 
 			save: async () => {
-				const {
-					createdElementIds,
-					createdRouteIds,
-					createdRoutePointIds,
-					modifiedElementIds,
-					modifiedRouteIds,
-					modifiedRoutePointIds,
-					networkId,
-					validate,
-				} = get();
+				const { networkId, validate, isSaving } = get();
 				if (!networkId) return;
+				// Doble clic o Ctrl+S repetido: dos save() en paralelo crearían
+				// los mismos elementos dos veces.
+				if (isSaving) return;
 
 				const errors = validate();
 				if (errors.length > 0) {
 					set({
-						isSaving: false,
 						statusMessage: `No se guardó: ${errors.map((error) => error.message).join(" · ")}`,
 					});
 					return;
 				}
 
+				const totalChanges = pendingChangeCount(get());
+				let persistedChanges = 0;
+				const temporalApi = useNetworkEditorStore.temporal.getState();
+
 				set({ isSaving: true });
+				// Los remapeos de ID que hace save() no son acciones del usuario:
+				// no deben entrar al historial de undo/redo.
+				temporalApi.pause();
 
 				try {
 					const {
@@ -747,14 +756,14 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 						updateRoutePoint,
 					} = await import("@/lib/queries/network-editor");
 
-					const elementIdMap = new Map<string, string>();
-					const routeIdMap = new Map<string, string>();
-					const nextElements = { ...get().elements };
-					const nextRoutes = { ...get().routes };
-					const nextRoutePoints = { ...get().routePoints };
+					// Cada iteración lee el estado actual (get()) y aplica su resultado
+					// con set((s) => ...) en cuanto la BD confirma. Así: (1) un fallo a
+					// mitad de camino deja en las colas solo lo que falta, y un
+					// reintento no duplica; (2) las ediciones que el usuario haga
+					// mientras se guarda no se pisan con un snapshot viejo.
 
-					for (const id of createdElementIds) {
-						const element = nextElements[id];
+					for (const tempId of [...get().createdElementIds]) {
+						const element = get().elements[tempId];
 						if (!element) continue;
 						const savedElement = await createInfrastructureElement({
 							type: element.type,
@@ -774,25 +783,21 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 							address_reference: element.address_reference,
 							notes: element.notes,
 						});
-						elementIdMap.set(id, savedElement.id);
-						delete nextElements[id];
-						nextElements[savedElement.id] = savedElement;
+						set((s) => applyCreatedElement(s, tempId, element, savedElement));
+						persistedChanges++;
 					}
 
-					for (const id of createdRouteIds) {
-						const route = nextRoutes[id];
+					// Las rutas ya tienen from/to reapuntados a los IDs reales por
+					// applyCreatedElement, también si vienen de un intento anterior.
+					for (const tempId of [...get().createdRouteIds]) {
+						const route = get().routes[tempId];
 						if (!route) continue;
 						const savedRoute = await createFiberRoute({
 							code: route.code,
 							type: route.type,
 							status: route.status,
-							from_element_id: route.from_element_id
-								? (elementIdMap.get(route.from_element_id) ??
-									route.from_element_id)
-								: null,
-							to_element_id: route.to_element_id
-								? (elementIdMap.get(route.to_element_id) ?? route.to_element_id)
-								: null,
+							from_element_id: route.from_element_id,
+							to_element_id: route.to_element_id,
 							geojson_coordinates: route.geojson_coordinates,
 							route_quality: route.route_quality,
 							installation_type: route.installation_type,
@@ -805,17 +810,15 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 							connector_loss_db: route.connector_loss_db,
 							notes: route.notes,
 						});
-						routeIdMap.set(id, savedRoute.id);
-						delete nextRoutes[id];
-						nextRoutes[savedRoute.id] = savedRoute;
+						set((s) => applyCreatedRoute(s, tempId, route, savedRoute));
+						persistedChanges++;
 					}
 
-					for (const id of createdRoutePointIds) {
-						const point = nextRoutePoints[id];
+					for (const tempId of [...get().createdRoutePointIds]) {
+						const point = get().routePoints[tempId];
 						if (!point) continue;
 						const savedPoint = await createRoutePoint({
-							fiber_route_id:
-								routeIdMap.get(point.fiber_route_id) ?? point.fiber_route_id,
+							fiber_route_id: point.fiber_route_id,
 							type: point.type,
 							lng: point.lng,
 							lat: point.lat,
@@ -830,28 +833,12 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 							properties: point.properties,
 							notes: point.notes,
 						});
-						delete nextRoutePoints[id];
-						nextRoutePoints[savedPoint.id] = savedPoint;
+						set((s) => applyCreatedRoutePoint(s, tempId, point, savedPoint));
+						persistedChanges++;
 					}
 
-					const currentSelection = get().selection;
-					set({
-						elements: nextElements,
-						routes: nextRoutes,
-						routePoints: nextRoutePoints,
-						selection: currentSelection
-							? {
-									...currentSelection,
-									id:
-										elementIdMap.get(currentSelection.id) ??
-										routeIdMap.get(currentSelection.id) ??
-										currentSelection.id,
-								}
-							: null,
-					});
-
-					for (const id of modifiedElementIds) {
-						if (createdElementIds.includes(id)) continue;
+					for (const id of [...get().modifiedElementIds]) {
+						const sent = get().elements[id];
 						const element = get()
 							.getElementsArray()
 							.find((item) => item.id === id);
@@ -860,10 +847,12 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 							element,
 							patch: element,
 						});
+						set((s) => applyUpdatedElement(s, id, sent));
+						persistedChanges++;
 					}
 
-					for (const id of modifiedRouteIds) {
-						if (createdRouteIds.includes(id)) continue;
+					for (const id of [...get().modifiedRouteIds]) {
+						const sent = get().routes[id];
 						const route = get()
 							.getRoutesArray()
 							.find((item) => item.id === id);
@@ -872,50 +861,50 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 							route,
 							patch: route,
 						});
-						set((s) => ({
-							routes: {
-								...s.routes,
-								[id]: savedRoute,
-							},
-						}));
+						set((s) => applyUpdatedRoute(s, id, sent, savedRoute));
+						persistedChanges++;
 					}
 
-					for (const id of modifiedRoutePointIds) {
-						if (createdRoutePointIds.includes(id)) continue;
+					for (const id of [...get().modifiedRoutePointIds]) {
 						const point = get().routePoints[id];
 						if (!point) continue;
 						const savedPoint = await updateRoutePoint({
 							point,
 							patch: point,
 						});
-						set((s) => ({
-							routePoints: {
-								...s.routePoints,
-								[id]: savedPoint,
-							},
-						}));
+						set((s) => applyUpdatedRoutePoint(s, id, point, savedPoint));
+						persistedChanges++;
 					}
 
+					// Si el usuario editó algo mientras se guardaba, esos cambios
+					// quedan en las colas y el editor sigue "sucio".
+					const remaining = pendingChangeCount(get());
 					set({
-						isDirty: false,
+						isDirty: remaining > 0,
 						isSaving: false,
 						validationErrors: [],
-						createdElementIds: [],
-						createdRouteIds: [],
-						createdRoutePointIds: [],
-						modifiedElementIds: [],
-						modifiedRouteIds: [],
-						modifiedRoutePointIds: [],
-						statusMessage: "Cambios guardados.",
+						statusMessage:
+							remaining > 0
+								? `Cambios guardados. Hay ${remaining} cambio(s) nuevos sin guardar.`
+								: "Cambios guardados.",
 					});
-					useNetworkEditorStore.temporal.getState().clear();
+					temporalApi.clear();
 				} catch (error) {
 					const errorMessage = getSaveErrorMessage(error);
 					set({
 						isSaving: false,
-						statusMessage: `No se pudo guardar: ${errorMessage}`,
+						statusMessage:
+							persistedChanges > 0
+								? `Guardado parcial (${persistedChanges} de ${totalChanges}). Reintenta para completar: ${errorMessage}`
+								: `No se pudo guardar: ${errorMessage}`,
 					});
+					// El historial de undo contiene versiones con IDs temporales de
+					// objetos que ya existen en la BD; deshacer hasta ellas y guardar
+					// volvería a crearlos. Tras un guardado parcial no es seguro.
+					if (persistedChanges > 0) temporalApi.clear();
 					console.error("Save failed:", errorMessage, error);
+				} finally {
+					temporalApi.resume();
 				}
 			},
 
