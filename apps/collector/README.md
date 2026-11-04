@@ -70,6 +70,8 @@ y 5% probabilidad de cambio de status por poll. Útil para:
 | `POLL_INTERVAL_MS` | `60000` | Cadencia del poll |
 | `DEGRADATION_THRESHOLD_DB` | `1.5` | Cambio de rx_power que dispara historial |
 | `SAMPLE_EVERY_N_POLLS` | `10` | Muestra periódica forzada |
+| `STATE_CHANGE_DELTA_DB` | `0.5` | Variación de rx/tx que reescribe `ont_current_state` |
+| `STATE_CHANGE_DELTA_TEMPERATURE_C` | `2` | Variación de temperatura que reescribe `ont_current_state` |
 
 ## Política de historial
 
@@ -79,7 +81,25 @@ Solo se inserta en `ont_signal_history` cuando:
 2. **degradation** — `|rx_power_actual − rx_power_anterior| ≥ DEGRADATION_THRESHOLD_DB`
 3. **sample** — cada N polls aunque no cambie nada (baseline)
 
-Esto reduce ~94% el volumen comparado con guardar cada poll.
+Con una ONT estable se guarda 1 de cada `SAMPLE_EVERY_N_POLLS` polls, así que
+la reducción máxima es `1 − 1/N` (90% con N=10). Los cambios y degradaciones
+suman filas por encima de ese piso.
+
+## Política de estado actual
+
+`ont_current_state` **no** se reescribe completo en cada poll. Una ONT se
+upserta solo si:
+
+1. es la primera vez que se ve (o tras reiniciar el colector),
+2. cambió status, motivo de desconexión, distancia, serial, descripción o puerto,
+3. rx/tx variaron ≥ `STATE_CHANGE_DELTA_DB` o la temperatura ≥
+   `STATE_CHANGE_DELTA_TEMPERATURE_C` respecto al último valor **escrito**, o
+4. el HistoryDecider emitió un trigger (incluye la muestra periódica, que
+   funciona como heartbeat: `last_seen_at` se refresca al menos cada N polls).
+
+Motivo: cada UPSERT genera un evento de Supabase Realtime evaluado contra RLS
+por suscriptor. Con miles de ONTs, reescribir todo en cada poll satura el canal
+aunque nada haya cambiado.
 
 ## Despliegue en Raspberry Pi
 

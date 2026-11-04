@@ -12,7 +12,8 @@
 		"start": "node --import tsx src/index.ts",
 		"build": "tsc",
 		"check": "biome check .",
-		"check:fix": "biome check --write ."
+		"check:fix": "biome check --write .",
+		"test": "vitest run"
 	},
 	"dependencies": {
 		"@supabase/supabase-js": "2.105.4",
@@ -22,6 +23,7 @@
 		"@biomejs/biome": "2.4.13",
 		"@types/node": "20.19.40",
 		"tsx": "4.21.0",
-		"typescript": "5.9.3"
+		"typescript": "5.9.3",
+		"vitest": "4.1.12"
 	}
 }

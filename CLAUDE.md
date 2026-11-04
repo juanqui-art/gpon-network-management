@@ -26,6 +26,7 @@ pnpm dev          # servidor de desarrollo
 pnpm check        # lint + format check
 pnpm check:fix    # lint + format auto-fix
 pnpm build        # build de producción
+pnpm test         # Vitest (también en apps/collector)
 ```
 
 ## Rutas de la aplicación
@@ -138,7 +139,11 @@ apps/collector/                           # ✨ Node.js SNMP colector → Supaba
 - `change` → status cambió
 - `degradation` → |rx_power| > 1.5 dB
 - `sample` → cada 10 polls (baseline)
-→ Reduce ~94% volumen vs guardar cada poll
+→ Piso de volumen = 1/N polls por ONT (N=10 → reducción máx. 90%)
+
+**Estado actual:** `ont_current_state` solo se upserta si la ONT cambió de forma
+relevante (`decide/state-change.ts`) o si hay trigger de historial (la muestra
+hace de heartbeat). Evita inundar Supabase Realtime con upserts sin cambios.
 
 database/migrations/                      # ✅ 001-021 APLICADAS en Supabase
 ├── 001_initial_schema.sql                # 3 tablas + 13 ENUMs + indices + trigger

@@ -42,6 +42,8 @@ export interface Config {
 		intervalMs: number;
 		degradationThresholdDb: number;
 		sampleEveryNPolls: number;
+		stateChangeDeltaDb: number;
+		stateChangeDeltaTemperatureC: number;
 	};
 
 	network: {
@@ -71,6 +73,11 @@ export function loadConfig(): Config {
 				process.env.DEGRADATION_THRESHOLD_DB ?? "1.5",
 			),
 			sampleEveryNPolls: optionalNumber("SAMPLE_EVERY_N_POLLS", 10),
+			stateChangeDeltaDb: optionalNumber("STATE_CHANGE_DELTA_DB", 0.5),
+			stateChangeDeltaTemperatureC: optionalNumber(
+				"STATE_CHANGE_DELTA_TEMPERATURE_C",
+				2,
+			),
 		},
 		network: {
 			id: required("NETWORK_ID"),

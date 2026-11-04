@@ -1,12 +1,17 @@
 import { type Config, loadConfig } from "./config.js";
 import { HistoryDecider } from "./decide/history-trigger.js";
+import { StateChangeTracker } from "./decide/state-change.js";
 import { parseOntRows } from "./parser/ont-parser.js";
-import { SupabasePersister, type OntWithTrigger } from "./persist/supabase.js";
+import { type OntWithTrigger, SupabasePersister } from "./persist/supabase.js";
 import { createMockSession } from "./snmp/mock-session.js";
 import { createRealSession } from "./snmp/session.js";
 import type { SnmpSession } from "./snmp/types.js";
 
-function log(level: "info" | "warn" | "error", message: string, meta?: object): void {
+function log(
+	level: "info" | "warn" | "error",
+	message: string,
+	meta?: object,
+): void {
 	const entry = {
 		ts: new Date().toISOString(),
 		level,
@@ -37,6 +42,7 @@ function buildSession(config: Config): SnmpSession {
 async function runOnce(
 	session: SnmpSession,
 	decider: HistoryDecider,
+	tracker: StateChangeTracker,
 	persister: SupabasePersister,
 ): Promise<void> {
 	const startedAt = Date.now();
@@ -49,12 +55,22 @@ async function runOnce(
 		trigger: decider.decide(reading),
 	}));
 
-	const { upserted, historyInserted } = await persister.persist(items);
+	// Solo se escribe lo que cambió o lo que va a historial (la muestra
+	// periódica hace de heartbeat). Toda fila de historial necesita el id que
+	// devuelve el upsert, por eso un trigger siempre fuerza la escritura.
+	const toWrite = items.filter(
+		({ reading, trigger }) =>
+			trigger !== null || tracker.hasMaterialChange(reading),
+	);
+
+	const { upserted, historyInserted } = await persister.persist(toWrite);
+	tracker.commit(toWrite.map(({ reading }) => reading));
 
 	log("info", "poll completed", {
 		durationMs: Date.now() - startedAt,
 		ontCount: readings.length,
 		upserted,
+		skippedUnchanged: readings.length - toWrite.length,
 		historyInserted,
 	});
 }
@@ -65,6 +81,10 @@ async function main(): Promise<void> {
 	const decider = new HistoryDecider({
 		degradationThresholdDb: config.poll.degradationThresholdDb,
 		sampleEveryNPolls: config.poll.sampleEveryNPolls,
+	});
+	const tracker = new StateChangeTracker({
+		powerDeltaDb: config.poll.stateChangeDeltaDb,
+		temperatureDeltaC: config.poll.stateChangeDeltaTemperatureC,
 	});
 	const persister = new SupabasePersister({
 		url: config.supabase.url,
@@ -92,7 +112,7 @@ async function main(): Promise<void> {
 
 	while (!stopping) {
 		try {
-			await runOnce(session, decider, persister);
+			await runOnce(session, decider, tracker, persister);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			log("error", "poll failed", { error: message });
