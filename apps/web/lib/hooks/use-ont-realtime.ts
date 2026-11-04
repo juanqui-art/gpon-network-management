@@ -4,7 +4,8 @@ import type {
 	RealtimeChannel,
 	RealtimePostgresChangesPayload,
 } from "@supabase/supabase-js";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { latestUpdate } from "@/lib/monitoring/freshness";
 import { createClient } from "@/lib/supabase/client";
 import type { OntCurrentState } from "@/lib/types/gpon";
 
@@ -13,10 +14,23 @@ interface UseOntRealtimeArgs {
 	initialReadings: OntCurrentState[];
 }
 
+/**
+ * connecting   → first subscription in progress
+ * live         → channel subscribed
+ * reconnecting → was live, channel dropped; Supabase is retrying
+ * offline      → subscription failed/closed; `retry()` resubscribes
+ * Channel state says nothing about data age: combine with `dataUpdatedAt`.
+ */
+export type RealtimeStatus = "connecting" | "live" | "reconnecting" | "offline";
+
 export interface OntRealtimeState {
 	readings: OntCurrentState[];
 	connected: boolean;
+	status: RealtimeStatus;
 	lastEventAt: Date | null;
+	/** Most recent `updated_at` among readings: when the collector last wrote. */
+	dataUpdatedAt: string | null;
+	retry: () => void;
 }
 
 // Mantiene el estado vivo de las ONTs de una OLT. Carga inicial via SSR
@@ -34,12 +48,15 @@ export function useOntRealtime({
 	const [byId, setById] = useState<Map<string, OntCurrentState>>(() =>
 		buildMap(initialReadings),
 	);
-	const [connected, setConnected] = useState(false);
+	const [status, setStatus] = useState<RealtimeStatus>("connecting");
 	const [lastEventAt, setLastEventAt] = useState<Date | null>(null);
+	const [attempt, setAttempt] = useState(0);
+	const everLiveRef = useRef(false);
 
 	const setByIdRef = useRef(setById);
 	setByIdRef.current = setById;
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` is the manual retry trigger; changing it must resubscribe.
 	useEffect(() => {
 		let cancelled = false;
 		const channel: RealtimeChannel = supabase
@@ -60,13 +77,18 @@ export function useOntRealtime({
 			.subscribe((status) => {
 				if (cancelled) return;
 				if (status === "SUBSCRIBED") {
-					setConnected(true);
+					everLiveRef.current = true;
+					setStatus("live");
 					void refetch(supabase, oltHost).then((rows) => {
 						if (cancelled) return;
 						setByIdRef.current(buildMap(rows));
 					});
-				} else if (status === "CHANNEL_ERROR" || status === "CLOSED") {
-					setConnected(false);
+				} else if (status === "CHANNEL_ERROR") {
+					// supabase-js keeps retrying after a channel error. If we were never
+					// live, say so instead of "connecting" forever.
+					setStatus(everLiveRef.current ? "reconnecting" : "offline");
+				} else if (status === "TIMED_OUT" || status === "CLOSED") {
+					setStatus("offline");
 				}
 			});
 
@@ -74,7 +96,13 @@ export function useOntRealtime({
 			cancelled = true;
 			void supabase.removeChannel(channel);
 		};
-	}, [supabase, oltHost]);
+		// `attempt` re-runs the effect: tears the channel down and resubscribes.
+	}, [supabase, oltHost, attempt]);
+
+	const retry = useCallback(() => {
+		setStatus(everLiveRef.current ? "reconnecting" : "connecting");
+		setAttempt((n) => n + 1);
+	}, []);
 
 	const readings = useMemo(() => {
 		return Array.from(byId.values()).sort((a, b) =>
@@ -84,7 +112,16 @@ export function useOntRealtime({
 		);
 	}, [byId]);
 
-	return { readings, connected, lastEventAt };
+	const dataUpdatedAt = useMemo(() => latestUpdate(readings), [readings]);
+
+	return {
+		readings,
+		connected: status === "live",
+		status,
+		lastEventAt,
+		dataUpdatedAt,
+		retry,
+	};
 }
 
 function buildMap(rows: OntCurrentState[]): Map<string, OntCurrentState> {

@@ -6,9 +6,9 @@ interface RxPowerCellProps {
 }
 
 const SIGNAL_COLOR: Record<SignalClassification, string> = {
-	good: "text-emerald-600 dark:text-emerald-400",
-	warning: "text-amber-600 dark:text-amber-400",
-	critical: "text-red-600 dark:text-red-400",
+	good: "text-success",
+	warning: "text-warning-fg",
+	critical: "text-danger-fg",
 	unknown: "text-muted-foreground",
 };
 

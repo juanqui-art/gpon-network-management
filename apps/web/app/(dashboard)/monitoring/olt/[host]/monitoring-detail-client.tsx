@@ -9,10 +9,10 @@ import {
 	Search,
 	Server,
 } from "lucide-react";
-import { motion, useAnimation } from "motion/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { HealthSummary } from "@/components/monitoring/health-summary";
+import { LiveIndicator } from "@/components/monitoring/live-indicator";
 import { OltInfoCard } from "@/components/monitoring/olt-info-card";
 import { OntStatusBadge } from "@/components/monitoring/ont-status-badge";
 import { RxPowerCell } from "@/components/monitoring/rx-power-cell";
@@ -22,6 +22,7 @@ import {
 } from "@/components/monitoring/rx-sparkline";
 import { Input } from "@/components/ui/input";
 import { useOntRealtime } from "@/lib/hooks/use-ont-realtime";
+import { formatRelative } from "@/lib/monitoring/freshness";
 import {
 	classifySignal,
 	type OntCurrentState,
@@ -67,10 +68,11 @@ export function MonitoringDetailClient({
 }: Props) {
 	const elementCode = elementInfo?.code ?? null;
 	const elementName = elementInfo?.name ?? null;
-	const { readings, connected, lastEventAt } = useOntRealtime({
-		oltHost,
-		initialReadings,
-	});
+	const { readings, status, lastEventAt, dataUpdatedAt, retry } =
+		useOntRealtime({
+			oltHost,
+			initialReadings,
+		});
 
 	const [filter, setFilter] = useState<StatusFilter>("all");
 	const [search, setSearch] = useState("");
@@ -150,11 +152,12 @@ export function MonitoringDetailClient({
 								</div>
 							</div>
 						</div>
-						<RealtimeIndicator
-							connected={connected}
+						<LiveIndicator
+							status={status}
+							dataUpdatedAt={dataUpdatedAt}
 							lastEventAt={lastEventAt}
-							initialCount={initialReadings.length}
 							nowMs={nowMs}
+							onRetry={retry}
 						/>
 					</div>
 				</div>
@@ -280,10 +283,8 @@ function MetricTile({
 			<span
 				className={cn(
 					"flex size-8 shrink-0 items-center justify-center rounded-md",
-					tone === "good" &&
-						"bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-					tone === "warning" &&
-						"bg-amber-500/10 text-amber-600 dark:text-amber-400",
+					tone === "good" && "bg-success/10 text-success",
+					tone === "warning" && "bg-warning/10 text-warning-fg",
 					tone === "neutral" && "bg-muted text-muted-foreground",
 				)}
 			>
@@ -414,8 +415,8 @@ function PonGroupSection({
 					className={cn(
 						"flex size-8 shrink-0 items-center justify-center rounded-md border",
 						attentionCount > 0
-							? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
-							: "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+							? "border-warning/30 bg-warning/10 text-warning-fg"
+							: "border-success/30 bg-success/10 text-success",
 					)}
 				>
 					<EthernetPort className="size-4" aria-hidden />
@@ -438,7 +439,7 @@ function PonGroupSection({
 					</div>
 				</div>
 				{attentionCount > 0 && (
-					<span className="hidden items-center gap-1.5 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs text-amber-700 dark:text-amber-300 sm:inline-flex">
+					<span className="hidden items-center gap-1.5 rounded border border-warning/30 bg-warning/10 px-2 py-1 text-xs text-warning-fg sm:inline-flex">
 						<AlertTriangle className="size-3.5" aria-hidden />
 						{attentionCount} requieren atención
 					</span>
@@ -540,7 +541,7 @@ function OntCard({
 		<div
 			className={cn(
 				"space-y-2 rounded-md border border-border bg-background/40 p-3",
-				isAlert && "border-amber-500/30 bg-amber-500/5",
+				isAlert && "border-warning/30 bg-warning/5",
 			)}
 		>
 			<div className="flex items-start justify-between gap-3">
@@ -625,7 +626,7 @@ function OntRow({
 		<tr
 			className={cn(
 				"border-b border-border/50 last:border-0 hover:bg-muted/30",
-				isAlert && "bg-amber-500/5",
+				isAlert && "bg-warning/5",
 			)}
 		>
 			<Td className="truncate font-mono text-xs">{reading.ont_logical_id}</Td>
@@ -711,56 +712,6 @@ function Td({
 		>
 			{children}
 		</td>
-	);
-}
-
-function RealtimeIndicator({
-	connected,
-	lastEventAt,
-	initialCount,
-	nowMs,
-}: {
-	connected: boolean;
-	lastEventAt: Date | null;
-	initialCount: number;
-	nowMs: number | null;
-}) {
-	const controls = useAnimation();
-	const lastText = lastEventAt
-		? formatRelative(lastEventAt.toISOString(), nowMs)
-		: initialCount > 0
-			? "esperando primer evento"
-			: "sin datos";
-
-	useEffect(() => {
-		if (!lastEventAt) return;
-		void controls.start({
-			scale: [1, 1.9, 1],
-			opacity: [1, 0.5, 1],
-			transition: { duration: 0.4, ease: "easeOut" },
-		});
-	}, [lastEventAt, controls]);
-
-	return (
-		<div className="flex items-center gap-2 text-xs">
-			{connected ? (
-				<span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-400">
-					<motion.span
-						animate={controls}
-						className="relative flex h-1.5 w-1.5 shrink-0"
-					>
-						<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-						<span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-					</motion.span>
-					LIVE · {lastText}
-				</span>
-			) : (
-				<span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-0.5 text-muted-foreground">
-					<span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
-					Conectando…
-				</span>
-			)}
-		</div>
 	);
 }
 
@@ -874,17 +825,4 @@ function matchesFilter(
 
 function formatDbm(value: number | null): string {
 	return value === null ? "—" : `${value.toFixed(2)} dBm`;
-}
-
-function formatRelative(iso: string | null, nowMs: number | null): string {
-	if (!iso) return "—";
-	if (nowMs === null) return "—";
-	const target = new Date(iso).getTime();
-	if (Number.isNaN(target)) return "—";
-	const seconds = Math.floor((nowMs - target) / 1000);
-	if (seconds < 5) return "ahora";
-	if (seconds < 60) return `hace ${seconds}s`;
-	if (seconds < 3600) return `hace ${Math.floor(seconds / 60)} min`;
-	if (seconds < 86_400) return `hace ${Math.floor(seconds / 3600)} h`;
-	return `hace ${Math.floor(seconds / 86_400)} d`;
 }

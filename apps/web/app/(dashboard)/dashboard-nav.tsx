@@ -7,11 +7,13 @@ import { useEffect, useState } from "react";
 import { signOut } from "@/app/actions/auth";
 import { AppDrawer } from "@/components/ui/app-drawer";
 import { Button } from "@/components/ui/button";
+import { ROLE_LABELS } from "@/lib/auth/roles";
 import { useModifierKey } from "@/lib/hooks/use-modifier-key";
 import {
 	isLeaveBlocked,
 	requestNavigation,
 } from "@/lib/navigation/leave-guard";
+import type { UserRole } from "@/lib/types/gpon";
 
 function openPalette() {
 	window.dispatchEvent(new Event("gpon:palette"));
@@ -25,22 +27,61 @@ function guardSignOut(event: React.FormEvent<HTMLFormElement>) {
 	void requestNavigation("/login", () => form.requestSubmit());
 }
 
-const NAV_LINKS = [
-	{ href: "/dashboard", label: "Dashboard" },
+const MAIN_LINKS = [
+	{ href: "/dashboard", label: "Inicio" },
 	{ href: "/networks", label: "Redes" },
 	{ href: "/map", label: "Mapa" },
 	{ href: "/monitoring", label: "Monitoreo" },
+] as const;
+
+/** Admin-only (pages 404 for other roles): never offered to them. */
+const ADMIN_LINKS = [
 	{ href: "/admin/users", label: "Usuarios" },
 	{ href: "/admin/audit", label: "Auditoría" },
 	{ href: "/admin/settings", label: "Configuración" },
 ] as const;
+
+type NavLink = { href: string; label: string };
+
+function NavLinks({
+	links,
+	pathname,
+	itemClassName,
+}: {
+	links: readonly NavLink[];
+	pathname: string;
+	itemClassName: string;
+}) {
+	return links.map((link) => {
+		const active = isActive(pathname, link.href);
+		return (
+			<Link
+				key={link.href}
+				href={link.href}
+				aria-current={active ? "page" : undefined}
+				className={`${itemClassName} transition-colors hover:bg-muted hover:text-fg ${
+					active ? "bg-muted text-fg" : "text-fg-muted"
+				}`}
+			>
+				{link.label}
+			</Link>
+		);
+	});
+}
 
 function isActive(pathname: string, href: string): boolean {
 	if (href === "/dashboard") return pathname === "/dashboard";
 	return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function DashboardNav() {
+export function DashboardNav({
+	role,
+	email,
+}: {
+	role: UserRole;
+	email: string | null;
+}) {
+	const isAdmin = role === "admin";
 	const [open, setOpen] = useState(false);
 	const pathname = usePathname();
 	const modifierKey = useModifierKey();
@@ -60,20 +101,25 @@ export function DashboardNav() {
 				>
 					GPON
 				</Link>
-				<nav className="hidden items-center gap-1 md:flex">
-					{NAV_LINKS.map((link) => (
-						<Link
-							key={link.href}
-							href={link.href}
-							className={`rounded-md px-2.5 py-1 text-xs transition-colors hover:bg-muted hover:text-foreground ${
-								isActive(pathname, link.href)
-									? "bg-muted text-foreground"
-									: "text-muted-foreground"
-							}`}
-						>
-							{link.label}
-						</Link>
-					))}
+				<nav
+					className="hidden items-center gap-1 md:flex"
+					aria-label="Navegación principal"
+				>
+					<NavLinks
+						links={MAIN_LINKS}
+						pathname={pathname}
+						itemClassName="rounded-md px-2.5 py-1 text-xs"
+					/>
+					{isAdmin && (
+						<>
+							<span className="mx-2 h-4 w-px bg-border" aria-hidden="true" />
+							<NavLinks
+								links={ADMIN_LINKS}
+								pathname={pathname}
+								itemClassName="rounded-md px-2.5 py-1 text-xs"
+							/>
+						</>
+					)}
 				</nav>
 			</div>
 
@@ -90,6 +136,12 @@ export function DashboardNav() {
 						{paletteShortcut}
 					</kbd>
 				</button>
+				<span
+					className="hidden max-w-40 truncate rounded-md border border-border-subtle px-2 py-1 text-xs text-fg-secondary lg:inline"
+					title={email ?? undefined}
+				>
+					{ROLE_LABELS[role]}
+				</span>
 				<form action={signOut} onSubmit={guardSignOut}>
 					<Button type="submit" variant="ghost" size="sm">
 						Salir
@@ -127,20 +179,28 @@ export function DashboardNav() {
 					className="flex flex-col gap-1"
 					aria-label="Navegación principal"
 				>
-					{NAV_LINKS.map((link) => (
-						<Link
-							key={link.href}
-							href={link.href}
-							className={`rounded-md px-3 py-2.5 text-sm transition-colors hover:bg-muted hover:text-foreground ${
-								isActive(pathname, link.href)
-									? "bg-muted text-foreground"
-									: "text-muted-foreground"
-							}`}
-						>
-							{link.label}
-						</Link>
-					))}
+					<NavLinks
+						links={MAIN_LINKS}
+						pathname={pathname}
+						itemClassName="rounded-md px-3 py-2.5 text-sm"
+					/>
+					{isAdmin && (
+						<>
+							<p className="mt-3 mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-fg-muted">
+								Administración
+							</p>
+							<NavLinks
+								links={ADMIN_LINKS}
+								pathname={pathname}
+								itemClassName="rounded-md px-3 py-2.5 text-sm"
+							/>
+						</>
+					)}
 				</nav>
+				<p className="border-t border-border px-3 pt-3 text-xs text-fg-muted">
+					{email ? `${email} · ` : ""}
+					{ROLE_LABELS[role]}
+				</p>
 				<form
 					action={signOut}
 					onSubmit={guardSignOut}

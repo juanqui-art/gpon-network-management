@@ -205,6 +205,18 @@ html, body {
   color: var(--text-primary);
 }
 
+/* Reduced motion: CSS animations (animate-ping, tw-animate-css, transitions).
+   motion/react animations are handled by <MotionProvider reducedMotion="user">.
+   Status/loading meaning is always also conveyed in text. */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Mapbox attribution — make it less intrusive */
 .mapboxgl-ctrl-attrib {
   background: rgba(27,28,29,0.72) !important;

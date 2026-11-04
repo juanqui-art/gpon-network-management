@@ -8,6 +8,7 @@ import type {
 	RoutePoint,
 } from "@/components/map/types";
 import { MAPBOX_TOKEN } from "@/lib/mapbox/config";
+import { translateDbError } from "@/lib/supabase/errors";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Mapa GPON" };
@@ -28,12 +29,10 @@ export default async function MapPage() {
 	if (elementsError || routesError || routePointsError) {
 		return (
 			<MapLoadError
-				message={
-					elementsError?.message ??
-					routesError?.message ??
-					routePointsError?.message ??
-					"No se pudo cargar el mapa."
-				}
+				message={translateDbError(
+					elementsError ?? routesError ?? routePointsError,
+					"Hubo un problema al consultar la base de datos. Recarga la página en unos segundos.",
+				)}
 			/>
 		);
 	}
@@ -88,9 +87,12 @@ export default async function MapPage() {
 function MapLoadError({ message }: { message: string }) {
 	return (
 		<div className="fixed inset-x-0 bottom-0 top-12 flex items-center justify-center bg-surface p-6">
-			<div className="max-w-md rounded-lg border border-red-400/25 bg-red-400/10 p-4 text-sm text-red-100">
+			<div
+				role="alert"
+				className="max-w-md rounded-lg border border-danger/30 bg-danger/10 p-4 text-sm text-danger-soft"
+			>
 				<p className="font-semibold">No se pudo cargar el mapa GPON</p>
-				<p className="mt-2 text-red-100/80">{message}</p>
+				<p className="mt-2 text-fg-secondary">{message}</p>
 			</div>
 		</div>
 	);

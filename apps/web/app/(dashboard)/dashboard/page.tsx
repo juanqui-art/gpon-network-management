@@ -50,7 +50,7 @@ import {
 } from "@/lib/types/gpon";
 import type { NetworkSummary } from "@/lib/types/network";
 
-export const metadata = { title: "Dashboard administrador" };
+export const metadata = { title: "Inicio" };
 
 const roleScopeLabels: Record<UserRole, string> = {
 	admin: "Acceso completo",
@@ -352,10 +352,11 @@ export default async function AdminDashboardPage() {
 								<ShieldCheck className="mr-1 size-3" aria-hidden="true" />
 								{ROLE_LABELS[role]}
 							</Badge>
-							<Badge className="bg-success/16 text-success">NOC en línea</Badge>
 						</div>
 						<h1 className="text-balance text-2xl font-semibold text-foreground">
-							Dashboard administrador
+							{role === "admin"
+								? "Panel de administración"
+								: "Resumen de la red"}
 						</h1>
 						<p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
 							Vista ejecutiva para controlar cobertura, capacidad, calidad de

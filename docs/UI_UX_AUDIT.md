@@ -10,7 +10,7 @@
 | 1 | C1, C5, A1, A7 | ✅ Hecho |
 | 2 | C2, C3, C4, M3 (parcial: 8–9 px → 10 px fuera del diagrama SVG; captura 10 → 11 px) | ✅ Hecho |
 | 3 | A2, M1, M4, B1, B2; M2 parcial (etiquetas compartidas + A3) | ✅ Hecho |
-| 4 | A4, A5, A6, B3 | Pendiente |
+| 4 | A4, A5, A6, B3, B4, B5 | ✅ Hecho |
 
 Hallazgos nuevos durante los sprints (ya corregidos):
 - `hydrateNetwork` sobrescribía cambios locales al navegar editor ↔ captura o en refetch.
@@ -27,6 +27,14 @@ Sprint 3 — notas:
 - `lib/gpon/labels.ts` es la única fuente de etiquetas de ENUM. Corrige `formatDataQuality` del editor (usaba claves inexistentes) y el UUID mostrado como "Ruta".
 - M2 completo (un solo componente de inspector para `/map` y editor) queda pendiente: requiere decidir qué campos muestra cada contexto.
 - `components/topology/topology-picker.tsx` no se usa en ninguna parte.
+
+Sprint 4 — notas:
+- Navegación y command palette según el rol (los enlaces de administración solo para `admin`); chip con el rol en la nav; "Dashboard administrador" → "Inicio" / título según rol.
+- Realtime: estados `connecting / live / reconnecting / offline` + frescura por `max(updated_at)` (umbral 3 × poll del colector = 3 min). Un canal conectado con el colector caído ahora muestra "Sin datos nuevos". Botón "Reintentar" cuando la suscripción falla. `/monitoring` marca OLTs con datos viejos y ya no promete "tiempo real" en una vista estática.
+- `lib/supabase/errors.ts`: códigos Postgres/PostgREST y mensajes `RAISE EXCEPTION` (en inglés) traducidos; aplicado en crear/archivar red, guardado del editor y carga de `/map`.
+- Quitadas señales de estado ficticias: "NOC activo" y tarjetas de marketing del login, "NOC en línea" del dashboard.
+- Monitoreo usaba colores de tema claro (`text-emerald-700 dark:…`, la variante `dark:` nunca se activa): ahora tokens semánticos.
+- `prefers-reduced-motion`: CSS global + `MotionConfig reducedMotion="user"`.
 
 Pendiente de investigar: en el arnés de QA (Mapbox con estilo vacío) el mapa del editor no dibuja los datos existentes, incluso en el commit base; `/map` sí. Verificar con Mapbox real.
 

@@ -14,9 +14,9 @@ interface Counter {
 }
 
 const TONE_CLASSES: Record<Counter["tone"], string> = {
-	good: "text-emerald-600 dark:text-emerald-400",
-	bad: "text-red-600 dark:text-red-400",
-	warning: "text-amber-600 dark:text-amber-400",
+	good: "text-success",
+	bad: "text-danger-fg",
+	warning: "text-warning-fg",
 	neutral: "text-muted-foreground",
 };
 

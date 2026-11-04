@@ -16,21 +16,13 @@ import {
 	type RouteCoordinate,
 	removeRouteVertex,
 } from "@/lib/map/route-geometry-editor";
+import { translateDbError } from "@/lib/supabase/errors";
 
 function getSaveErrorMessage(error: unknown) {
-	if (error instanceof Error && error.message) return error.message;
-	if (typeof error === "object" && error !== null) {
-		const record = error as Record<string, unknown>;
-		const message =
-			record.message ?? record.details ?? record.hint ?? record.code;
-		if (typeof message === "string" && message.length > 0) return message;
-		try {
-			return JSON.stringify(record);
-		} catch {
-			return "Error desconocido";
-		}
-	}
-	return String(error);
+	return translateDbError(
+		error,
+		"Error inesperado al guardar. Tus cambios siguen en pantalla; inténtalo de nuevo.",
+	);
 }
 
 function addUniqueId(ids: string[], id: string) {

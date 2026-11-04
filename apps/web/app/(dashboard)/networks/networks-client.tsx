@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/lib/feedback/toast";
+import { translateDbError } from "@/lib/supabase/errors";
 import type { UserRole } from "@/lib/types/gpon";
 import {
 	type NetworkSummary,
@@ -74,7 +75,10 @@ export function NetworksClient({
 			if (rpcError) throw rpcError;
 			router.push(`/networks/${data}/capture`);
 		} catch (err) {
-			setError(err instanceof Error ? err.message : "Error al crear la red");
+			console.error("create_network failed", err);
+			setError(
+				translateDbError(err, "No se pudo crear la red. Inténtalo de nuevo."),
+			);
 			setCreating(false);
 		}
 	}
@@ -102,7 +106,13 @@ export function NetworksClient({
 			closeArchive();
 			router.refresh();
 		} catch (err) {
-			setError(err instanceof Error ? err.message : "Error al archivar la red");
+			console.error("archive_network failed", err);
+			setError(
+				translateDbError(
+					err,
+					"No se pudo archivar la red. Inténtalo de nuevo.",
+				),
+			);
 		} finally {
 			setArchiving(false);
 		}

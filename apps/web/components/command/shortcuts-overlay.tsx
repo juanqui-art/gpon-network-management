@@ -22,7 +22,7 @@ const SECTIONS: Section[] = [
 			{ keys: ["g", "n"], label: "Ir a Redes" },
 			{ keys: ["g", "m"], label: "Ir a Mapa" },
 			{ keys: ["g", "s"], label: "Ir a Monitoreo" },
-			{ keys: ["g", "d"], label: "Ir a Dashboard" },
+			{ keys: ["g", "d"], label: "Ir a Inicio" },
 			{ keys: ["⌘", "K"], label: "Abrir búsqueda de comandos" },
 			{ keys: ["?"], label: "Mostrar / ocultar esta ayuda" },
 		],

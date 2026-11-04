@@ -295,6 +295,8 @@ export interface OltMonitorEntry {
 	active_pon_ports: string[];
 	attention_pon_ports: string[];
 	health: OntHealthSummary;
+	/** Max `updated_at`: when the collector last wrote this OLT (freshness). */
+	data_updated_at: string | null;
 }
 
 export const ONT_STATUS_LABELS: Record<OntStatus, string> = {

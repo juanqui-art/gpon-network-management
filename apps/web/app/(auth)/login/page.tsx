@@ -1,12 +1,6 @@
 "use client";
 
-import {
-	Activity,
-	ArrowRight,
-	LockKeyhole,
-	Mail,
-	RadioTower,
-} from "lucide-react";
+import { ArrowRight, LockKeyhole, Mail, RadioTower } from "lucide-react";
 import Link from "next/link";
 import { useActionState } from "react";
 import { signIn } from "@/app/actions/auth";
@@ -20,48 +14,18 @@ export default function LoginPage() {
 	return (
 		<div className="space-y-7">
 			<div className="space-y-5">
-				<div className="flex items-center justify-between gap-4">
-					<div className="flex size-11 items-center justify-center rounded-lg border border-border bg-muted/70 text-primary shadow-lg shadow-black/20">
-						<RadioTower className="size-5" aria-hidden="true" />
-					</div>
-					<div className="flex items-center gap-2 rounded-full border border-border bg-muted/45 px-3 py-1 text-[11px] font-medium text-muted-foreground">
-						<span className="size-1.5 rounded-full bg-success shadow-[0_0_12px_var(--status-online)]" />
-						NOC activo
-					</div>
+				<div className="flex size-11 items-center justify-center rounded-lg border border-border bg-muted/70 text-primary shadow-lg shadow-black/20">
+					<RadioTower className="size-5" aria-hidden="true" />
 				</div>
 
 				<div>
-					<p className="mb-2 text-xs font-medium uppercase text-muted-foreground">
-						Acceso seguro
-					</p>
 					<h1 className="text-balance text-2xl font-semibold text-foreground">
 						GPON Network
 					</h1>
 					<p className="mt-2 text-sm leading-6 text-muted-foreground">
-						Ingresa al panel para supervisar la red, revisar eventos y gestionar
+						Ingresa para supervisar la red, revisar eventos y gestionar
 						infraestructura.
 					</p>
-				</div>
-
-				<div className="grid grid-cols-2 gap-2">
-					<div className="rounded-lg border border-border bg-muted/35 px-3 py-2">
-						<div className="flex items-center gap-2 text-xs font-medium text-foreground">
-							<Activity className="size-3.5 text-[var(--gpon-ont)]" />
-							Monitoreo
-						</div>
-						<p className="mt-1 text-[11px] text-muted-foreground">
-							Tiempo real
-						</p>
-					</div>
-					<div className="rounded-lg border border-border bg-muted/35 px-3 py-2">
-						<div className="flex items-center gap-2 text-xs font-medium text-foreground">
-							<LockKeyhole className="size-3.5 text-info" />
-							Roles
-						</div>
-						<p className="mt-1 text-[11px] text-muted-foreground">
-							Controlados
-						</p>
-					</div>
 				</div>
 			</div>
 
