@@ -264,7 +264,7 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 								</p>
 								<div className="flex items-center gap-1">
 									<span
-										className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+										className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
 										style={{
 											background: `${SEVERITY_COLOR[incident.severity] ?? SEVERITY_COLOR.low}33`,
 											color:

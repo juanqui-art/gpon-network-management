@@ -93,10 +93,10 @@ export function OltModelSelector({
 										</div>
 									</div>
 									<div className="flex shrink-0 flex-col items-end gap-1 text-right">
-										<div className="rounded-sm bg-[#34d399]/20 px-2 py-1 text-[9px] font-semibold text-[#34d399]">
+										<div className="rounded-sm bg-[#34d399]/20 px-2 py-1 text-[10px] font-semibold text-[#34d399]">
 											{model.opticalClass}
 										</div>
-										<div className="text-[9px] text-[#a4a4a4]">
+										<div className="text-[10px] text-[#a4a4a4]">
 											{model.maxPonPorts}x PON
 										</div>
 									</div>

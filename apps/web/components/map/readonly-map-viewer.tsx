@@ -30,6 +30,11 @@ import {
 	RouteMetric,
 	TextBlock,
 } from "@/components/map/map-inspector-primitives";
+import {
+	MapPanelContainerContext,
+	MapPanelHost,
+	useMapPanelContainer,
+} from "@/components/map/map-panel-container";
 import { AppDrawer } from "@/components/ui/app-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,6 +51,7 @@ import {
 	OPTICAL_STATUS_COLOR,
 	type PonClass,
 } from "@/lib/gpon/optical-budget";
+import { useIsDesktop } from "@/lib/hooks/use-media-query";
 import {
 	CABLE_LABEL,
 	ROUTE_POINT_COLOR,
@@ -168,6 +174,7 @@ export function ReadonlyMapViewer({
 	warnings = [],
 }: ReadonlyMapViewerProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
+	const [panelHost, setPanelHost] = useState<HTMLDivElement | null>(null);
 	const mapRef = useRef<mapboxgl.Map | null>(null);
 	const visibleEquipmentRef = useRef<EquipmentMapItem[]>([]);
 	const visibleConnectionsRef = useRef<ConnectionMapItem[]>([]);
@@ -646,8 +653,9 @@ export function ReadonlyMapViewer({
 	}, [filterType, incidentsByEquipment, isMapReady, visibleEquipment]);
 
 	return (
-		<div className="gpon-readonly-map fixed inset-x-0 bottom-0 top-12 overflow-hidden bg-[#1b1c1d]">
-			<style>{`
+		<MapPanelContainerContext.Provider value={panelHost}>
+			<div className="gpon-readonly-map fixed inset-x-0 bottom-0 top-12 overflow-hidden bg-[#1b1c1d]">
+				<style>{`
 				.gpon-readonly-map > .gpon-mapbox-host,
 				.gpon-readonly-map .mapboxgl-map {
 					position: absolute !important;
@@ -656,93 +664,99 @@ export function ReadonlyMapViewer({
 					height: 100% !important;
 				}
 			`}</style>
-			<div ref={containerRef} className="gpon-mapbox-host absolute inset-0" />
-			<div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-gradient-to-b from-[#1b1c1d]/70 to-transparent" />
+				<div ref={containerRef} className="gpon-mapbox-host absolute inset-0" />
+				<MapPanelHost onHost={setPanelHost} />
+				<div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-gradient-to-b from-[#1b1c1d]/70 to-transparent" />
 
-			<div className="absolute bottom-4 left-4 top-4 z-20 max-w-[calc(100vw-2rem)]">
-				<LeftPanel
-					tab={leftTab}
-					onTabChange={setLeftTab}
-					filterType={filterType}
-					filterStatus={filterStatus}
-					onTypeChange={setFilterType}
-					onStatusChange={setFilterStatus}
-					counts={counts}
-					equipment={visibleEquipment}
-					connections={visibleConnections}
-					warnings={mapWarnings}
-					onSelectEquipment={(el) => {
-						mapRef.current?.flyTo({
-							center: [el.lng, el.lat],
-							zoom: Math.max(mapRef.current.getZoom(), 16),
-							duration: 650,
-						});
-						setSelectedFeature({ kind: "element", element: el });
-					}}
-				/>
-			</div>
-
-			<div className="absolute bottom-4 left-4 z-20 md:hidden">
-				<MapLegend compact />
-			</div>
-
-			<div className="absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2">
-				<div className="hidden md:block">
-					<MapLegend />
-				</div>
-				<div className="md:hidden">
-					<MapControls
-						compact
-						onZoomIn={() => mapRef.current?.zoomIn()}
-						onZoomOut={() => mapRef.current?.zoomOut()}
-						onFit={() => fitToEquipment(mapRef.current, visibleEquipment, true)}
-						onResetNorth={() => mapRef.current?.resetNorth()}
+				<div className="absolute bottom-4 left-4 top-4 z-20 max-w-[calc(100vw-2rem)]">
+					<LeftPanel
+						tab={leftTab}
+						onTabChange={setLeftTab}
+						filterType={filterType}
+						filterStatus={filterStatus}
+						onTypeChange={setFilterType}
+						onStatusChange={setFilterStatus}
+						counts={counts}
+						equipment={visibleEquipment}
+						connections={visibleConnections}
+						warnings={mapWarnings}
+						onSelectEquipment={(el) => {
+							mapRef.current?.flyTo({
+								center: [el.lng, el.lat],
+								zoom: Math.max(mapRef.current.getZoom(), 16),
+								duration: 650,
+							});
+							setSelectedFeature({ kind: "element", element: el });
+						}}
 					/>
 				</div>
-				<div className="hidden md:block">
-					<MapControls
-						onZoomIn={() => mapRef.current?.zoomIn()}
-						onZoomOut={() => mapRef.current?.zoomOut()}
-						onFit={() => fitToEquipment(mapRef.current, visibleEquipment, true)}
-						onResetNorth={() => mapRef.current?.resetNorth()}
-					/>
-				</div>
-			</div>
 
-			<RightPanel
-				feature={selectedFeature}
-				equipmentById={equipmentById}
-				connections={visibleConnections}
-				onClose={() => setSelectedFeature(null)}
-			/>
-			{selectedDiagramRoot && (
-				<ReadonlyUnifilarPanel
-					root={selectedDiagramRoot}
-					equipment={visibleEquipment}
+				<div className="absolute bottom-4 left-4 z-20 md:hidden">
+					<MapLegend compact />
+				</div>
+
+				<div className="absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2">
+					<div className="hidden md:block">
+						<MapLegend />
+					</div>
+					<div className="md:hidden">
+						<MapControls
+							compact
+							onZoomIn={() => mapRef.current?.zoomIn()}
+							onZoomOut={() => mapRef.current?.zoomOut()}
+							onFit={() =>
+								fitToEquipment(mapRef.current, visibleEquipment, true)
+							}
+							onResetNorth={() => mapRef.current?.resetNorth()}
+						/>
+					</div>
+					<div className="hidden md:block">
+						<MapControls
+							onZoomIn={() => mapRef.current?.zoomIn()}
+							onZoomOut={() => mapRef.current?.zoomOut()}
+							onFit={() =>
+								fitToEquipment(mapRef.current, visibleEquipment, true)
+							}
+							onResetNorth={() => mapRef.current?.resetNorth()}
+						/>
+					</div>
+				</div>
+
+				<RightPanel
+					feature={selectedFeature}
+					equipmentById={equipmentById}
 					connections={visibleConnections}
-					routePoints={routePoints}
-					onFocusElement={(element) => {
-						mapRef.current?.flyTo({
-							center: [element.lng, element.lat],
-							zoom: Math.max(mapRef.current.getZoom(), 16),
-							duration: 650,
-						});
-					}}
-					onInspectElement={(element) => {
-						setSelectedFeature({ kind: "element", element });
-					}}
-					onClose={() => setSelectedDiagramRoot(null)}
+					onClose={() => setSelectedFeature(null)}
 				/>
-			)}
-			<ContextMenu
-				position={contextMenu}
-				options={getReadonlyContextMenuOptions({
-					element: contextMenu?.element ?? null,
-					onOpenDiagram: (element) => setSelectedDiagramRoot(element),
-				})}
-				onClose={() => setContextMenu(null)}
-			/>
-		</div>
+				{selectedDiagramRoot && (
+					<ReadonlyUnifilarPanel
+						root={selectedDiagramRoot}
+						equipment={visibleEquipment}
+						connections={visibleConnections}
+						routePoints={routePoints}
+						onFocusElement={(element) => {
+							mapRef.current?.flyTo({
+								center: [element.lng, element.lat],
+								zoom: Math.max(mapRef.current.getZoom(), 16),
+								duration: 650,
+							});
+						}}
+						onInspectElement={(element) => {
+							setSelectedFeature({ kind: "element", element });
+						}}
+						onClose={() => setSelectedDiagramRoot(null)}
+					/>
+				)}
+				<ContextMenu
+					position={contextMenu}
+					options={getReadonlyContextMenuOptions({
+						element: contextMenu?.element ?? null,
+						onOpenDiagram: (element) => setSelectedDiagramRoot(element),
+					})}
+					onClose={() => setContextMenu(null)}
+				/>
+			</div>
+		</MapPanelContainerContext.Provider>
 	);
 }
 
@@ -1584,21 +1598,8 @@ function LeftPanel({
 	warnings,
 	onSelectEquipment,
 }: LeftPanelProps) {
-	const [isDesktop, setIsDesktop] = useState(() =>
-		typeof window !== "undefined"
-			? window.matchMedia("(min-width: 768px)").matches
-			: false,
-	);
+	const isDesktop = useIsDesktop();
 	const [mobileOpen, setMobileOpen] = useState(false);
-
-	useEffect(() => {
-		const mediaQuery = window.matchMedia("(min-width: 768px)");
-		const updateBreakpoint = () => setIsDesktop(mediaQuery.matches);
-
-		updateBreakpoint();
-		mediaQuery.addEventListener("change", updateBreakpoint);
-		return () => mediaQuery.removeEventListener("change", updateBreakpoint);
-	}, []);
 
 	const panelBody = (
 		<Tabs
@@ -1664,7 +1665,7 @@ function LeftPanel({
 							<Icon className="size-3" aria-hidden="true" />
 							<span className="hidden sm:inline">{label}</span>
 							{value === "alerts" && warnings.length > 0 && (
-								<Badge className="absolute -right-1 -top-1 h-4 min-w-4 rounded-full bg-[#f59e0b] px-1 text-[9px] text-[#1b1c1d]">
+								<Badge className="absolute -right-1 -top-1 h-4 min-w-4 rounded-full bg-[#f59e0b] px-1 text-[10px] text-[#1b1c1d]">
 									{warnings.length}
 								</Badge>
 							)}
@@ -1831,7 +1832,7 @@ function FilterBar({
 						{label}
 						{countByType[value] !== undefined && (
 							<span
-								className="rounded px-1 text-[9px] font-semibold"
+								className="rounded px-1 text-[10px] font-semibold"
 								style={{
 									background:
 										filterType === value
@@ -2010,7 +2011,7 @@ function NetworkTree({
 									{olt.name ?? olt.code}
 								</span>
 								{olt.optical_class && (
-									<span className="shrink-0 rounded border border-[rgba(56,189,248,0.22)] bg-[rgba(56,189,248,0.08)] px-1 font-mono text-[9px] text-[#38bdf8]">
+									<span className="shrink-0 rounded border border-[rgba(56,189,248,0.22)] bg-[rgba(56,189,248,0.08)] px-1 font-mono text-[10px] text-[#38bdf8]">
 										{olt.optical_class}
 									</span>
 								)}
@@ -2109,7 +2110,7 @@ function NetworkTree({
 															</span>
 															{nap.total_ports && (
 																<span
-																	className="shrink-0 whitespace-nowrap text-[9px]"
+																	className="shrink-0 whitespace-nowrap text-[10px]"
 																	style={{ color: napColor }}
 																>
 																	{nap.ports_used ?? 0}/{nap.total_ports}
@@ -2150,6 +2151,9 @@ function RightPanel({
 	connections: ConnectionMapItem[];
 	onClose: () => void;
 }) {
+	const isDesktop = useIsDesktop();
+	const container = useMapPanelContainer();
+
 	if (!feature) {
 		return null;
 	}
@@ -2170,8 +2174,11 @@ function RightPanel({
 			}}
 			accent={accent}
 			description={featureSubtitle(feature)}
-			size="lg"
-			className="bg-[rgba(28,29,30,0.92)] text-[#d7d7d7] backdrop-blur-xl"
+			size="md"
+			modal={!isDesktop}
+			showOverlay={!isDesktop}
+			container={container}
+			className="md:!w-[min(24rem,calc(100%-2rem))] bg-[rgba(28,29,30,0.92)] text-[#d7d7d7] backdrop-blur-xl"
 			contentClassName="p-4"
 			title={featureTitle(feature)}
 		>

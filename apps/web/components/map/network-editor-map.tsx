@@ -1,6 +1,12 @@
 "use client";
 
-import { AlertTriangle, Layers, ListChecks, LocateFixed } from "lucide-react";
+import {
+	AlertTriangle,
+	Layers,
+	ListChecks,
+	LocateFixed,
+	SlidersHorizontal,
+} from "lucide-react";
 import mapboxgl from "mapbox-gl";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -30,6 +36,11 @@ import {
 	MapStatChip,
 } from "@/components/map/map-overlay-components";
 import {
+	MapPanelContainerContext,
+	MapPanelHost,
+	useMapPanelContainer,
+} from "@/components/map/map-panel-container";
+import {
 	FIBER_RENDER_COLOR,
 	hideNoisyMapLabels,
 } from "@/components/map/mapbox-shared-style";
@@ -50,6 +61,7 @@ import {
 	propertyString,
 	withDefaultOltProperties,
 } from "@/lib/gpon/olt-properties";
+import { useIsDesktop } from "@/lib/hooks/use-media-query";
 import { CABLE_LABEL, ROUTE_POINT_COLOR, TYPE_COLOR } from "@/lib/map/palette";
 import {
 	getRouteMidpoints,
@@ -230,6 +242,7 @@ export function NetworkEditorMap({
 	onMoveElement,
 }: NetworkEditorMapProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
+	const [panelHost, setPanelHost] = useState<HTMLDivElement | null>(null);
 	const mapRef = useRef<mapboxgl.Map | null>(null);
 	const equipmentRef = useRef(equipment);
 	const connectionsRef = useRef(connections);
@@ -867,341 +880,344 @@ export function NetworkEditorMap({
 	};
 
 	return (
-		<div
-			className={`relative h-full min-h-0 overflow-hidden bg-[#1b1c1d] ${movingElement ? "cursor-crosshair" : ""} ${isPlacementTool ? "cursor-copy" : ""}`}
-		>
-			<div ref={containerRef} className="absolute inset-0 h-full w-full" />
-			<div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-gradient-to-b from-[#1b1c1d]/70 to-transparent" />
-			{isPlacementTool && !movingElement && (
-				<div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-lg border border-[rgba(52,211,153,0.3)] bg-[rgba(34,35,36,0.94)] px-3 py-2 text-xs text-[#86efac] shadow-2xl backdrop-blur-md">
-					<span className="font-medium">
-						Colocando {TOOL_LABELS[activeTool]}
-					</span>
-					: click izquierdo en el mapa para crear
-				</div>
-			)}
-			{movingElement && (
-				<div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-lg border border-[rgba(245,158,11,0.3)] bg-[rgba(34,35,36,0.94)] px-3 py-2 text-xs text-[#fbbf24] shadow-2xl backdrop-blur-md">
-					<span className="font-medium">{movingElement.code}</span>: click en el
-					mapa para reubicar · Esc para cancelar ·{" "}
-					<button
-						type="button"
-						onClick={cancelMovingElement}
-						className="text-[#d7d7d7] underline-offset-2 hover:underline"
+		<MapPanelContainerContext.Provider value={panelHost}>
+			<div
+				className={`relative h-full min-h-0 overflow-hidden bg-[#1b1c1d] ${movingElement ? "cursor-crosshair" : ""} ${isPlacementTool ? "cursor-copy" : ""}`}
+			>
+				<div ref={containerRef} className="absolute inset-0 h-full w-full" />
+				<MapPanelHost onHost={setPanelHost} />
+				<div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-gradient-to-b from-[#1b1c1d]/70 to-transparent" />
+				{isPlacementTool && !movingElement && (
+					<div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-lg border border-[rgba(52,211,153,0.3)] bg-[rgba(34,35,36,0.94)] px-3 py-2 text-xs text-[#86efac] shadow-2xl backdrop-blur-md">
+						<span className="font-medium">
+							Colocando {TOOL_LABELS[activeTool]}
+						</span>
+						: click izquierdo en el mapa para crear
+					</div>
+				)}
+				{movingElement && (
+					<div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-lg border border-[rgba(245,158,11,0.3)] bg-[rgba(34,35,36,0.94)] px-3 py-2 text-xs text-[#fbbf24] shadow-2xl backdrop-blur-md">
+						<span className="font-medium">{movingElement.code}</span>: click en
+						el mapa para reubicar · Esc para cancelar ·{" "}
+						<button
+							type="button"
+							onClick={cancelMovingElement}
+							className="text-[#d7d7d7] underline-offset-2 hover:underline"
+						>
+							Cancelar
+						</button>
+					</div>
+				)}
+				{contextMenu && (
+					<div
+						className="absolute z-40 min-w-44 overflow-hidden rounded-lg border border-[rgba(164,164,164,0.16)] bg-[rgba(34,35,36,0.96)] p-1 text-xs text-[#d7d7d7] shadow-2xl backdrop-blur-md"
+						style={{ left: contextMenu.x, top: contextMenu.y }}
 					>
-						Cancelar
-					</button>
-				</div>
-			)}
-			{contextMenu && (
-				<div
-					className="absolute z-40 min-w-44 overflow-hidden rounded-lg border border-[rgba(164,164,164,0.16)] bg-[rgba(34,35,36,0.96)] p-1 text-xs text-[#d7d7d7] shadow-2xl backdrop-blur-md"
-					style={{ left: contextMenu.x, top: contextMenu.y }}
-				>
-					{contextMenu.kind === "element" ? (
-						<>
-							<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
-								{contextMenu.element.code}
-							</div>
-							<div className="border-[rgba(164,164,164,0.1)] border-b px-3 pb-2 text-[11px] text-[#a4a4a4]">
-								{contextMenu.connectedRoutes === 0
-									? "Sin fibras conectadas."
-									: `${contextMenu.connectedRoutes} fibra${
-											contextMenu.connectedRoutes === 1 ? "" : "s"
-										} conectada${
-											contextMenu.connectedRoutes === 1 ? "" : "s"
-										} se actualizará${
-											contextMenu.connectedRoutes === 1 ? "" : "n"
-										}.`}
-							</div>
-							<button
-								type="button"
-								onClick={() => startMovingElement(contextMenu.element)}
-								className="block w-full rounded-md px-3 py-2 text-left text-[#fbbf24] transition-colors hover:bg-[rgba(245,158,11,0.12)]"
-							>
-								Mover elemento
-							</button>
-							{onStartRouteFromElementRef.current && (
+						{contextMenu.kind === "element" ? (
+							<>
+								<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
+									{contextMenu.element.code}
+								</div>
+								<div className="border-[rgba(164,164,164,0.1)] border-b px-3 pb-2 text-[11px] text-[#a4a4a4]">
+									{contextMenu.connectedRoutes === 0
+										? "Sin fibras conectadas."
+										: `${contextMenu.connectedRoutes} fibra${
+												contextMenu.connectedRoutes === 1 ? "" : "s"
+											} conectada${
+												contextMenu.connectedRoutes === 1 ? "" : "s"
+											} se actualizará${
+												contextMenu.connectedRoutes === 1 ? "" : "n"
+											}.`}
+								</div>
 								<button
 									type="button"
-									onClick={() => {
-										onStartRouteFromElementRef.current?.(contextMenu.element);
-										setContextMenu(null);
-									}}
-									className="block w-full rounded-md px-3 py-2 text-left text-[#8bdff4] transition-colors hover:bg-[rgba(56,216,255,0.12)]"
+									onClick={() => startMovingElement(contextMenu.element)}
+									className="block w-full rounded-md px-3 py-2 text-left text-[#fbbf24] transition-colors hover:bg-[rgba(245,158,11,0.12)]"
 								>
-									Crear fibra desde aquí
+									Mover elemento
 								</button>
-							)}
-						</>
-					) : contextMenu.kind === "route" ? (
-						<>
-							<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
-								{contextMenu.route.code ?? "Ruta de fibra"}
-							</div>
-							<button
-								type="button"
-								onClick={() => {
-									onCreateRoutePointRef.current?.({
-										route: contextMenu.route,
-										type: "mufa",
-										position: { lng: contextMenu.lng, lat: contextMenu.lat },
-										properties: { closure_type: "mufa" },
-									});
-									setContextMenu(null);
-								}}
-								className="block w-full rounded-md px-3 py-2 text-left text-[#8bdff4] transition-colors hover:bg-[rgba(56,216,255,0.12)]"
-							>
-								Agregar mufa
-							</button>
-							<button
-								type="button"
-								onClick={() => {
-									onCreateRoutePointRef.current?.({
-										route: contextMenu.route,
-										type: "mufa",
-										position: { lng: contextMenu.lng, lat: contextMenu.lat },
-										properties: {
-											closure_type: "mufa",
-											has_midspan_access: true,
-										},
-									});
-									setContextMenu(null);
-								}}
-								className="block w-full rounded-md px-3 py-2 text-left text-[#f6c768] transition-colors hover:bg-[rgba(246,199,104,0.12)]"
-							>
-								Agregar mufa + sangrado
-							</button>
-							<button
-								type="button"
-								onClick={() => {
-									onCreateRoutePointRef.current?.({
-										route: contextMenu.route,
-										type: "mufa",
-										position: { lng: contextMenu.lng, lat: contextMenu.lat },
-										properties: {
-											closure_type: "mufa",
-											has_splice: true,
-										},
-									});
-									setContextMenu(null);
-								}}
-								className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
-							>
-								Agregar mufa + empalme
-							</button>
-							<button
-								type="button"
-								onClick={() => {
-									onCreateRoutePointRef.current?.({
-										route: contextMenu.route,
-										type: "mufa",
-										position: { lng: contextMenu.lng, lat: contextMenu.lat },
-										properties: {
-											closure_type: "mufa",
-											has_splitter: true,
-											split_ratio: "1:4",
-										},
-									});
-									setContextMenu(null);
-								}}
-								className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
-							>
-								Agregar mufa + splitter
-							</button>
-							<button
-								type="button"
-								onClick={() => {
-									onCreateRoutePointRef.current?.({
-										route: contextMenu.route,
-										type: "mufa",
-										position: { lng: contextMenu.lng, lat: contextMenu.lat },
-										properties: {
-											closure_type: "mufa",
-											has_midspan_access: true,
-											has_splitter: true,
-											split_ratio: "1:4",
-										},
-									});
-									setContextMenu(null);
-								}}
-								className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
-							>
-								Agregar mufa + sangrado + splitter
-							</button>
-						</>
-					) : (
-						<>
-							<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
-								Crear elemento
-							</div>
-							{createElementTypes.map((elementType) => (
-								<button
-									key={elementType}
-									type="button"
-									onClick={() => {
-										if (onMapToolSelectRef.current) {
-											onMapToolSelectRef.current(elementType);
-										} else {
-											onMapElementCreateRef.current?.(elementType, {
-												lng: contextMenu.lng,
-												lat: contextMenu.lat,
-											});
-										}
-										setContextMenu(null);
-									}}
-									className="block w-full rounded-md px-3 py-2 text-left text-[#d7d7d7] transition-colors hover:bg-[rgba(52,211,153,0.1)] hover:text-[#34d399]"
-								>
-									Crear {TOOL_LABELS[elementType]}
-								</button>
-							))}
-							{onMapClosureToolSelectRef.current && (
-								<>
-									<div className="my-1 border-t border-white/10" />
+								{onStartRouteFromElementRef.current && (
 									<button
 										type="button"
 										onClick={() => {
-											onMapClosureToolSelectRef.current?.(
-												{ closure_type: "mufa" },
-												"Mufa",
-											);
+											onStartRouteFromElementRef.current?.(contextMenu.element);
 											setContextMenu(null);
 										}}
 										className="block w-full rounded-md px-3 py-2 text-left text-[#8bdff4] transition-colors hover:bg-[rgba(56,216,255,0.12)]"
 									>
-										Crear mufa
+										Crear fibra desde aquí
 									</button>
+								)}
+							</>
+						) : contextMenu.kind === "route" ? (
+							<>
+								<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
+									{contextMenu.route.code ?? "Ruta de fibra"}
+								</div>
+								<button
+									type="button"
+									onClick={() => {
+										onCreateRoutePointRef.current?.({
+											route: contextMenu.route,
+											type: "mufa",
+											position: { lng: contextMenu.lng, lat: contextMenu.lat },
+											properties: { closure_type: "mufa" },
+										});
+										setContextMenu(null);
+									}}
+									className="block w-full rounded-md px-3 py-2 text-left text-[#8bdff4] transition-colors hover:bg-[rgba(56,216,255,0.12)]"
+								>
+									Agregar mufa
+								</button>
+								<button
+									type="button"
+									onClick={() => {
+										onCreateRoutePointRef.current?.({
+											route: contextMenu.route,
+											type: "mufa",
+											position: { lng: contextMenu.lng, lat: contextMenu.lat },
+											properties: {
+												closure_type: "mufa",
+												has_midspan_access: true,
+											},
+										});
+										setContextMenu(null);
+									}}
+									className="block w-full rounded-md px-3 py-2 text-left text-[#f6c768] transition-colors hover:bg-[rgba(246,199,104,0.12)]"
+								>
+									Agregar mufa + sangrado
+								</button>
+								<button
+									type="button"
+									onClick={() => {
+										onCreateRoutePointRef.current?.({
+											route: contextMenu.route,
+											type: "mufa",
+											position: { lng: contextMenu.lng, lat: contextMenu.lat },
+											properties: {
+												closure_type: "mufa",
+												has_splice: true,
+											},
+										});
+										setContextMenu(null);
+									}}
+									className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
+								>
+									Agregar mufa + empalme
+								</button>
+								<button
+									type="button"
+									onClick={() => {
+										onCreateRoutePointRef.current?.({
+											route: contextMenu.route,
+											type: "mufa",
+											position: { lng: contextMenu.lng, lat: contextMenu.lat },
+											properties: {
+												closure_type: "mufa",
+												has_splitter: true,
+												split_ratio: "1:4",
+											},
+										});
+										setContextMenu(null);
+									}}
+									className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
+								>
+									Agregar mufa + splitter
+								</button>
+								<button
+									type="button"
+									onClick={() => {
+										onCreateRoutePointRef.current?.({
+											route: contextMenu.route,
+											type: "mufa",
+											position: { lng: contextMenu.lng, lat: contextMenu.lat },
+											properties: {
+												closure_type: "mufa",
+												has_midspan_access: true,
+												has_splitter: true,
+												split_ratio: "1:4",
+											},
+										});
+										setContextMenu(null);
+									}}
+									className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
+								>
+									Agregar mufa + sangrado + splitter
+								</button>
+							</>
+						) : (
+							<>
+								<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
+									Crear elemento
+								</div>
+								{createElementTypes.map((elementType) => (
 									<button
+										key={elementType}
 										type="button"
 										onClick={() => {
-											onMapClosureToolSelectRef.current?.(
-												{ closure_type: "mufa", has_midspan_access: true },
-												"Mufa + sangrado",
-											);
+											if (onMapToolSelectRef.current) {
+												onMapToolSelectRef.current(elementType);
+											} else {
+												onMapElementCreateRef.current?.(elementType, {
+													lng: contextMenu.lng,
+													lat: contextMenu.lat,
+												});
+											}
 											setContextMenu(null);
 										}}
-										className="block w-full rounded-md px-3 py-2 text-left text-[#f6c768] transition-colors hover:bg-[rgba(246,199,104,0.12)]"
+										className="block w-full rounded-md px-3 py-2 text-left text-[#d7d7d7] transition-colors hover:bg-[rgba(52,211,153,0.1)] hover:text-[#34d399]"
 									>
-										Crear mufa + sangrado
+										Crear {TOOL_LABELS[elementType]}
 									</button>
-									<button
-										type="button"
-										onClick={() => {
-											onMapClosureToolSelectRef.current?.(
-												{ closure_type: "mufa", has_splice: true },
-												"Mufa + empalme",
-											);
-											setContextMenu(null);
-										}}
-										className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
-									>
-										Crear mufa + empalme
-									</button>
-									<button
-										type="button"
-										onClick={() => {
-											onMapClosureToolSelectRef.current?.(
-												{
-													closure_type: "mufa",
-													has_splitter: true,
-													split_ratio: "1:4",
-												},
-												"Mufa + splitter",
-											);
-											setContextMenu(null);
-										}}
-										className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
-									>
-										Crear mufa + splitter
-									</button>
-									<button
-										type="button"
-										onClick={() => {
-											onMapClosureToolSelectRef.current?.(
-												{
-													closure_type: "mufa",
-													has_midspan_access: true,
-													has_splitter: true,
-													split_ratio: "1:4",
-												},
-												"Mufa + sangrado + splitter",
-											);
-											setContextMenu(null);
-										}}
-										className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
-									>
-										Crear mufa + sangrado + splitter
-									</button>
-								</>
-							)}
-						</>
-					)}
-					<button
-						type="button"
-						onClick={() => setContextMenu(null)}
-						className="block w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-[rgba(164,164,164,0.08)]"
-					>
-						Cancelar
-					</button>
-				</div>
-			)}
-			{showEditorChrome && (
-				<>
-					<div className="absolute left-4 top-4 z-20">
-						<EditorLeftPanel
-							activeTool={activeTool}
-							alerts={opticalAlerts}
-							counts={counts}
-							filterOptical={filterOptical}
-							filterStatus={filterStatus}
-							filterType={filterType}
-							mode={mode}
-							onAlertSelect={selectOpticalAlert}
-							onFit={() =>
-								fitToEquipment(mapRef.current, visibleEquipment, true)
-							}
-							onOpticalChange={setFilterOptical}
-							onStatusChange={setFilterStatus}
-							onTabChange={setLeftTab}
-							onTypeChange={setFilterType}
-							tab={leftTab}
-						/>
+								))}
+								{onMapClosureToolSelectRef.current && (
+									<>
+										<div className="my-1 border-t border-white/10" />
+										<button
+											type="button"
+											onClick={() => {
+												onMapClosureToolSelectRef.current?.(
+													{ closure_type: "mufa" },
+													"Mufa",
+												);
+												setContextMenu(null);
+											}}
+											className="block w-full rounded-md px-3 py-2 text-left text-[#8bdff4] transition-colors hover:bg-[rgba(56,216,255,0.12)]"
+										>
+											Crear mufa
+										</button>
+										<button
+											type="button"
+											onClick={() => {
+												onMapClosureToolSelectRef.current?.(
+													{ closure_type: "mufa", has_midspan_access: true },
+													"Mufa + sangrado",
+												);
+												setContextMenu(null);
+											}}
+											className="block w-full rounded-md px-3 py-2 text-left text-[#f6c768] transition-colors hover:bg-[rgba(246,199,104,0.12)]"
+										>
+											Crear mufa + sangrado
+										</button>
+										<button
+											type="button"
+											onClick={() => {
+												onMapClosureToolSelectRef.current?.(
+													{ closure_type: "mufa", has_splice: true },
+													"Mufa + empalme",
+												);
+												setContextMenu(null);
+											}}
+											className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
+										>
+											Crear mufa + empalme
+										</button>
+										<button
+											type="button"
+											onClick={() => {
+												onMapClosureToolSelectRef.current?.(
+													{
+														closure_type: "mufa",
+														has_splitter: true,
+														split_ratio: "1:4",
+													},
+													"Mufa + splitter",
+												);
+												setContextMenu(null);
+											}}
+											className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
+										>
+											Crear mufa + splitter
+										</button>
+										<button
+											type="button"
+											onClick={() => {
+												onMapClosureToolSelectRef.current?.(
+													{
+														closure_type: "mufa",
+														has_midspan_access: true,
+														has_splitter: true,
+														split_ratio: "1:4",
+													},
+													"Mufa + sangrado + splitter",
+												);
+												setContextMenu(null);
+											}}
+											className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
+										>
+											Crear mufa + sangrado + splitter
+										</button>
+									</>
+								)}
+							</>
+						)}
+						<button
+							type="button"
+							onClick={() => setContextMenu(null)}
+							className="block w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-[rgba(164,164,164,0.08)]"
+						>
+							Cancelar
+						</button>
 					</div>
-					<div className="absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2">
-						<EditorMapStatus activeTool={activeTool} mode={mode} />
-						<MapLegend />
-						<MapControls
-							onFit={() =>
-								fitToEquipment(mapRef.current, visibleEquipment, true)
-							}
-							onResetNorth={() => mapRef.current?.resetNorth()}
-							onZoomIn={() => mapRef.current?.zoomIn()}
-							onZoomOut={() => mapRef.current?.zoomOut()}
-						/>
-					</div>
-				</>
-			)}
-			<AnimatePresence mode="wait">
-				{showEditorChrome && selectedFeature && (
-					<SelectionInspector
-						key={`${selectedFeature.kind}:${selectedFeature.item.id}`}
-						feature={selectedFeature}
-						equipment={equipment}
-						opticalAlert={
-							selectedFeature.kind === "element"
-								? (opticalAlerts.find(
-										(alert) => alert.id === selectedFeature.item.id,
-									) ?? null)
-								: null
-						}
-						onClose={() => onSelectionChange(null)}
-						onFocus={focusSelectedFeature}
-						onUpdateElement={onUpdateElement}
-						onUpdateRoute={onUpdateRoute}
-					/>
 				)}
-			</AnimatePresence>
-		</div>
+				{showEditorChrome && (
+					<>
+						<div className="absolute left-4 top-4 z-20">
+							<EditorLeftPanel
+								activeTool={activeTool}
+								alerts={opticalAlerts}
+								counts={counts}
+								filterOptical={filterOptical}
+								filterStatus={filterStatus}
+								filterType={filterType}
+								mode={mode}
+								onAlertSelect={selectOpticalAlert}
+								onFit={() =>
+									fitToEquipment(mapRef.current, visibleEquipment, true)
+								}
+								onOpticalChange={setFilterOptical}
+								onStatusChange={setFilterStatus}
+								onTabChange={setLeftTab}
+								onTypeChange={setFilterType}
+								tab={leftTab}
+							/>
+						</div>
+						<div className="absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2">
+							<EditorMapStatus activeTool={activeTool} mode={mode} />
+							<MapLegend />
+							<MapControls
+								onFit={() =>
+									fitToEquipment(mapRef.current, visibleEquipment, true)
+								}
+								onResetNorth={() => mapRef.current?.resetNorth()}
+								onZoomIn={() => mapRef.current?.zoomIn()}
+								onZoomOut={() => mapRef.current?.zoomOut()}
+							/>
+						</div>
+					</>
+				)}
+				<AnimatePresence mode="wait">
+					{showEditorChrome && selectedFeature && (
+						<SelectionInspector
+							key={`${selectedFeature.kind}:${selectedFeature.item.id}`}
+							feature={selectedFeature}
+							equipment={equipment}
+							opticalAlert={
+								selectedFeature.kind === "element"
+									? (opticalAlerts.find(
+											(alert) => alert.id === selectedFeature.item.id,
+										) ?? null)
+									: null
+							}
+							onClose={() => onSelectionChange(null)}
+							onFocus={focusSelectedFeature}
+							onUpdateElement={onUpdateElement}
+							onUpdateRoute={onUpdateRoute}
+						/>
+					)}
+				</AnimatePresence>
+			</div>
+		</MapPanelContainerContext.Provider>
 	);
 }
 
@@ -1243,20 +1259,46 @@ function EditorLeftPanel({
 	onTypeChange: (type: string) => void;
 	tab: LeftPanelTab;
 }) {
+	const isDesktop = useIsDesktop();
+	const container = useMapPanelContainer();
+	const [mobileOpen, setMobileOpen] = useState(false);
+	const alertCount = alerts.length;
+
 	return (
-		<div className="hidden md:block">
+		<>
+			{!isDesktop && !mobileOpen && (
+				<button
+					type="button"
+					onClick={() => setMobileOpen(true)}
+					aria-label="Abrir herramientas del editor"
+					className="inline-flex h-11 items-center gap-2 rounded-full border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.94)] px-4 text-sm font-medium text-[#e6e6e6] shadow-2xl backdrop-blur-md transition-colors hover:bg-[rgba(34,35,36,0.98)]"
+				>
+					<SlidersHorizontal className="size-4" aria-hidden="true" />
+					Herramientas
+					{alertCount > 0 && (
+						<span className="rounded-full bg-[rgba(251,77,109,0.18)] px-1.5 font-mono text-xs text-[#fb7185]">
+							{alertCount}
+						</span>
+					)}
+				</button>
+			)}
 			<AppDrawer
-				open
-				onOpenChange={() => {}}
+				open={isDesktop ? true : mobileOpen}
+				onOpenChange={isDesktop ? () => {} : setMobileOpen}
 				title="Editor de red"
 				description="Herramientas, filtros y alertas del lienzo operativo."
-				direction="left"
-				modal={false}
-				dismissible={false}
-				showOverlay={false}
-				showClose={false}
+				direction={isDesktop ? "left" : "bottom"}
+				modal={!isDesktop}
+				dismissible={!isDesktop}
+				showOverlay={!isDesktop}
+				showClose={!isDesktop}
+				container={container}
 				size="md"
-				className="md:!left-4 md:!right-auto md:!top-4 md:!bottom-4 md:!w-72 bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md"
+				className={
+					isDesktop
+						? "md:!left-4 md:!right-auto md:!top-4 md:!bottom-4 md:!w-72 bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md"
+						: "max-h-[75dvh] bg-[rgba(34,35,36,0.96)] shadow-2xl backdrop-blur-md"
+				}
 				contentClassName="space-y-3"
 			>
 				<div className="border-b border-[rgba(164,164,164,0.12)] px-3 py-2.5">
@@ -1293,7 +1335,7 @@ function EditorLeftPanel({
 								<Icon className="size-3" aria-hidden="true" />
 								<span>{label}</span>
 								{value === "alerts" && alerts.length > 0 && (
-									<span className="rounded bg-[#f59e0b]/20 px-1 font-mono text-[9px] text-[#fbbf24]">
+									<span className="rounded bg-[#f59e0b]/20 px-1 font-mono text-[10px] text-[#fbbf24]">
 										{alerts.length}
 									</span>
 								)}
@@ -1394,7 +1436,7 @@ function EditorLeftPanel({
 					)}
 				</div>
 			</AppDrawer>
-		</div>
+		</>
 	);
 }
 
@@ -1489,7 +1531,7 @@ function MapOpticalAlerts({
 							title={alert.reason}
 						>
 							<span
-								className="text-[9px] font-bold uppercase tracking-[0.12em]"
+								className="text-[10px] font-bold uppercase tracking-[0.12em]"
 								style={{ color: style.color }}
 							>
 								{style.label}
@@ -1522,7 +1564,7 @@ function OpticalAlertCountPill({
 			<p className="font-mono text-xs font-bold" style={{ color }}>
 				{value}
 			</p>
-			<p className="text-[9px] font-semibold uppercase text-[#777879]">
+			<p className="text-[10px] font-semibold uppercase text-[#777879]">
 				{label}
 			</p>
 		</div>

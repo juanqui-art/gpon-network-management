@@ -3,6 +3,25 @@
 > Fecha: 2026-11-04 · Alcance: `apps/web` (todas las rutas del dashboard, auth, mapa, editor, captura, monitoreo, admin).
 > Método: revisión estática del código (no se ejecutó la app contra Supabase/Mapbox). Las métricas se obtuvieron con `grep` sobre `app/` y `components/`.
 
+## Estado de remediación
+
+| Sprint | Ítems | Estado |
+|---|---|---|
+| 1 | C1, C5, A1, A7 | ✅ Hecho |
+| 2 | C2, C3, C4, M3 (parcial: 8–9 px → 10 px fuera del diagrama SVG; captura 10 → 11 px) | ✅ Hecho |
+| 3 | A2, M1, M2, M4 | Pendiente |
+| 4 | A4, A5, A6, B3 | Pendiente |
+
+Hallazgos nuevos durante los sprints (ya corregidos):
+- `hydrateNetwork` sobrescribía cambios locales al navegar editor ↔ captura o en refetch.
+- Paneles acoplados del editor y de `/map` se posicionaban contra el viewport y tapaban la nav y la topbar.
+- El panel izquierdo del editor no estaba oculto en móvil: el drawer se portalea fuera del `hidden md:block` y quedaba como hoja fija sobre ~70 % del mapa.
+- vaul no pasa `modal` a Radix Dialog: todo drawer "no modal" aplicaba `aria-hidden` al resto de la página y atrapaba el foco. Los paneles acoplados ahora son `<aside>` propios.
+- `LeftPanel` de `/map` provocaba un error de hidratación (lectura de `matchMedia` en el estado inicial).
+- "Conectar" y "Mufa" solo eran accesibles con clic derecho (imposible en táctil).
+
+Pendiente de investigar: en el arnés de QA (Mapbox con estilo vacío) el mapa del editor no dibuja los datos existentes, incluso en el commit base; `/map` sí. Verificar con Mapbox real.
+
 ## Resumen ejecutivo
 
 La base visual es sólida: tema oscuro coherente con el mapa, tokens GPON bien pensados en `globals.css`, simbología consistente, command palette y atajos. El problema no es estético, es **estructural**: el sistema de diseño existe pero casi nadie lo usa, el flujo de campo no funciona en móvil, y hay rutas para perder trabajo sin aviso.

@@ -128,7 +128,7 @@ function HeaderStatPill({
 }) {
 	return (
 		<div className="flex items-center gap-1.5 rounded border border-white/10 bg-white/[0.035] px-2 py-1">
-			<span className="text-[8px] font-semibold uppercase tracking-[0.08em] text-[#777879]">
+			<span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#777879]">
 				{label}
 			</span>
 			<span className="font-mono text-[10px] font-bold" style={{ color }}>
@@ -303,7 +303,7 @@ function OpticalBudgetAlerts({
 							title={alert.reason}
 						>
 							<span
-								className="text-[9px] font-bold uppercase tracking-[0.12em]"
+								className="text-[10px] font-bold uppercase tracking-[0.12em]"
 								style={{ color: style.color }}
 							>
 								{style.label}
@@ -374,7 +374,7 @@ function BudgetGraphView({
 			<div className="mb-3 flex shrink-0 items-center justify-between gap-3">
 				<div className="min-w-0">
 					<p
-						className="text-[9px] font-bold uppercase tracking-[0.16em]"
+						className="text-[10px] font-bold uppercase tracking-[0.16em]"
 						style={{ color: accent }}
 					>
 						Presupuesto óptico seleccionado
@@ -626,7 +626,7 @@ export function DiagramPanel({ isOpen, onToggle }: DiagramPanelProps) {
 					</div>
 					{statusLabel && (
 						<span
-							className="hidden items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold md:flex"
+							className="hidden items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold md:flex"
 							style={{
 								backgroundColor: `${globalColor}1a`,
 								color: globalColor,

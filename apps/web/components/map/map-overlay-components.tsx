@@ -1,6 +1,9 @@
-import { Compass, Crosshair, Minus, Plus } from "lucide-react";
-import type { ReactNode } from "react";
+"use client";
+
+import { Compass, Crosshair, List, Minus, Plus, X } from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { FIBER_RENDER_COLOR } from "@/components/map/mapbox-shared-style";
+import { useIsDesktop } from "@/lib/hooks/use-media-query";
 import { CABLE_LABEL, TYPE_COLOR } from "@/lib/map/palette";
 
 const ELEMENT_LABELS = {
@@ -27,7 +30,7 @@ export function MapStatChip({
 			<p className="font-mono text-xs font-bold" style={{ color }}>
 				{value}
 			</p>
-			<p className="text-[9px] font-semibold uppercase text-[#777879]">
+			<p className="text-[10px] font-semibold uppercase text-[#777879]">
 				{label}
 			</p>
 		</>
@@ -61,14 +64,42 @@ export function MapLegend({ compact = false }: { compact?: boolean }) {
 		? "w-36 rounded-md border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.84)] p-2 text-[10px] text-[#d7d7d7] shadow-2xl backdrop-blur-md"
 		: "w-44 rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.9)] p-3 text-xs text-[#d7d7d7] shadow-2xl backdrop-blur-md";
 	const sectionLabelClass = compact
-		? "mb-1 font-semibold uppercase tracking-widest text-[9px] text-[#777879]"
+		? "mb-1 font-semibold uppercase tracking-widest text-[10px] text-[#777879]"
 		: "mb-2 font-semibold uppercase tracking-widest text-[#777879]";
 	const itemGapClass = compact
 		? "mb-1 flex items-center gap-1.5"
 		: "mb-1.5 flex items-center gap-2";
+	// Expanded by default on desktop; on phones it would cover a third of the
+	// map, so it starts collapsed. A user choice overrides the default.
+	const isDesktop = useIsDesktop();
+	const [userOpen, setUserOpen] = useState<boolean | null>(null);
+	const open = userOpen ?? isDesktop;
+
+	if (!open) {
+		return (
+			<button
+				type="button"
+				onClick={() => setUserOpen(true)}
+				aria-expanded={false}
+				className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.9)] px-3 text-xs text-[#d7d7d7] shadow-2xl backdrop-blur-md transition-colors hover:bg-[rgba(34,35,36,0.98)]"
+			>
+				<List className="size-3.5" aria-hidden="true" />
+				Leyenda
+			</button>
+		);
+	}
 
 	return (
-		<div className={wrapperClass}>
+		<div className={`relative ${wrapperClass}`}>
+			<button
+				type="button"
+				onClick={() => setUserOpen(false)}
+				aria-expanded={true}
+				aria-label="Ocultar leyenda"
+				className="absolute top-1.5 right-1.5 inline-flex size-7 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[rgba(164,164,164,0.1)] hover:text-[#e6e6e6]"
+			>
+				<X className="size-3.5" aria-hidden="true" />
+			</button>
 			<p className={sectionLabelClass}>Fibra</p>
 			{(["feeder", "distribution", "drop"] as const).map((type) => (
 				<div key={type} className={itemGapClass}>

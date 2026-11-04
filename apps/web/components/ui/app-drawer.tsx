@@ -1,8 +1,17 @@
 "use client";
 
 import { X } from "lucide-react";
-import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import {
+	type CSSProperties,
+	type ReactNode,
+	useEffect,
+	useId,
+	useState,
+	useSyncExternalStore,
+} from "react";
+import { createPortal } from "react-dom";
+import {
+	DRAWER_CONTENT_BASE_CLASS,
 	Drawer,
 	DrawerContent,
 	DrawerDescription,
@@ -27,6 +36,8 @@ interface AppDrawerProps {
 	showClose?: boolean;
 	style?: CSSProperties;
 	size?: "md" | "lg";
+	/** Portal target; defaults to <body>. See MapPanelContainerContext. */
+	container?: HTMLElement | null;
 }
 
 export function AppDrawer({
@@ -46,6 +57,7 @@ export function AppDrawer({
 	showClose = true,
 	style,
 	size = "md",
+	container,
 }: AppDrawerProps) {
 	const [responsiveDirection, setResponsiveDirection] = useState<
 		"bottom" | "right"
@@ -74,6 +86,98 @@ export function AppDrawer({
 				? "md:inset-x-0 md:bottom-0 md:left-0 md:right-0 md:top-auto"
 				: "md:inset-x-auto md:bottom-4 md:right-4 md:top-4";
 
+	const panelClassName = cn(
+		desktopPlacement,
+		"md:max-h-none md:rounded-2xl",
+		effectiveDirection === "left" && "md:w-[min(32rem,calc(100vw-2rem))]",
+		effectiveDirection === "bottom" &&
+			"md:mx-0 md:w-full md:max-w-none md:rounded-t-2xl md:rounded-b-none",
+		effectiveDirection !== "bottom" &&
+			size === "md" &&
+			"md:w-[min(32rem,calc(100vw-2rem))]",
+		effectiveDirection !== "bottom" &&
+			size === "lg" &&
+			"md:w-[min(38rem,calc(100vw-2rem))]",
+		container && "pointer-events-auto",
+		className,
+	);
+
+	const renderBody = (
+		Title: typeof DrawerTitle | "h2",
+		Description: typeof DrawerDescription | "p",
+		ids?: { title: string; description: string },
+	) => (
+		<>
+			{accent && (
+				<div
+					className="hidden h-1 shrink-0 md:block"
+					style={{ backgroundColor: accent }}
+				/>
+			)}
+			{modal && (
+				<div className="mx-auto mt-3 h-1.5 w-12 shrink-0 rounded-full bg-white/20 md:hidden" />
+			)}
+			<header className="flex shrink-0 items-start justify-between gap-3 border-b border-[rgba(164,164,164,0.12)] px-5 py-4">
+				<div className="min-w-0">
+					<Title
+						// Only for the docked panel: an explicit `undefined` would
+						// override the id Radix wires to aria-labelledby.
+						{...(ids ? { id: ids.title } : {})}
+						className="truncate text-base font-semibold text-[#e6e6e6]"
+					>
+						{title}
+					</Title>
+					{description && (
+						<Description
+							{...(ids ? { id: ids.description } : {})}
+							className="mt-1 text-sm leading-6 text-[#a4a4a4]"
+						>
+							{description}
+						</Description>
+					)}
+				</div>
+				{showClose && (
+					<button
+						type="button"
+						aria-label="Cerrar panel"
+						onClick={() => onOpenChange(false)}
+						className="rounded-md p-1 text-[#777879] transition-colors hover:bg-[rgba(164,164,164,0.08)] hover:text-[#e6e6e6]"
+					>
+						<X className="size-4" />
+					</button>
+				)}
+			</header>
+			<div
+				data-vaul-no-drag
+				className={cn(
+					"min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-5 py-4",
+					contentClassName,
+				)}
+			>
+				{children}
+			</div>
+			{footer && (
+				<footer className="shrink-0 border-t border-[rgba(164,164,164,0.12)] px-5 py-4">
+					{footer}
+				</footer>
+			)}
+		</>
+	);
+
+	if (!modal) {
+		return (
+			<DockedPanel
+				open={open}
+				container={container}
+				className={panelClassName}
+				style={style}
+				dismissible={dismissible}
+				onClose={() => onOpenChange(false)}
+				renderBody={renderBody}
+			/>
+		);
+	}
+
 	return (
 		<Drawer
 			open={open}
@@ -81,69 +185,83 @@ export function AppDrawer({
 			direction={effectiveDirection}
 			dismissible={dismissible}
 			modal={modal}
+			container={container ?? undefined}
 		>
 			<DrawerContent
 				showOverlay={showOverlay}
 				style={style}
-				className={cn(
-					desktopPlacement,
-					"md:max-h-none md:rounded-2xl",
-					effectiveDirection === "left" && "md:w-[min(32rem,calc(100vw-2rem))]",
-					effectiveDirection === "bottom" &&
-						"md:mx-0 md:w-full md:max-w-none md:rounded-t-2xl md:rounded-b-none",
-					effectiveDirection !== "bottom" &&
-						size === "md" &&
-						"md:w-[min(32rem,calc(100vw-2rem))]",
-					effectiveDirection !== "bottom" &&
-						size === "lg" &&
-						"md:w-[min(38rem,calc(100vw-2rem))]",
-					className,
-				)}
+				className={panelClassName}
 			>
-				{accent && (
-					<div
-						className="hidden h-1 shrink-0 md:block"
-						style={{ backgroundColor: accent }}
-					/>
-				)}
-				<div className="mx-auto mt-3 h-1.5 w-12 shrink-0 rounded-full bg-white/20 md:hidden" />
-				<header className="flex shrink-0 items-start justify-between gap-3 border-b border-[rgba(164,164,164,0.12)] px-5 py-4">
-					<div className="min-w-0">
-						<DrawerTitle className="truncate text-base font-semibold text-[#e6e6e6]">
-							{title}
-						</DrawerTitle>
-						{description && (
-							<DrawerDescription className="mt-1 text-sm leading-6 text-[#a4a4a4]">
-								{description}
-							</DrawerDescription>
-						)}
-					</div>
-					{showClose && (
-						<button
-							type="button"
-							aria-label="Cerrar panel"
-							onClick={() => onOpenChange(false)}
-							className="rounded-md p-1 text-[#777879] transition-colors hover:bg-[rgba(164,164,164,0.08)] hover:text-[#e6e6e6]"
-						>
-							<X className="size-4" />
-						</button>
-					)}
-				</header>
-				<div
-					data-vaul-no-drag
-					className={cn(
-						"min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-5 py-4",
-						contentClassName,
-					)}
-				>
-					{children}
-				</div>
-				{footer && (
-					<footer className="shrink-0 border-t border-[rgba(164,164,164,0.12)] px-5 py-4">
-						{footer}
-					</footer>
-				)}
+				{renderBody(DrawerTitle, DrawerDescription)}
 			</DrawerContent>
 		</Drawer>
+	);
+}
+
+const subscribeNoop = () => () => {};
+
+/**
+ * Non-modal variant. vaul always renders a *modal* Radix Dialog (it does not
+ * forward `modal`), which aria-hides the rest of the page and traps focus even
+ * for "non-modal" drawers. Docked panels are plain landmarks instead: the page
+ * and the map stay reachable by keyboard and assistive tech.
+ */
+function DockedPanel({
+	open,
+	container,
+	className,
+	style,
+	dismissible,
+	onClose,
+	renderBody,
+}: {
+	open: boolean;
+	container?: HTMLElement | null;
+	className: string;
+	style?: CSSProperties;
+	dismissible: boolean;
+	onClose: () => void;
+	renderBody: (
+		Title: "h2",
+		Description: "p",
+		ids: { title: string; description: string },
+	) => ReactNode;
+}) {
+	const isClient = useSyncExternalStore(
+		subscribeNoop,
+		() => true,
+		() => false,
+	);
+	const id = useId();
+
+	// Escape closes dismissible panels wherever focus is (map included), like
+	// the modal variant does.
+	useEffect(() => {
+		if (!open || !dismissible) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "Escape" && !event.defaultPrevented) onClose();
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [open, dismissible, onClose]);
+
+	if (!open || !isClient) return null;
+
+	const ids = { title: `${id}-title`, description: `${id}-description` };
+	return createPortal(
+		<aside
+			aria-labelledby={ids.title}
+			aria-describedby={ids.description}
+			data-slot="docked-panel"
+			style={style}
+			className={cn(
+				DRAWER_CONTENT_BASE_CLASS,
+				"animate-in fade-in-0 duration-150",
+				className,
+			)}
+		>
+			{renderBody("h2", "p", ids)}
+		</aside>,
+		container ?? document.body,
 	);
 }

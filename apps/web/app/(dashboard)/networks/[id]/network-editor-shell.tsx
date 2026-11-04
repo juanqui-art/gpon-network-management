@@ -1,7 +1,15 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, NetworkIcon, Pencil, Plus, Redo2, Undo2 } from "lucide-react";
+import {
+	ArrowLeft,
+	Eye,
+	NetworkIcon,
+	Pencil,
+	Plus,
+	Redo2,
+	Undo2,
+} from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { DiagramPanel } from "@/components/map/logical-diagram";
@@ -139,17 +147,24 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 	return (
 		<div className="flex h-full min-h-0 flex-col">
 			{/* Editor topbar */}
-			<div className="flex h-11 shrink-0 items-center justify-between border-b border-[rgba(164,164,164,0.14)] bg-[#1e1f20] px-4 gap-4">
+			<div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-[rgba(164,164,164,0.14)] bg-[#1e1f20] px-3 sm:gap-4 sm:px-4">
 				{/* Left: breadcrumb + workspace identity */}
-				<div className="flex items-center gap-4">
+				<div className="flex min-w-0 items-center gap-2 sm:gap-4">
 					<Link
 						href="/networks"
-						className="text-xs text-[#777879] transition-colors hover:text-[#a4a4a4]"
+						aria-label="Volver a Redes"
+						className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs text-[var(--text-secondary)] transition-colors hover:text-[#e6e6e6]"
 					>
-						← Redes
+						<ArrowLeft className="size-4" aria-hidden="true" />
+						<span className="hidden sm:inline">Redes</span>
 					</Link>
-					<span className="text-[rgba(164,164,164,0.3)]">/</span>
-					<span className="max-w-48 truncate text-xs font-medium text-[#e6e6e6]">
+					<span
+						className="hidden text-[rgba(164,164,164,0.3)] md:inline"
+						aria-hidden="true"
+					>
+						/
+					</span>
+					<span className="hidden max-w-48 truncate text-xs font-medium text-[#e6e6e6] md:inline">
 						{network.name}
 					</span>
 					{canEdit ? (
@@ -169,9 +184,10 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 										key={option.value}
 										type="button"
 										aria-pressed={active}
+										aria-label={option.label}
 										title={`${option.label} (atajo: ${option.key})`}
 										onClick={() => changeMode(option.value)}
-										className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${
+										className={`inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors ${
 											active
 												? option.value === "edit"
 													? "bg-[rgba(56,189,248,0.16)] text-[#bdeafe]"
@@ -180,7 +196,7 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 										}`}
 									>
 										<Icon className="size-3.5" aria-hidden="true" />
-										{option.label}
+										<span className="hidden sm:inline">{option.label}</span>
 									</button>
 								);
 							})}
@@ -194,19 +210,21 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 				</div>
 
 				{/* Right: diagram toggle + dirty indicator + save */}
-				<div className="flex items-center gap-3">
+				<div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
 					{canEdit && (
 						<Link
 							href={`/networks/${networkId}/capture`}
-							className="inline-flex items-center gap-1.5 rounded-md border border-[rgba(52,211,153,0.3)] bg-[rgba(52,211,153,0.1)] px-2.5 py-1 text-xs font-medium text-[#34d399] transition-colors hover:bg-[rgba(52,211,153,0.16)]"
+							aria-label="Captura rápida"
+							title="Captura rápida"
+							className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[rgba(52,211,153,0.3)] bg-[rgba(52,211,153,0.1)] px-2.5 text-xs font-medium text-[#34d399] transition-colors hover:bg-[rgba(52,211,153,0.16)]"
 						>
 							<Plus className="size-3.5" aria-hidden="true" />
-							Captura rápida
+							<span className="hidden lg:inline">Captura rápida</span>
 						</Link>
 					)}
 					{validationErrors.length > 0 && (
 						<span
-							className="max-w-52 truncate rounded-md border border-[rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.08)] px-2 py-1 text-xs text-[#f59e0b]"
+							className="hidden max-w-52 truncate rounded-md border border-[rgba(245,158,11,0.22)] md:inline-block bg-[rgba(245,158,11,0.08)] px-2 py-1 text-xs text-[#f59e0b]"
 							title={statusMessage}
 						>
 							{validationErrors.length} advertencia
@@ -216,10 +234,14 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 					<button
 						type="button"
 						onClick={() => setDiagramOpen(!diagramOpen)}
-						className="inline-flex items-center gap-1.5 rounded-md border border-[rgba(56,216,255,0.18)] bg-[rgba(56,216,255,0.06)] px-2.5 py-1 text-xs font-medium text-[#8bdff4] transition-colors hover:border-[rgba(56,216,255,0.32)] hover:bg-[rgba(56,216,255,0.1)]"
+						aria-label={diagramOpen ? "Ocultar unifilar" : "Abrir unifilar"}
+						aria-expanded={diagramOpen}
+						className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[rgba(56,216,255,0.18)] bg-[rgba(56,216,255,0.06)] px-2.5 text-xs font-medium text-[#8bdff4] transition-colors hover:border-[rgba(56,216,255,0.32)] hover:bg-[rgba(56,216,255,0.1)]"
 					>
 						<NetworkIcon className="size-3.5" aria-hidden="true" />
-						{diagramOpen ? "Ocultar" : "Abrir"} unifilar
+						<span className="hidden lg:inline">
+							{diagramOpen ? "Ocultar" : "Abrir"} unifilar
+						</span>
 					</button>
 					{canEdit && (canUndo || canRedo) && (
 						<div className="inline-flex items-center gap-0.5">
@@ -232,7 +254,7 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 								disabled={!canUndo}
 								aria-label="Deshacer último cambio"
 								title="Deshacer último cambio (Ctrl+Z)"
-								className="inline-flex size-7 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[rgba(164,164,164,0.1)] hover:text-[#e6e6e6] disabled:opacity-40"
+								className="inline-flex size-8 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[rgba(164,164,164,0.1)] hover:text-[#e6e6e6] disabled:opacity-40"
 							>
 								<Undo2 className="size-3.5" aria-hidden="true" />
 							</button>
@@ -245,7 +267,7 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 								disabled={!canRedo}
 								aria-label="Rehacer"
 								title="Rehacer (Ctrl+Shift+Z o Ctrl+Y)"
-								className="inline-flex size-7 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[rgba(164,164,164,0.1)] hover:text-[#e6e6e6] disabled:opacity-40"
+								className="hidden size-8 sm:inline-flex items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[rgba(164,164,164,0.1)] hover:text-[#e6e6e6] disabled:opacity-40"
 							>
 								<Redo2 className="size-3.5" aria-hidden="true" />
 							</button>
@@ -261,13 +283,15 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 									className="size-1.5 rounded-full bg-[#fbbf24]"
 									aria-hidden="true"
 								/>
-								Cambios sin guardar
+								<span className="sr-only xl:not-sr-only">
+									Cambios sin guardar
+								</span>
 							</span>
 							<button
 								type="button"
 								onClick={handleDiscard}
 								disabled={isSaving}
-								className="rounded-md px-2 py-1 text-xs text-[var(--text-secondary)] transition-colors hover:bg-[rgba(251,77,109,0.1)] hover:text-[#fb7185] disabled:opacity-50"
+								className="h-8 rounded-md px-2 text-xs text-[var(--text-secondary)] transition-colors hover:bg-[rgba(251,77,109,0.1)] hover:text-[#fb7185] disabled:opacity-50"
 							>
 								Descartar
 							</button>
@@ -275,14 +299,14 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 								type="button"
 								onClick={() => void saveChanges()}
 								disabled={isSaving}
-								className="rounded-md border border-[rgba(52,211,153,0.35)] bg-[rgba(52,211,153,0.12)] px-3 py-1 text-xs font-medium text-[#34d399] transition-colors hover:bg-[rgba(52,211,153,0.2)] disabled:opacity-50"
+								className="h-8 rounded-md border border-[rgba(52,211,153,0.35)] bg-[rgba(52,211,153,0.12)] px-3 text-xs font-medium text-[#34d399] transition-colors hover:bg-[rgba(52,211,153,0.2)] disabled:opacity-50"
 							>
 								{isSaving ? "Guardando…" : "Guardar"}
 							</button>
 						</>
 					)}
 					{!isDirty && networkQuery.isSuccess && (
-						<span className="text-xs text-[var(--text-secondary)]">
+						<span className="hidden text-xs text-[var(--text-secondary)] sm:inline">
 							Todo guardado
 						</span>
 					)}

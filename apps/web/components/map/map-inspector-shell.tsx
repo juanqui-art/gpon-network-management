@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
+import { useMapPanelContainer } from "@/components/map/map-panel-container";
 import { AppDrawer } from "@/components/ui/app-drawer";
+import { useIsDesktop } from "@/lib/hooks/use-media-query";
 
 interface MapInspectorShellProps {
 	accent: string;
@@ -18,6 +20,12 @@ export function MapInspectorShell({
 	subtitle,
 	title,
 }: MapInspectorShellProps) {
+	const isDesktop = useIsDesktop();
+	const container = useMapPanelContainer();
+
+	// Desktop: docked, non-modal — the map stays clickable so another feature
+	// can be selected (or dragged in edit mode) without closing first.
+	// Mobile: modal bottom sheet.
 	return (
 		<AppDrawer
 			open
@@ -28,6 +36,9 @@ export function MapInspectorShell({
 			description={subtitle}
 			accent={accent}
 			size="md"
+			modal={!isDesktop}
+			showOverlay={!isDesktop}
+			container={container}
 			className="md:w-80 bg-[rgba(28,29,30,0.72)] text-[#d7d7d7] backdrop-blur-xl"
 			contentClassName="space-y-3"
 			footer={actions}
