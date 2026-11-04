@@ -53,7 +53,7 @@ pnpm dev          # colector (MOCK_MODE=true por defecto en .env.example)
 /monitoring                    → estado de OLTs/ONTs (telemetría)
 /monitoring/olt/[host]         → detalle de OLT con Realtime (use-ont-realtime)
 /admin/users                   → gestión de usuarios y roles (solo admin)
-/admin/audit                   → visor de audit_logs
+/admin/audit                   → visor de audit_logs (filtros por acción, tipo y red)
 /admin/settings                → ajustes
 ```
 No hay registro público: un admin invita usuarios por email desde `/admin/users` (`inviteUserByEmail`).

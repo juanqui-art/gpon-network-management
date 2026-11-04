@@ -82,6 +82,15 @@ function actionTone(action: string): string {
 	return "border-border";
 }
 
+const targetTypeLabels: Record<string, string> = {
+	"auth.user": "Usuarios",
+	network: "Redes",
+	network_zone: "Zonas",
+	infrastructure_element: "Elementos",
+	fiber_route: "Rutas",
+	route_point: "Puntos de ruta",
+};
+
 const NETWORK_TARGET_TYPES = new Set([
 	"network",
 	"network_zone",
@@ -89,6 +98,18 @@ const NETWORK_TARGET_TYPES = new Set([
 	"fiber_route",
 	"route_point",
 ]);
+
+const UUID_PATTERN =
+	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+interface NetworkOption {
+	id: string;
+	name: string;
+	archived_at: string | null;
+}
+
+const selectClassName =
+	"h-10 rounded-lg border border-input bg-muted/40 px-2.5 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-3 focus:ring-ring/50";
 
 function formatDate(value: string): string {
 	return new Intl.DateTimeFormat("es-EC", {
@@ -119,7 +140,10 @@ function formatChanges(changes: Record<string, unknown>): string {
 		.join(" · ");
 }
 
-function formatMetadata(metadata: Record<string, unknown>): string {
+function formatMetadata(
+	metadata: Record<string, unknown>,
+	networkNames: Map<string, string>,
+): string {
 	const entries = Object.entries(metadata).filter(
 		([, value]) => value !== null && value !== undefined,
 	);
@@ -130,7 +154,10 @@ function formatMetadata(metadata: Record<string, unknown>): string {
 				return formatChanges(value as Record<string, unknown>);
 			}
 			if (key === "snapshot") return "snapshot guardado";
-			if (key === "network_id") return `red: ${String(value).slice(0, 8)}`;
+			if (key === "network_id") {
+				const id = String(value);
+				return `red: ${networkNames.get(id) ?? id.slice(0, 8)}`;
+			}
 			if (key === "source") return `origen: ${String(value)}`;
 			return `${key}: ${formatScalar(value)}`;
 		})
@@ -140,11 +167,39 @@ function formatMetadata(metadata: Record<string, unknown>): string {
 export default async function AuditPage({
 	searchParams,
 }: {
-	searchParams: Promise<{ action?: string; q?: string }>;
+	searchParams: Promise<{
+		action?: string;
+		type?: string;
+		network?: string;
+		q?: string;
+	}>;
 }) {
 	await requireAdmin();
-	const { action, q } = await searchParams;
+	const params = await searchParams;
+	const q = params.q;
+	// Solo valores conocidos llegan al query; el resto se ignora.
+	const action =
+		params.action && Object.hasOwn(actionLabels, params.action)
+			? params.action
+			: undefined;
+	const type =
+		params.type && Object.hasOwn(targetTypeLabels, params.type)
+			? params.type
+			: undefined;
+	const network =
+		params.network && UUID_PATTERN.test(params.network)
+			? params.network
+			: undefined;
+	const hasFilters = Boolean(action || type || network || q);
 	const admin = createAdminClient();
+
+	const { data: networkData, error: networkError } = await admin
+		.from("networks")
+		.select("id, name, archived_at")
+		.order("name");
+	if (networkError) throw new Error(networkError.message);
+	const networks = (networkData ?? []) as NetworkOption[];
+	const networkNames = new Map(networks.map((item) => [item.id, item.name]));
 
 	let query = admin
 		.from("audit_logs")
@@ -156,6 +211,13 @@ export default async function AuditPage({
 
 	if (action) {
 		query = query.eq("action", action);
+	}
+	if (type) {
+		query = query.eq("target_type", type);
+	}
+	if (network) {
+		// Usa el índice audit_logs_network_idx (migración 028).
+		query = query.eq("metadata->>network_id", network);
 	}
 
 	const { data, error } = await query;
@@ -252,21 +314,49 @@ export default async function AuditPage({
 							Filtros
 						</CardTitle>
 						<CardDescription>
-							Filtra por tipo de acción o busca por actor, target o
-							identificador.
+							Filtra por acción, tipo de objeto o red, o busca por actor, target
+							o identificador. Los filtros se aplican en la base de datos; la
+							búsqueda de texto, sobre los 100 eventos resultantes.
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
-						<form className="grid gap-3 md:grid-cols-[240px_1fr_auto]">
+						<form className="grid gap-3 md:grid-cols-2 xl:grid-cols-[200px_180px_220px_1fr_auto_auto]">
 							<select
 								name="action"
+								aria-label="Acción"
 								defaultValue={action ?? ""}
-								className="h-10 rounded-lg border border-input bg-muted/40 px-2.5 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-3 focus:ring-ring/50"
+								className={selectClassName}
 							>
 								<option value="">Todas las acciones</option>
 								{actions.map((item) => (
 									<option key={item} value={item}>
 										{actionLabels[item]}
+									</option>
+								))}
+							</select>
+							<select
+								name="type"
+								aria-label="Tipo de objeto"
+								defaultValue={type ?? ""}
+								className={selectClassName}
+							>
+								<option value="">Todos los tipos</option>
+								{Object.entries(targetTypeLabels).map(([value, label]) => (
+									<option key={value} value={value}>
+										{label}
+									</option>
+								))}
+							</select>
+							<select
+								name="network"
+								aria-label="Red"
+								defaultValue={network ?? ""}
+								className={selectClassName}
+							>
+								<option value="">Todas las redes</option>
+								{networks.map((item) => (
+									<option key={item.id} value={item.id}>
+										{item.archived_at ? `${item.name} (archivada)` : item.name}
 									</option>
 								))}
 							</select>
@@ -282,7 +372,21 @@ export default async function AuditPage({
 							>
 								Aplicar
 							</button>
+							{hasFilters && (
+								<a
+									href="/admin/audit"
+									className="inline-flex h-10 items-center justify-center rounded-lg px-3 text-sm text-muted-foreground transition-colors hover:text-foreground"
+								>
+									Limpiar
+								</a>
+							)}
 						</form>
+						{network && (
+							<p className="mt-3 text-xs text-muted-foreground">
+								Los puntos de ruta borrados junto con su ruta no quedan
+								asociados a la red; aparecen en el evento de borrado de la ruta.
+							</p>
+						)}
 					</CardContent>
 				</Card>
 
@@ -346,7 +450,7 @@ export default async function AuditPage({
 													Detalle
 												</p>
 												<p className="mt-1 break-words text-xs text-muted-foreground">
-													{formatMetadata(row.metadata)}
+													{formatMetadata(row.metadata, networkNames)}
 												</p>
 											</div>
 										</div>
@@ -401,7 +505,7 @@ export default async function AuditPage({
 														</p>
 													</td>
 													<td className="py-3 text-xs text-muted-foreground">
-														{formatMetadata(row.metadata)}
+														{formatMetadata(row.metadata, networkNames)}
 													</td>
 												</tr>
 											))}
