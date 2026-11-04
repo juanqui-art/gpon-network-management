@@ -36,17 +36,15 @@ export function NapCapacity({ element, size = "md" }: NapCapacityProps) {
 		<div className="space-y-2">
 			{/* Header */}
 			<div className="flex items-center justify-between">
-				<span className={`${sizeClass} font-semibold text-[#e6e6e6]`}>
-					Capacidad
-				</span>
-				<span className={`${sizeClass} text-[#a4a4a4]`}>
+				<span className={`${sizeClass} font-semibold text-fg`}>Capacidad</span>
+				<span className={`${sizeClass} text-fg-secondary`}>
 					{used}/{total} puertos
 				</span>
 			</div>
 
 			{/* Bar */}
 			<div
-				className={`${barHeight} w-full bg-[rgba(164,164,164,0.2)] rounded-full overflow-hidden`}
+				className={`${barHeight} w-full bg-tint/20 rounded-full overflow-hidden`}
 			>
 				<div className="flex h-full">
 					{/* Used */}
@@ -76,7 +74,7 @@ export function NapCapacity({ element, size = "md" }: NapCapacityProps) {
 
 			{/* Labels */}
 			<div className="flex items-center justify-between">
-				<div className="flex gap-3 text-[10px] text-[#a4a4a4]">
+				<div className="flex gap-3 text-[10px] text-fg-secondary">
 					<div className="flex items-center gap-1">
 						<span
 							className="w-2 h-2 rounded-full"
@@ -94,7 +92,7 @@ export function NapCapacity({ element, size = "md" }: NapCapacityProps) {
 						</div>
 					)}
 				</div>
-				<div className="text-[10px] font-semibold text-[#d7d7d7]">
+				<div className="text-[10px] font-semibold text-fg-soft">
 					{available} disponible{available !== 1 ? "s" : ""}
 				</div>
 			</div>

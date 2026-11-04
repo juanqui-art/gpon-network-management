@@ -56,6 +56,15 @@ import type {
 } from "@/components/map/types";
 import { AppDrawer } from "@/components/ui/app-drawer";
 import {
+	DATA_QUALITY_LABEL,
+	ELEMENT_TYPE_LABEL,
+	FIBER_TYPE_LABEL,
+	labelOf,
+	ROUTE_POINT_TYPE_LABEL,
+	ROUTE_TYPE_LABEL,
+	STATUS_LABEL,
+} from "@/lib/gpon/labels";
+import {
 	buildOltModelProperties,
 	propertyNumber,
 	propertyString,
@@ -626,7 +635,7 @@ export function NetworkEditorMap({
 			onStatusMessageChangeRef.current?.(
 				next
 					? `${selectionLabel(next.kind)} seleccionado.`
-					: "Seleccion cancelada.",
+					: "Selección cancelada.",
 			);
 		};
 		const onContextMenu = (event: mapboxgl.MapMouseEvent) => {
@@ -882,13 +891,13 @@ export function NetworkEditorMap({
 	return (
 		<MapPanelContainerContext.Provider value={panelHost}>
 			<div
-				className={`relative h-full min-h-0 overflow-hidden bg-[#1b1c1d] ${movingElement ? "cursor-crosshair" : ""} ${isPlacementTool ? "cursor-copy" : ""}`}
+				className={`relative h-full min-h-0 overflow-hidden bg-surface ${movingElement ? "cursor-crosshair" : ""} ${isPlacementTool ? "cursor-copy" : ""}`}
 			>
 				<div ref={containerRef} className="absolute inset-0 h-full w-full" />
 				<MapPanelHost onHost={setPanelHost} />
 				<div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-gradient-to-b from-[#1b1c1d]/70 to-transparent" />
 				{isPlacementTool && !movingElement && (
-					<div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-lg border border-[rgba(52,211,153,0.3)] bg-[rgba(34,35,36,0.94)] px-3 py-2 text-xs text-[#86efac] shadow-2xl backdrop-blur-md">
+					<div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-lg border border-success/30 bg-surface-panel/94 px-3 py-2 text-xs text-success-fg shadow-2xl backdrop-blur-md">
 						<span className="font-medium">
 							Colocando {TOOL_LABELS[activeTool]}
 						</span>
@@ -896,13 +905,13 @@ export function NetworkEditorMap({
 					</div>
 				)}
 				{movingElement && (
-					<div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-lg border border-[rgba(245,158,11,0.3)] bg-[rgba(34,35,36,0.94)] px-3 py-2 text-xs text-[#fbbf24] shadow-2xl backdrop-blur-md">
+					<div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-lg border border-warning/30 bg-surface-panel/94 px-3 py-2 text-xs text-warning-fg shadow-2xl backdrop-blur-md">
 						<span className="font-medium">{movingElement.code}</span>: click en
 						el mapa para reubicar · Esc para cancelar ·{" "}
 						<button
 							type="button"
 							onClick={cancelMovingElement}
-							className="text-[#d7d7d7] underline-offset-2 hover:underline"
+							className="text-fg-soft underline-offset-2 hover:underline"
 						>
 							Cancelar
 						</button>
@@ -910,15 +919,15 @@ export function NetworkEditorMap({
 				)}
 				{contextMenu && (
 					<div
-						className="absolute z-40 min-w-44 overflow-hidden rounded-lg border border-[rgba(164,164,164,0.16)] bg-[rgba(34,35,36,0.96)] p-1 text-xs text-[#d7d7d7] shadow-2xl backdrop-blur-md"
+						className="absolute z-40 min-w-44 overflow-hidden rounded-lg border border-border bg-surface-panel/96 p-1 text-xs text-fg-soft shadow-2xl backdrop-blur-md"
 						style={{ left: contextMenu.x, top: contextMenu.y }}
 					>
 						{contextMenu.kind === "element" ? (
 							<>
-								<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
+								<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
 									{contextMenu.element.code}
 								</div>
-								<div className="border-[rgba(164,164,164,0.1)] border-b px-3 pb-2 text-[11px] text-[#a4a4a4]">
+								<div className="border-border-subtle border-b px-3 pb-2 text-[11px] text-fg-secondary">
 									{contextMenu.connectedRoutes === 0
 										? "Sin fibras conectadas."
 										: `${contextMenu.connectedRoutes} fibra${
@@ -932,7 +941,7 @@ export function NetworkEditorMap({
 								<button
 									type="button"
 									onClick={() => startMovingElement(contextMenu.element)}
-									className="block w-full rounded-md px-3 py-2 text-left text-[#fbbf24] transition-colors hover:bg-[rgba(245,158,11,0.12)]"
+									className="block w-full rounded-md px-3 py-2 text-left text-warning-fg transition-colors hover:bg-warning/12"
 								>
 									Mover elemento
 								</button>
@@ -943,7 +952,7 @@ export function NetworkEditorMap({
 											onStartRouteFromElementRef.current?.(contextMenu.element);
 											setContextMenu(null);
 										}}
-										className="block w-full rounded-md px-3 py-2 text-left text-[#8bdff4] transition-colors hover:bg-[rgba(56,216,255,0.12)]"
+										className="block w-full rounded-md px-3 py-2 text-left text-info-fg transition-colors hover:bg-info/12"
 									>
 										Crear fibra desde aquí
 									</button>
@@ -951,7 +960,7 @@ export function NetworkEditorMap({
 							</>
 						) : contextMenu.kind === "route" ? (
 							<>
-								<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
+								<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
 									{contextMenu.route.code ?? "Ruta de fibra"}
 								</div>
 								<button
@@ -965,7 +974,7 @@ export function NetworkEditorMap({
 										});
 										setContextMenu(null);
 									}}
-									className="block w-full rounded-md px-3 py-2 text-left text-[#8bdff4] transition-colors hover:bg-[rgba(56,216,255,0.12)]"
+									className="block w-full rounded-md px-3 py-2 text-left text-info-fg transition-colors hover:bg-info/12"
 								>
 									Agregar mufa
 								</button>
@@ -983,7 +992,7 @@ export function NetworkEditorMap({
 										});
 										setContextMenu(null);
 									}}
-									className="block w-full rounded-md px-3 py-2 text-left text-[#f6c768] transition-colors hover:bg-[rgba(246,199,104,0.12)]"
+									className="block w-full rounded-md px-3 py-2 text-left text-warning-fg transition-colors hover:bg-[rgba(246,199,104,0.12)]"
 								>
 									Agregar mufa + sangrado
 								</button>
@@ -1001,7 +1010,7 @@ export function NetworkEditorMap({
 										});
 										setContextMenu(null);
 									}}
-									className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
+									className="block w-full rounded-md px-3 py-2 text-left text-success-fg transition-colors hover:bg-success/12"
 								>
 									Agregar mufa + empalme
 								</button>
@@ -1020,7 +1029,7 @@ export function NetworkEditorMap({
 										});
 										setContextMenu(null);
 									}}
-									className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
+									className="block w-full rounded-md px-3 py-2 text-left text-success-fg transition-colors hover:bg-success/12"
 								>
 									Agregar mufa + splitter
 								</button>
@@ -1040,14 +1049,14 @@ export function NetworkEditorMap({
 										});
 										setContextMenu(null);
 									}}
-									className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
+									className="block w-full rounded-md px-3 py-2 text-left text-success-fg transition-colors hover:bg-success/12"
 								>
 									Agregar mufa + sangrado + splitter
 								</button>
 							</>
 						) : (
 							<>
-								<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
+								<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
 									Crear elemento
 								</div>
 								{createElementTypes.map((elementType) => (
@@ -1065,7 +1074,7 @@ export function NetworkEditorMap({
 											}
 											setContextMenu(null);
 										}}
-										className="block w-full rounded-md px-3 py-2 text-left text-[#d7d7d7] transition-colors hover:bg-[rgba(52,211,153,0.1)] hover:text-[#34d399]"
+										className="block w-full rounded-md px-3 py-2 text-left text-fg-soft transition-colors hover:bg-success/10 hover:text-success"
 									>
 										Crear {TOOL_LABELS[elementType]}
 									</button>
@@ -1082,7 +1091,7 @@ export function NetworkEditorMap({
 												);
 												setContextMenu(null);
 											}}
-											className="block w-full rounded-md px-3 py-2 text-left text-[#8bdff4] transition-colors hover:bg-[rgba(56,216,255,0.12)]"
+											className="block w-full rounded-md px-3 py-2 text-left text-info-fg transition-colors hover:bg-info/12"
 										>
 											Crear mufa
 										</button>
@@ -1095,7 +1104,7 @@ export function NetworkEditorMap({
 												);
 												setContextMenu(null);
 											}}
-											className="block w-full rounded-md px-3 py-2 text-left text-[#f6c768] transition-colors hover:bg-[rgba(246,199,104,0.12)]"
+											className="block w-full rounded-md px-3 py-2 text-left text-warning-fg transition-colors hover:bg-[rgba(246,199,104,0.12)]"
 										>
 											Crear mufa + sangrado
 										</button>
@@ -1108,7 +1117,7 @@ export function NetworkEditorMap({
 												);
 												setContextMenu(null);
 											}}
-											className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
+											className="block w-full rounded-md px-3 py-2 text-left text-success-fg transition-colors hover:bg-success/12"
 										>
 											Crear mufa + empalme
 										</button>
@@ -1125,7 +1134,7 @@ export function NetworkEditorMap({
 												);
 												setContextMenu(null);
 											}}
-											className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
+											className="block w-full rounded-md px-3 py-2 text-left text-success-fg transition-colors hover:bg-success/12"
 										>
 											Crear mufa + splitter
 										</button>
@@ -1143,7 +1152,7 @@ export function NetworkEditorMap({
 												);
 												setContextMenu(null);
 											}}
-											className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
+											className="block w-full rounded-md px-3 py-2 text-left text-success-fg transition-colors hover:bg-success/12"
 										>
 											Crear mufa + sangrado + splitter
 										</button>
@@ -1154,7 +1163,7 @@ export function NetworkEditorMap({
 						<button
 							type="button"
 							onClick={() => setContextMenu(null)}
-							className="block w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-[rgba(164,164,164,0.08)]"
+							className="block w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-tint/8"
 						>
 							Cancelar
 						</button>
@@ -1201,6 +1210,7 @@ export function NetworkEditorMap({
 						<SelectionInspector
 							key={`${selectedFeature.kind}:${selectedFeature.item.id}`}
 							feature={selectedFeature}
+							connections={connections}
 							equipment={equipment}
 							opticalAlert={
 								selectedFeature.kind === "element"
@@ -1271,12 +1281,12 @@ function EditorLeftPanel({
 					type="button"
 					onClick={() => setMobileOpen(true)}
 					aria-label="Abrir herramientas del editor"
-					className="inline-flex h-11 items-center gap-2 rounded-full border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.94)] px-4 text-sm font-medium text-[#e6e6e6] shadow-2xl backdrop-blur-md transition-colors hover:bg-[rgba(34,35,36,0.98)]"
+					className="inline-flex h-11 items-center gap-2 rounded-full border border-border bg-surface-panel/94 px-4 text-sm font-medium text-fg shadow-2xl backdrop-blur-md transition-colors hover:bg-surface-panel/98"
 				>
 					<SlidersHorizontal className="size-4" aria-hidden="true" />
 					Herramientas
 					{alertCount > 0 && (
-						<span className="rounded-full bg-[rgba(251,77,109,0.18)] px-1.5 font-mono text-xs text-[#fb7185]">
+						<span className="rounded-full bg-danger/18 px-1.5 font-mono text-xs text-danger-fg">
 							{alertCount}
 						</span>
 					)}
@@ -1296,12 +1306,12 @@ function EditorLeftPanel({
 				size="md"
 				className={
 					isDesktop
-						? "md:!left-4 md:!right-auto md:!top-4 md:!bottom-4 md:!w-72 bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md"
-						: "max-h-[75dvh] bg-[rgba(34,35,36,0.96)] shadow-2xl backdrop-blur-md"
+						? "md:!left-4 md:!right-auto md:!top-4 md:!bottom-4 md:!w-72 bg-surface-panel/92 shadow-2xl backdrop-blur-md"
+						: "max-h-[75dvh] bg-surface-panel/96 shadow-2xl backdrop-blur-md"
 				}
 				contentClassName="space-y-3"
 			>
-				<div className="border-b border-[rgba(164,164,164,0.12)] px-3 py-2.5">
+				<div className="border-b border-border-subtle px-3 py-2.5">
 					<div className="mb-2.5 grid grid-cols-4 gap-1.5">
 						<MapStatChip
 							label="OLT"
@@ -1324,7 +1334,7 @@ function EditorLeftPanel({
 							color="#a4a4a4"
 						/>
 					</div>
-					<div className="grid grid-cols-3 gap-1 rounded-md bg-[rgba(164,164,164,0.05)] p-1">
+					<div className="grid grid-cols-3 gap-1 rounded-md bg-tint/5 p-1">
 						{EDITOR_PANEL_TABS.map(({ value, label, icon: Icon }) => (
 							<button
 								key={value}
@@ -1335,7 +1345,7 @@ function EditorLeftPanel({
 								<Icon className="size-3" aria-hidden="true" />
 								<span>{label}</span>
 								{value === "alerts" && alerts.length > 0 && (
-									<span className="rounded bg-[#f59e0b]/20 px-1 font-mono text-[10px] text-[#fbbf24]">
+									<span className="rounded bg-warning/20 px-1 font-mono text-[10px] text-warning-fg">
 										{alerts.length}
 									</span>
 								)}
@@ -1346,18 +1356,18 @@ function EditorLeftPanel({
 				<div className="space-y-3 p-3">
 					{tab === "tools" ? (
 						<div className="space-y-3">
-							<div className="flex items-center justify-between rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.04)] px-3 py-2">
+							<div className="flex items-center justify-between rounded-md border border-border-subtle bg-tint/4 px-3 py-2">
 								<div>
-									<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+									<p className="text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 										Área
 									</p>
-									<p className="mt-0.5 text-xs font-semibold text-[#e6e6e6]">
+									<p className="mt-0.5 text-xs font-semibold text-fg">
 										{formatEditorMode(mode)}
 									</p>
 								</div>
-								<ListChecks className="size-4 text-[#fbbf24]" />
+								<ListChecks className="size-4 text-warning-fg" />
 							</div>
-							<div className="space-y-1.5 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.04)] p-2.5 text-xs">
+							<div className="space-y-1.5 rounded-md border border-border-subtle bg-tint/4 p-2.5 text-xs">
 								<StatRow label="Rutas" value={counts.routes} />
 								<StatRow label="Puntos de ruta" value={counts.routePoints} />
 								<StatRow label="Herramienta" value={TOOL_LABELS[activeTool]} />
@@ -1365,24 +1375,24 @@ function EditorLeftPanel({
 							<button
 								type="button"
 								onClick={onFit}
-								className="flex w-full items-center justify-center gap-2 rounded-md border border-[rgba(164,164,164,0.14)] bg-[rgba(164,164,164,0.06)] px-3 py-2 text-xs text-[#d7d7d7] transition-colors hover:bg-[rgba(164,164,164,0.1)]"
+								className="flex w-full items-center justify-center gap-2 rounded-md border border-border-subtle bg-tint/6 px-3 py-2 text-xs text-fg-soft transition-colors hover:bg-tint/10"
 							>
 								<LocateFixed className="size-3.5" /> Ajustar vista
 							</button>
 						</div>
 					) : tab === "layers" ? (
 						<div className="space-y-3">
-							<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+							<p className="text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 								Filtros de visibilidad
 							</p>
 							<label className="block">
-								<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+								<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 									Tipo
 								</span>
 								<select
 									value={filterType}
 									onChange={(event) => onTypeChange(event.target.value)}
-									className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2 py-2 text-xs text-[#e6e6e6] outline-none"
+									className="w-full rounded-md border border-border bg-surface px-2 py-2 text-xs text-fg outline-none"
 								>
 									<option value="all">Todos</option>
 									<option value="olt">OLT</option>
@@ -1391,13 +1401,13 @@ function EditorLeftPanel({
 								</select>
 							</label>
 							<label className="block">
-								<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+								<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 									Estado
 								</span>
 								<select
 									value={filterStatus}
 									onChange={(event) => onStatusChange(event.target.value)}
-									className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2 py-2 text-xs text-[#e6e6e6] outline-none"
+									className="w-full rounded-md border border-border bg-surface px-2 py-2 text-xs text-fg outline-none"
 								>
 									<option value="all">Todos</option>
 									<option value="planned">Planificado</option>
@@ -1407,7 +1417,7 @@ function EditorLeftPanel({
 								</select>
 							</label>
 							<label className="block">
-								<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+								<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 									Óptico
 								</span>
 								<select
@@ -1415,13 +1425,13 @@ function EditorLeftPanel({
 									onChange={(event) =>
 										onOpticalChange(event.target.value as OpticalFilter)
 									}
-									className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2 py-2 text-xs text-[#e6e6e6] outline-none"
+									className="w-full rounded-md border border-border bg-surface px-2 py-2 text-xs text-fg outline-none"
 								>
 									<option value="all">Todos</option>
 									<option value="alerts">Solo alertas</option>
 								</select>
 							</label>
-							<div className="space-y-1.5 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.04)] p-2.5 text-xs">
+							<div className="space-y-1.5 rounded-md border border-border-subtle bg-tint/4 p-2.5 text-xs">
 								<StatRow label="Rutas" value={counts.routes} />
 								<StatRow label="Puntos de ruta" value={counts.routePoints} />
 							</div>
@@ -1453,9 +1463,9 @@ function MapOpticalAlerts({
 }) {
 	if (alerts.length === 0) {
 		return (
-			<div className="rounded-md border border-[rgba(52,211,153,0.2)] bg-[rgba(52,211,153,0.08)] p-3 text-xs">
-				<p className="font-semibold text-[#86efac]">Sin alertas ópticas</p>
-				<p className="mt-1 text-[11px] leading-4 text-[#8f969e]">
+			<div className="rounded-md border border-success/20 bg-success/8 p-3 text-xs">
+				<p className="font-semibold text-success-fg">Sin alertas ópticas</p>
+				<p className="mt-1 text-[11px] leading-4 text-fg-muted">
 					Los elementos calculados mantienen margen suficiente.
 				</p>
 			</div>
@@ -1470,10 +1480,10 @@ function MapOpticalAlerts({
 	return (
 		<div className="space-y-2">
 			<div className="flex items-center justify-between gap-2">
-				<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+				<p className="text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 					Presupuesto óptico
 				</p>
-				<span className="font-mono text-[10px] text-[#fbbf24]">
+				<span className="font-mono text-[10px] text-warning-fg">
 					{alerts.length}
 				</span>
 			</div>
@@ -1494,7 +1504,7 @@ function MapOpticalAlerts({
 				onClick={() =>
 					onFilterChange(filterOptical === "alerts" ? "all" : "alerts")
 				}
-				className="flex w-full items-center justify-between rounded-md border border-[rgba(245,158,11,0.24)] bg-[rgba(245,158,11,0.08)] px-2.5 py-2 text-left text-xs text-[#fbbf24] transition-colors hover:bg-[rgba(245,158,11,0.13)]"
+				className="flex w-full items-center justify-between rounded-md border border-warning/24 bg-warning/8 px-2.5 py-2 text-left text-xs text-warning-fg transition-colors hover:bg-warning/13"
 			>
 				<span>
 					{filterOptical === "alerts"
@@ -1508,7 +1518,7 @@ function MapOpticalAlerts({
 			<button
 				type="button"
 				onClick={() => onSelect(alerts[0])}
-				className="flex w-full items-center justify-between rounded-md border border-[rgba(251,77,109,0.24)] bg-[rgba(251,77,109,0.08)] px-2.5 py-2 text-left text-xs text-[#fb7185] transition-colors hover:bg-[rgba(251,77,109,0.13)]"
+				className="flex w-full items-center justify-between rounded-md border border-danger/24 bg-danger/8 px-2.5 py-2 text-left text-xs text-danger-fg transition-colors hover:bg-danger/13"
 			>
 				<span>Ir al peor margen</span>
 				<span className="font-mono text-[10px]">
@@ -1536,10 +1546,10 @@ function MapOpticalAlerts({
 							>
 								{style.label}
 							</span>
-							<span className="mt-0.5 block truncate text-xs font-semibold text-[#e6e6e6]">
+							<span className="mt-0.5 block truncate text-xs font-semibold text-fg">
 								{alert.code} · {alert.type}
 							</span>
-							<span className="mt-1 block font-mono text-[10px] text-[#a4a4a4]">
+							<span className="mt-1 block font-mono text-[10px] text-fg-secondary">
 								Margen {alert.margin?.toFixed(1)} dB
 							</span>
 						</button>
@@ -1564,7 +1574,7 @@ function OpticalAlertCountPill({
 			<p className="font-mono text-xs font-bold" style={{ color }}>
 				{value}
 			</p>
-			<p className="text-[10px] font-semibold uppercase text-[#777879]">
+			<p className="text-[10px] font-semibold uppercase text-fg-muted">
 				{label}
 			</p>
 		</div>
@@ -1572,6 +1582,7 @@ function OpticalAlertCountPill({
 }
 
 function SelectionInspector({
+	connections,
 	equipment,
 	feature,
 	opticalAlert,
@@ -1580,6 +1591,7 @@ function SelectionInspector({
 	onUpdateElement,
 	onUpdateRoute,
 }: {
+	connections: ConnectionMapItem[];
 	equipment: EquipmentMapItem[];
 	feature: SelectedFeature;
 	opticalAlert: OpticalBudgetAlert | null;
@@ -1602,7 +1614,7 @@ function SelectionInspector({
 						<button
 							type="button"
 							onClick={onFocus}
-							className="flex items-center justify-center gap-2 rounded-md border border-[rgba(56,216,255,0.25)] bg-[rgba(56,216,255,0.1)] px-3 py-2 text-xs font-medium text-[#bdeafe] transition-colors hover:bg-[rgba(56,216,255,0.16)]"
+							className="flex items-center justify-center gap-2 rounded-md border border-info/25 bg-info/10 px-3 py-2 text-xs font-medium text-info-strong transition-colors hover:bg-info/16"
 						>
 							<LocateFixed className="size-3.5" />
 							Centrar
@@ -1610,7 +1622,7 @@ function SelectionInspector({
 						<button
 							type="button"
 							onClick={onClose}
-							className="rounded-md border border-[rgba(164,164,164,0.14)] bg-[rgba(164,164,164,0.06)] px-3 py-2 text-xs font-medium text-[#d7d7d7] transition-colors hover:bg-[rgba(164,164,164,0.1)]"
+							className="rounded-md border border-border-subtle bg-tint/6 px-3 py-2 text-xs font-medium text-fg-soft transition-colors hover:bg-tint/10"
 						>
 							Cerrar
 						</button>
@@ -1642,7 +1654,14 @@ function SelectionInspector({
 				/>
 			)}
 			{feature.kind === "routePoint" && (
-				<RoutePointInspectorDetails point={feature.item} />
+				<RoutePointInspectorDetails
+					point={feature.item}
+					routeCode={
+						connections.find(
+							(route) => route.id === feature.item.fiber_route_id,
+						)?.code ?? null
+					}
+				/>
 			)}
 		</MapInspectorShell>
 	);
@@ -1720,24 +1739,24 @@ function ElementInspectorDetails({
 	if (isEditing) {
 		return (
 			<div className="space-y-3">
-				<div className="rounded-md border border-[rgba(56,216,255,0.18)] bg-[rgba(56,216,255,0.07)] px-3 py-2 text-[11px] leading-4 text-[#bdeafe]">
+				<div className="rounded-md border border-info/18 bg-info/7 px-3 py-2 text-[11px] leading-4 text-info-strong">
 					Aplicar actualiza el borrador local. Usa Guardar en la barra superior
 					para persistir en Supabase.
 				</div>
 				<InspectorSection title="Identificación">
 					<InspectorRow label="Tipo" value={formatElementType(element.type)} />
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Nombre
 						</span>
 						<input
 							value={name}
 							onChange={(event) => setName(event.target.value)}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						/>
 					</label>
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Estado
 						</span>
 						<select
@@ -1745,7 +1764,7 @@ function ElementInspectorDetails({
 							onChange={(event) =>
 								setStatus(event.target.value as ElementStatus)
 							}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						>
 							<option value="planned">Planificado</option>
 							<option value="active">Activo</option>
@@ -1757,7 +1776,7 @@ function ElementInspectorDetails({
 				</InspectorSection>
 				{element.type === "olt" && (
 					<InspectorSection title="OLT técnica">
-						<div className="rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)] p-3">
+						<div className="rounded-md border border-border-subtle bg-tint/5 p-3">
 							<OltModelSelector
 								selectedModelId={propertyString(properties, "olt_model_id")}
 								selectedOpticalClass={opticalClass}
@@ -1771,16 +1790,16 @@ function ElementInspectorDetails({
 							/>
 						</div>
 						<label className="block">
-							<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+							<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 								IP de gestión (SNMP)
 							</span>
 							<input
 								value={managementIp}
 								onChange={(event) => setManagementIp(event.target.value)}
 								placeholder="192.168.1.100"
-								className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 font-mono text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+								className="w-full rounded-md border border-border bg-surface px-2.5 py-2 font-mono text-xs text-fg outline-none transition-colors focus:border-info/40"
 							/>
-							<span className="mt-1 block text-[10px] leading-4 text-[#777879]">
+							<span className="mt-1 block text-[10px] leading-4 text-fg-muted">
 								Se enlaza con el colector SNMP. Aparecerá como nombre del OLT en
 								/monitoring cuando llegue telemetría.
 							</span>
@@ -1795,13 +1814,13 @@ function ElementInspectorDetails({
 				)}
 				<InspectorSection title="Ubicación">
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Referencia de dirección
 						</span>
 						<input
 							value={addressReference}
 							onChange={(event) => setAddressReference(event.target.value)}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						/>
 					</label>
 				</InspectorSection>
@@ -1811,7 +1830,7 @@ function ElementInspectorDetails({
 							value={notes}
 							onChange={(event) => setNotes(event.target.value)}
 							rows={3}
-							className="w-full resize-none rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full resize-none rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						/>
 					</label>
 				</InspectorSection>
@@ -1819,14 +1838,14 @@ function ElementInspectorDetails({
 					<button
 						type="button"
 						onClick={applyChanges}
-						className="rounded-md border border-[rgba(52,211,153,0.35)] bg-[rgba(52,211,153,0.12)] px-3 py-2 text-xs font-medium text-[#34d399] transition-colors hover:bg-[rgba(52,211,153,0.18)]"
+						className="rounded-md border border-success/35 bg-success/12 px-3 py-2 text-xs font-medium text-success transition-colors hover:bg-success/18"
 					>
 						Aplicar cambios
 					</button>
 					<button
 						type="button"
 						onClick={onCancelEdit}
-						className="rounded-md border border-[rgba(164,164,164,0.14)] bg-[rgba(164,164,164,0.06)] px-3 py-2 text-xs font-medium text-[#d7d7d7] transition-colors hover:bg-[rgba(164,164,164,0.1)]"
+						className="rounded-md border border-border-subtle bg-tint/6 px-3 py-2 text-xs font-medium text-fg-soft transition-colors hover:bg-tint/10"
 					>
 						Descartar edición
 					</button>
@@ -1915,7 +1934,7 @@ function ElementInspectorDetails({
 				<button
 					type="button"
 					onClick={onStartEdit}
-					className="mt-1 w-full rounded-md border border-[rgba(245,158,11,0.3)] bg-[rgba(245,158,11,0.1)] px-3 py-2 text-xs font-medium text-[#fbbf24] transition-colors hover:bg-[rgba(245,158,11,0.16)]"
+					className="mt-1 w-full rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-medium text-warning-fg transition-colors hover:bg-warning/16"
 				>
 					Editar propiedades
 				</button>
@@ -1950,7 +1969,7 @@ function OpticalAlertInspectorCard({ alert }: { alert: OpticalBudgetAlert }) {
 			<p className="mt-1 text-[11px] leading-4 text-[#c8c8c8]">
 				{alert.reason}.
 			</p>
-			<p className="mt-2 border-t border-white/10 pt-2 text-[11px] leading-4 text-[#a4a4a4]">
+			<p className="mt-2 border-t border-white/10 pt-2 text-[11px] leading-4 text-fg-secondary">
 				{recommendation}
 			</p>
 		</div>
@@ -2029,29 +2048,29 @@ function RouteInspectorDetails({
 	if (isEditing) {
 		return (
 			<div className="space-y-3">
-				<div className="rounded-md border border-[rgba(56,216,255,0.18)] bg-[rgba(56,216,255,0.07)] px-3 py-2 text-[11px] leading-4 text-[#bdeafe]">
+				<div className="rounded-md border border-info/18 bg-info/7 px-3 py-2 text-[11px] leading-4 text-info-strong">
 					Aplicar actualiza el borrador local. Usa Guardar en la barra superior
 					para persistir en Supabase.
 				</div>
 				<InspectorSection title="Identificación">
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Código
 						</span>
 						<input
 							value={code}
 							onChange={(event) => setCode(event.target.value)}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						/>
 					</label>
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Tipo
 						</span>
 						<select
 							value={type}
 							onChange={(event) => setType(event.target.value as RouteType)}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						>
 							<option value="feeder">Feeder</option>
 							<option value="distribution">Distribución</option>
@@ -2059,13 +2078,13 @@ function RouteInspectorDetails({
 						</select>
 					</label>
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Estado
 						</span>
 						<select
 							value={status}
 							onChange={(event) => setStatus(event.target.value as RouteStatus)}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						>
 							<option value="planned">Planificada</option>
 							<option value="installed">Instalada</option>
@@ -2077,7 +2096,7 @@ function RouteInspectorDetails({
 				</InspectorSection>
 				<InspectorSection title="Cable">
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Instalación
 						</span>
 						<select
@@ -2085,7 +2104,7 @@ function RouteInspectorDetails({
 							onChange={(event) =>
 								setInstallationType(event.target.value as InstallationType | "")
 							}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						>
 							<option value="">Sin definir</option>
 							<option value="aerial">Aérea</option>
@@ -2095,7 +2114,7 @@ function RouteInspectorDetails({
 						</select>
 					</label>
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Tipo de fibra
 						</span>
 						<select
@@ -2103,7 +2122,7 @@ function RouteInspectorDetails({
 							onChange={(event) =>
 								setFiberType(event.target.value as FiberType | "")
 							}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						>
 							<option value="">Sin definir</option>
 							<option value="g652d">G.652D</option>
@@ -2112,7 +2131,7 @@ function RouteInspectorDetails({
 						</select>
 					</label>
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Hilos
 						</span>
 						<input
@@ -2120,13 +2139,13 @@ function RouteInspectorDetails({
 							type="number"
 							value={fiberCount}
 							onChange={(event) => setFiberCount(event.target.value)}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						/>
 					</label>
 				</InspectorSection>
 				<InspectorSection title="Geometría">
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Calidad de ruta
 						</span>
 						<select
@@ -2134,7 +2153,7 @@ function RouteInspectorDetails({
 							onChange={(event) =>
 								setRouteQuality(event.target.value as DataQuality)
 							}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						>
 							<option value="verified">Verificada</option>
 							<option value="gps_captured">GPS</option>
@@ -2152,7 +2171,7 @@ function RouteInspectorDetails({
 						}
 					/>
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Reserva (m)
 						</span>
 						<input
@@ -2162,9 +2181,9 @@ function RouteInspectorDetails({
 							value={reservation}
 							onChange={(event) => setReservation(event.target.value)}
 							placeholder="0"
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						/>
-						<span className="mt-1 block text-[10px] text-[#777879]">
+						<span className="mt-1 block text-[10px] text-fg-muted">
 							Slack físico (bucles, holgura). Suma a la pérdida óptica del
 							tramo.
 						</span>
@@ -2175,21 +2194,21 @@ function RouteInspectorDetails({
 						value={notes}
 						onChange={(event) => setNotes(event.target.value)}
 						rows={3}
-						className="w-full resize-none rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+						className="w-full resize-none rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 					/>
 				</InspectorSection>
 				<div className="grid grid-cols-2 gap-2">
 					<button
 						type="button"
 						onClick={applyChanges}
-						className="rounded-md border border-[rgba(52,211,153,0.35)] bg-[rgba(52,211,153,0.12)] px-3 py-2 text-xs font-medium text-[#34d399] transition-colors hover:bg-[rgba(52,211,153,0.18)]"
+						className="rounded-md border border-success/35 bg-success/12 px-3 py-2 text-xs font-medium text-success transition-colors hover:bg-success/18"
 					>
 						Aplicar cambios
 					</button>
 					<button
 						type="button"
 						onClick={onCancelEdit}
-						className="rounded-md border border-[rgba(164,164,164,0.14)] bg-[rgba(164,164,164,0.06)] px-3 py-2 text-xs font-medium text-[#d7d7d7] transition-colors hover:bg-[rgba(164,164,164,0.1)]"
+						className="rounded-md border border-border-subtle bg-tint/6 px-3 py-2 text-xs font-medium text-fg-soft transition-colors hover:bg-tint/10"
 					>
 						Descartar edición
 					</button>
@@ -2202,12 +2221,24 @@ function RouteInspectorDetails({
 		<div className="space-y-3">
 			<InspectorSection title="Identificación">
 				<InspectorRow label="Código" value={route.code} />
-				<InspectorRow label="Tipo" value={route.type} />
-				<InspectorRow label="Estado" value={route.status} />
+				<InspectorRow
+					label="Tipo"
+					value={labelOf(ROUTE_TYPE_LABEL, route.type)}
+				/>
+				<InspectorRow
+					label="Estado"
+					value={labelOf(STATUS_LABEL, route.status)}
+				/>
 			</InspectorSection>
 			<InspectorSection title="Cable">
-				<InspectorRow label="Cable" value={route.cable_type ?? route.type} />
-				<InspectorRow label="Fibra" value={route.fiber_type} />
+				<InspectorRow
+					label="Cable"
+					value={labelOf(CABLE_LABEL, route.cable_type ?? route.type)}
+				/>
+				<InspectorRow
+					label="Fibra"
+					value={labelOf(FIBER_TYPE_LABEL, route.fiber_type)}
+				/>
 				<InspectorRow label="Hilos" value={route.fiber_count} />
 				<InspectorRow
 					label="Longitud"
@@ -2247,7 +2278,7 @@ function RouteInspectorDetails({
 				<button
 					type="button"
 					onClick={onStartEdit}
-					className="mt-1 w-full rounded-md border border-[rgba(245,158,11,0.3)] bg-[rgba(245,158,11,0.1)] px-3 py-2 text-xs font-medium text-[#fbbf24] transition-colors hover:bg-[rgba(245,158,11,0.16)]"
+					className="mt-1 w-full rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-medium text-warning-fg transition-colors hover:bg-warning/16"
 				>
 					Editar propiedades
 				</button>
@@ -2256,19 +2287,34 @@ function RouteInspectorDetails({
 	);
 }
 
-function RoutePointInspectorDetails({ point }: { point: RoutePoint }) {
+function RoutePointInspectorDetails({
+	point,
+	routeCode,
+}: {
+	point: RoutePoint;
+	routeCode: string | null;
+}) {
 	const mufaDescription =
 		point.type === "mufa" ? describeMufaProperties(point.properties) : null;
 
 	return (
 		<div className="space-y-2">
-			<InspectorRow label="Tipo" value={point.type} />
+			<InspectorRow
+				label="Tipo"
+				value={labelOf(ROUTE_POINT_TYPE_LABEL, point.type)}
+			/>
 			{mufaDescription && (
 				<InspectorRow label="Configuración" value={mufaDescription} />
 			)}
-			<InspectorRow label="Estado" value={point.status} />
-			<InspectorRow label="Ruta" value={point.fiber_route_id} />
-			<InspectorRow label="Calidad ubicación" value={point.location_quality} />
+			<InspectorRow
+				label="Estado"
+				value={labelOf(STATUS_LABEL, point.status, "Sin estado")}
+			/>
+			<InspectorRow label="Ruta" value={routeCode ?? "Ruta sin código"} />
+			<InspectorRow
+				label="Calidad ubicación"
+				value={labelOf(DATA_QUALITY_LABEL, point.location_quality)}
+			/>
 			<InspectorRow
 				label="Coordenadas"
 				value={`${formatCoordinate(point.lat)}, ${formatCoordinate(point.lng)}`}
@@ -3045,40 +3091,15 @@ function formatCoordinate(value: number) {
 }
 
 function formatElementType(type: EquipmentMapItem["type"]) {
-	const labels: Record<string, string> = {
-		olt: "OLT",
-		nap: "NAP",
-		closure: "Mufa",
-		splitter: "Splitter",
-		ont: "ONT",
-	};
-	return labels[type] ?? type;
+	return labelOf(ELEMENT_TYPE_LABEL, type);
 }
 
 function formatElementStatus(status: EquipmentMapItem["status"]) {
-	const labels: Record<string, string> = {
-		active: "Activo",
-		alarm: "En alarma",
-		faulty: "Con falla",
-		inactive: "Inactivo",
-		online: "En línea",
-		planned: "Planificado",
-		retired: "Retirado",
-	};
-	return labels[status] ?? status;
+	return labelOf(STATUS_LABEL, status);
 }
 
 function formatDataQuality(quality: EquipmentMapItem["location_quality"]) {
-	const labels: Record<string, string> = {
-		approximate: "Aproximada",
-		estimated: "Estimada",
-		gps: "GPS",
-		manual: "Manual",
-		surveyed: "Levantada",
-		unknown: "Desconocida",
-		verified: "Verificada",
-	};
-	return labels[quality] ?? quality;
+	return labelOf(DATA_QUALITY_LABEL, quality);
 }
 
 function emptyToNull(value: string) {
@@ -3132,14 +3153,14 @@ function formatEditorMode(mode: EditorMode) {
 }
 
 function tabButtonClass(active: boolean) {
-	return `flex items-center justify-center gap-1.5 rounded px-2 py-1.5 text-[10px] font-medium transition-colors ${active ? "bg-[rgba(56,216,255,0.14)] text-[#bdeafe]" : "text-[#777879] hover:bg-[rgba(164,164,164,0.06)] hover:text-[#d7d7d7]"}`;
+	return `flex items-center justify-center gap-1.5 rounded px-2 py-1.5 text-[10px] font-medium transition-colors ${active ? "bg-info/14 text-info-strong" : "text-fg-muted hover:bg-tint/6 hover:text-fg-soft"}`;
 }
 
 function StatRow({ label, value }: { label: string; value: number | string }) {
 	return (
 		<div className="flex items-center justify-between">
-			<span className="text-[#777879]">{label}</span>
-			<span className="font-mono text-[#e6e6e6]">{value}</span>
+			<span className="text-fg-muted">{label}</span>
+			<span className="font-mono text-fg">{value}</span>
 		</div>
 	);
 }
@@ -3152,7 +3173,7 @@ function EditorMapStatus({
 	mode: EditorMode;
 }) {
 	return (
-		<div className="rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.9)] px-3 py-2 text-xs text-[#a4a4a4] shadow-2xl backdrop-blur-md">
+		<div className="rounded-lg border border-border bg-surface-panel/90 px-3 py-2 text-xs text-fg-secondary shadow-2xl backdrop-blur-md">
 			<AnimatePresence mode="wait" initial={false}>
 				<motion.span
 					key={mode}

@@ -67,7 +67,7 @@ export function ContextMenu({ position, options, onClose }: ContextMenuProps) {
 						option.onClick();
 						onClose();
 					}}
-					className="w-full px-3 py-2 flex items-center gap-2 text-sm text-[#e6e6e6] hover:bg-[#3f3f46] transition-colors text-left"
+					className="w-full px-3 py-2 flex items-center gap-2 text-sm text-fg hover:bg-[#3f3f46] transition-colors text-left"
 				>
 					<span className="text-[#a0a0a0] w-4 h-4 flex items-center justify-center">
 						{option.icon}

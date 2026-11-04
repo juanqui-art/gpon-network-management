@@ -39,7 +39,7 @@ export function MapInspectorShell({
 			modal={!isDesktop}
 			showOverlay={!isDesktop}
 			container={container}
-			className="md:w-80 bg-[rgba(28,29,30,0.72)] text-[#d7d7d7] backdrop-blur-xl"
+			className="md:w-80 bg-[rgba(28,29,30,0.72)] text-fg-soft backdrop-blur-xl"
 			contentClassName="space-y-3"
 			footer={actions}
 		>

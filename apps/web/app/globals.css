@@ -9,26 +9,41 @@
 
 :root {
   /* Map-aligned dark surfaces */
+  --surface-sunken:  #131415;                  /* inputs, wells */
   --surface-bg:      #1b1c1d;
   --surface-panel:   #222324;
   --surface-card:    #282929;
   --surface-elevated:#303133;
   --surface-overlay: rgba(34, 35, 36, 0.72);   /* glass panels over map */
   --surface-border:  rgba(164,164,164,0.18);
+  --surface-border-subtle: rgba(164,164,164,0.12);
+  --surface-tint:    #a4a4a4;                  /* neutral fills: bg-tint/5…/14 */
 
   /* Elevation (premium dashboards) */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.32);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.36), 0 1px 3px rgba(0, 0, 0, 0.24);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.44), 0 2px 8px rgba(0, 0, 0, 0.28);
 
-  /* Brand accent — saturated GPON blue, for primary CTAs */
+  /* Brand accent — saturated GPON blue, for primary CTAs.
+     Text on it must be dark (--accent-brand-foreground): white is 2.8:1. */
   --accent-brand:       #0ea5e9;
   --accent-brand-hover: #38bdf8;
+  --accent-brand-foreground: #0b1220;           /* 6.8:1 on brand */
 
-  /* Text */
+  /* Text — every step ≥ 4.5:1 (WCAG AA) on all solid surfaces above,
+     including --surface-elevated. Hierarchy comes from size/weight too. */
   --text-primary:    #e6e6e6;
-  --text-secondary:  #a4a4a4;
-  --text-muted:      #777879;
+  --text-soft:       #d7d7d7;
+  --text-secondary:  #b1b2b4;
+  --text-muted:      #979899;                  /* was #777879 (3.3–3.9:1) */
+
+  /* Semantic text tints (on dark or tinted fills) */
+  --info-fg:         #8bdff4;
+  --info-strong:     #bdeafe;
+  --success-fg:      #86efac;
+  --warning-fg:      #fbbf24;
+  --danger-fg:       #fb7185;
+  --danger-soft:     #ffb3c1;
 
   /* GPON operations
      Mirror in lib/map/palette.ts — Mapbox cannot read CSS vars at paint time. */
@@ -146,6 +161,29 @@
   --color-popover:      var(--popover);
   --color-card-foreground:      var(--card-foreground);
   --color-surface-overlay:      var(--surface-overlay);
+  /* App semantic tokens — prefer these over hex literals in TSX */
+  --color-fg:              var(--text-primary);
+  --color-fg-soft:         var(--text-soft);
+  --color-fg-secondary:    var(--text-secondary);
+  --color-fg-muted:        var(--text-muted);
+  --color-surface:         var(--surface-bg);
+  --color-surface-sunken:  var(--surface-sunken);
+  --color-surface-panel:   var(--surface-panel);
+  --color-surface-card:    var(--surface-card);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-border-subtle:   var(--surface-border-subtle);
+  --color-tint:            var(--surface-tint);
+  --color-info:            var(--gpon-olt);
+  --color-info-fg:         var(--info-fg);
+  --color-info-strong:     var(--info-strong);
+  --color-success:         var(--status-online);
+  --color-success-fg:      var(--success-fg);
+  --color-warning:         var(--status-maint);
+  --color-warning-fg:      var(--warning-fg);
+  --color-danger:          var(--status-alarm);
+  --color-danger-fg:       var(--danger-fg);
+  --color-danger-soft:     var(--danger-soft);
+  --color-accent-brand-foreground: var(--accent-brand-foreground);
   --color-accent-brand:         var(--accent-brand);
   --color-accent-brand-hover:   var(--accent-brand-hover);
   --shadow-sm:      var(--shadow-sm);

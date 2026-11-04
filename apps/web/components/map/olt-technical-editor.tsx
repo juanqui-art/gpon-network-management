@@ -42,12 +42,12 @@ export function OltTechnicalEditor({
 	};
 
 	return (
-		<div className="space-y-3 rounded-lg border border-[rgba(56,189,248,0.18)] bg-[rgba(56,189,248,0.055)] p-3">
+		<div className="space-y-3 rounded-lg border border-info/18 bg-info/[0.055] p-3">
 			<div>
-				<p className="text-[10px] font-semibold uppercase tracking-widest text-[#7dd3fc]">
+				<p className="text-[10px] font-semibold uppercase tracking-widest text-info-fg">
 					Inventario OLT
 				</p>
-				<p className="mt-1 text-[11px] leading-4 text-[#8f969e]">
+				<p className="mt-1 text-[11px] leading-4 text-fg-muted">
 					Referencia realista tipo ZTE C300: 7 tarjetas de 14, 16 PON por
 					tarjeta y cabecera óptica documentada.
 				</p>
@@ -98,7 +98,7 @@ export function OltTechnicalEditor({
 				/>
 			</div>
 			<label className="block">
-				<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+				<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 					Split de diseño
 				</span>
 				<select
@@ -114,7 +114,7 @@ export function OltTechnicalEditor({
 									: null,
 						});
 					}}
-					className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+					className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 				>
 					<option value="1:32">1:32</option>
 					<option value="1:64">1:64</option>
@@ -125,12 +125,12 @@ export function OltTechnicalEditor({
 				label="Clientes estimados"
 				value={estimatedSubscribers?.toLocaleString("es-EC") ?? "-"}
 			/>
-			<div className="h-px bg-[rgba(164,164,164,0.1)]" />
+			<div className="h-px bg-tint/10" />
 			<div>
-				<p className="text-[10px] font-semibold uppercase tracking-widest text-[#7dd3fc]">
+				<p className="text-[10px] font-semibold uppercase tracking-widest text-info-fg">
 					Potencia óptica
 				</p>
-				<p className="mt-1 text-[11px] leading-4 text-[#8f969e]">
+				<p className="mt-1 text-[11px] leading-4 text-fg-muted">
 					El unifilar usa estos valores para estimar potencia recibida y margen
 					real: Rx = Tx OLT - pérdidas físicas.
 				</p>
@@ -202,13 +202,13 @@ function TechnicalTextInput({
 }) {
 	return (
 		<label className="block">
-			<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+			<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 				{label}
 			</span>
 			<input
 				value={value}
 				onChange={(event) => onChange(event.target.value)}
-				className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+				className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 			/>
 		</label>
 	);
@@ -227,7 +227,7 @@ function TechnicalNumberInput({
 }) {
 	return (
 		<label className="block">
-			<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+			<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 				{label}
 			</span>
 			<input
@@ -239,7 +239,7 @@ function TechnicalNumberInput({
 						event.target.value === "" ? null : Number(event.target.value),
 					)
 				}
-				className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+				className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 			/>
 		</label>
 	);
@@ -248,8 +248,8 @@ function TechnicalNumberInput({
 function TechnicalProperty({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="flex items-center justify-between gap-3">
-			<span className="text-xs text-[#777879]">{label}</span>
-			<span className="truncate text-right font-mono text-xs text-[#d7d7d7]">
+			<span className="text-xs text-fg-muted">{label}</span>
+			<span className="truncate text-right font-mono text-xs text-fg-soft">
 				{value}
 			</span>
 		</div>

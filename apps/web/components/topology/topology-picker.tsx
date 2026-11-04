@@ -42,7 +42,7 @@ export function TopologyPicker({ onSelect, onGenerate }: TopologyPickerProps) {
 				<h2 className="mb-4 text-balance text-lg font-bold text-foreground">
 					Selecciona una topología GPON
 				</h2>
-				<p className="text-xs text-[#a4a4a4] mb-6">
+				<p className="text-xs text-fg-secondary mb-6">
 					Basadas en investigación de despliegues ecuatorianos.
 				</p>
 			</div>
@@ -55,8 +55,8 @@ export function TopologyPicker({ onSelect, onGenerate }: TopologyPickerProps) {
 						onClick={() => handleSelect(id)}
 						className={`p-4 rounded-lg border transition-all ${
 							selectedTemplate === id
-								? "border-[#38bdf8] bg-[#38bdf8]/10"
-								: "border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.5)] hover:border-[#a4a4a4]"
+								? "border-info bg-info/10"
+								: "border-border bg-surface-panel/50 hover:border-tint"
 						}`}
 						type="button"
 					>
@@ -69,31 +69,31 @@ export function TopologyPicker({ onSelect, onGenerate }: TopologyPickerProps) {
 						</div>
 
 						{/* Name */}
-						<h3 className="text-sm font-semibold text-[#e6e6e6] text-left mb-1">
+						<h3 className="text-sm font-semibold text-fg text-left mb-1">
 							{config.name}
 						</h3>
 
 						{/* Description */}
-						<p className="text-xs text-[#777879] text-left mb-3 line-clamp-2">
+						<p className="text-xs text-fg-muted text-left mb-3 line-clamp-2">
 							{config.description}
 						</p>
 
 						{/* Details */}
 						<div className="space-y-1 text-left">
-							<div className="text-[10px] text-[#a4a4a4]">
+							<div className="text-[10px] text-fg-secondary">
 								<strong>Cobertura:</strong> {config.estimatedCoverage}
 							</div>
-							<div className="text-[10px] text-[#a4a4a4]">
+							<div className="text-[10px] text-fg-secondary">
 								<strong>NAPs:</strong> {config.napsByRegion}
 							</div>
-							<div className="text-[10px] text-[#a4a4a4]">
+							<div className="text-[10px] text-fg-secondary">
 								<strong>Fibra:</strong> {config.fiberEstimate}
 							</div>
 						</div>
 
 						{/* Badge */}
 						{selectedTemplate === id && (
-							<div className="mt-3 px-2 py-1 bg-[#38bdf8] text-[#1b1c1d] text-[10px] font-bold rounded w-fit">
+							<div className="mt-3 px-2 py-1 bg-info text-surface text-[10px] font-bold rounded w-fit">
 								✓ Seleccionado
 							</div>
 						)}
@@ -108,11 +108,11 @@ export function TopologyPicker({ onSelect, onGenerate }: TopologyPickerProps) {
 						onClick={handleGenerate}
 						disabled={isGenerating}
 						type="button"
-						className="w-full px-4 py-2.5 bg-[#38bdf8] text-[#1b1c1d] font-semibold rounded-lg hover:bg-[#22d3ee] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+						className="w-full px-4 py-2.5 bg-info text-surface font-semibold rounded-lg hover:bg-[#22d3ee] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 					>
 						{isGenerating ? "Generando..." : "Generar Topología"}
 					</button>
-					<p className="text-xs text-[#777879]">
+					<p className="text-xs text-fg-muted">
 						Se crearán automáticamente{" "}
 						{TOPOLOGY_CONFIGS[selectedTemplate].napsByRegion} NAPs, splitters y
 						rutas.
@@ -122,7 +122,7 @@ export function TopologyPicker({ onSelect, onGenerate }: TopologyPickerProps) {
 
 			{selectedTemplate === "blank" && (
 				<div className="p-3 bg-[#a78bfa]/10 border border-[#a78bfa]/30 rounded-lg">
-					<p className="text-xs text-[#d7d7d7]">
+					<p className="text-xs text-fg-soft">
 						✎ Modo manual: dibuja tu topología personalizando cada elemento y
 						ruta.
 					</p>

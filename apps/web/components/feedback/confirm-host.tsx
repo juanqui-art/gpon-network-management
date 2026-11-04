@@ -39,7 +39,7 @@ export function ConfirmHost() {
 				<DialogContent className="w-[min(calc(100vw-2rem),28rem)] gap-0 p-5">
 					<DialogTitle className="text-base">{request.title}</DialogTitle>
 					{request.description ? (
-						<DialogDescription className="mt-2 leading-6 text-[var(--text-secondary)]">
+						<DialogDescription className="mt-2 leading-6 text-fg-secondary">
 							{request.description}
 						</DialogDescription>
 					) : (

@@ -25,7 +25,7 @@ export default function LoginPage() {
 						<RadioTower className="size-5" aria-hidden="true" />
 					</div>
 					<div className="flex items-center gap-2 rounded-full border border-border bg-muted/45 px-3 py-1 text-[11px] font-medium text-muted-foreground">
-						<span className="size-1.5 rounded-full bg-[var(--status-online)] shadow-[0_0_12px_var(--status-online)]" />
+						<span className="size-1.5 rounded-full bg-success shadow-[0_0_12px_var(--status-online)]" />
 						NOC activo
 					</div>
 				</div>
@@ -55,7 +55,7 @@ export default function LoginPage() {
 					</div>
 					<div className="rounded-lg border border-border bg-muted/35 px-3 py-2">
 						<div className="flex items-center gap-2 text-xs font-medium text-foreground">
-							<LockKeyhole className="size-3.5 text-[var(--gpon-olt)]" />
+							<LockKeyhole className="size-3.5 text-info" />
 							Roles
 						</div>
 						<p className="mt-1 text-[11px] text-muted-foreground">
@@ -117,7 +117,7 @@ export default function LoginPage() {
 
 				{error && (
 					<div
-						className="rounded-lg border border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 px-3 py-2.5 text-sm text-[#ffb3c1]"
+						className="rounded-lg border border-danger/35 bg-danger/10 px-3 py-2.5 text-sm text-danger-soft"
 						role="alert"
 					>
 						{error}

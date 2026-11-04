@@ -9,7 +9,7 @@
 |---|---|---|
 | 1 | C1, C5, A1, A7 | ✅ Hecho |
 | 2 | C2, C3, C4, M3 (parcial: 8–9 px → 10 px fuera del diagrama SVG; captura 10 → 11 px) | ✅ Hecho |
-| 3 | A2, M1, M2, M4 | Pendiente |
+| 3 | A2, M1, M4, B1, B2; M2 parcial (etiquetas compartidas + A3) | ✅ Hecho |
 | 4 | A4, A5, A6, B3 | Pendiente |
 
 Hallazgos nuevos durante los sprints (ya corregidos):
@@ -19,6 +19,14 @@ Hallazgos nuevos durante los sprints (ya corregidos):
 - vaul no pasa `modal` a Radix Dialog: todo drawer "no modal" aplicaba `aria-hidden` al resto de la página y atrapaba el foco. Los paneles acoplados ahora son `<aside>` propios.
 - `LeftPanel` de `/map` provocaba un error de hidratación (lectura de `matchMedia` en el estado inicial).
 - "Conectar" y "Mufa" solo eran accesibles con clic derecho (imposible en táctil).
+
+Sprint 3 — notas:
+- Tokens semánticos en `globals.css` (`text-fg-*`, `bg-surface-*`, `border-border-subtle`, `bg-tint/N`, `info/success/warning/danger`). Literales de color en TSX: 1 109 → 268; `pnpm check:tokens` impide que vuelvan a crecer.
+- Contraste: `--text-muted` #777879 → #979899 (≥ 4.5:1 en todas las superficies sólidas), `--text-secondary` #a4a4a4 → #b1b2b4, CTA de acento con texto oscuro (6.8:1).
+- Cian de UI `#38d8ff` unificado con `--gpon-olt` (#38bdf8).
+- `lib/gpon/labels.ts` es la única fuente de etiquetas de ENUM. Corrige `formatDataQuality` del editor (usaba claves inexistentes) y el UUID mostrado como "Ruta".
+- M2 completo (un solo componente de inspector para `/map` y editor) queda pendiente: requiere decidir qué campos muestra cada contexto.
+- `components/topology/topology-picker.tsx` no se usa en ninguna parte.
 
 Pendiente de investigar: en el arnés de QA (Mapbox con estilo vacío) el mapa del editor no dibuja los datos existentes, incluso en el commit base; `/map` sí. Verificar con Mapbox real.
 

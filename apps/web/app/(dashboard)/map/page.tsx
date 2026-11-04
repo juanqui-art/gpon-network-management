@@ -87,7 +87,7 @@ export default async function MapPage() {
 
 function MapLoadError({ message }: { message: string }) {
 	return (
-		<div className="fixed inset-x-0 bottom-0 top-12 flex items-center justify-center bg-[#1b1c1d] p-6">
+		<div className="fixed inset-x-0 bottom-0 top-12 flex items-center justify-center bg-surface p-6">
 			<div className="max-w-md rounded-lg border border-red-400/25 bg-red-400/10 p-4 text-sm text-red-100">
 				<p className="font-semibold">No se pudo cargar el mapa GPON</p>
 				<p className="mt-2 text-red-100/80">{message}</p>

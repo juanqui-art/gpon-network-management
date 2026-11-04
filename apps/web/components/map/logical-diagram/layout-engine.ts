@@ -107,7 +107,7 @@ interface Accumulated {
 }
 
 function routeLabel(route: TreeNode["routeFromParent"]): string {
-	return route?.code ?? "Tramo sin codigo";
+	return route?.code ?? "Tramo sin código";
 }
 
 function numericProperty(
@@ -134,7 +134,7 @@ function addLossEvent(
 function routeEndpointSection(node: TreeNode): string {
 	const to = node.element;
 	if (to.type === "splitter") return "Mufa / splitter primario";
-	if (to.type === "nap") return "Distribucion hacia NAP";
+	if (to.type === "nap") return "Distribución hacia NAP";
 	return "Tramo de fibra";
 }
 
@@ -188,7 +188,7 @@ function estimateHeadendLoss(node: TreeNode): {
 	return {
 		loss,
 		warnings: [
-			`${element.code ?? element.name ?? "OLT"} usa perdida de cabecera estimada`,
+			`${element.code ?? element.name ?? "OLT"} usa pérdida de cabecera estimada`,
 		],
 	};
 }
@@ -266,7 +266,7 @@ function buildBudgets(
 				segFiber = (segLength / 1000) * attenuationDbPerKm;
 				if (route.attenuation_db_per_km == null) {
 					segmentWarnings.push(
-						`${routeLabel(route)} usa atenuacion 1490 nm por defecto`,
+						`${routeLabel(route)} usa atenuación 1490 nm por defecto`,
 					);
 				}
 			} else {
@@ -303,7 +303,7 @@ function buildBudgets(
 				segAdditional = route.total_loss_db - itemizedRouteLoss;
 				if (Math.abs(segAdditional) > 0.05) {
 					segmentWarnings.push(
-						`${routeLabel(route)} ajusta el desglose con perdida total medida`,
+						`${routeLabel(route)} ajusta el desglose con pérdida total medida`,
 					);
 				}
 			}
@@ -338,7 +338,7 @@ function buildBudgets(
 			SPLITTER_LOSS_DB[splitRatio] == null
 		) {
 			segmentWarnings.push(
-				`${node.element.code ?? node.element.name ?? "Nodo"} tiene ratio sin perdida conocida`,
+				`${node.element.code ?? node.element.name ?? "Nodo"} tiene ratio sin pérdida conocida`,
 			);
 		} else if (
 			node.element.type === "nap" &&

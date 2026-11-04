@@ -41,7 +41,7 @@ export function OpticalBudgetPanel({
 		>
 			{/* Header */}
 			<div className="flex items-center justify-between">
-				<span className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+				<span className="text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 					Presupuesto óptico
 				</span>
 				<div
@@ -91,7 +91,7 @@ export function OpticalBudgetPanel({
 					value={`${result.safetyMargin.toFixed(2)} dB`}
 					sub="margen diseño"
 				/>
-				<div className="h-px bg-[rgba(164,164,164,0.14)]" />
+				<div className="h-px bg-tint/14" />
 				<BudgetRow
 					label="Total"
 					value={`${result.totalLoss.toFixed(2)} dB`}
@@ -113,7 +113,7 @@ export function OpticalBudgetPanel({
 					{result.warnings.map((w) => (
 						<p
 							key={w}
-							className="text-[10px] text-[#f59e0b] flex items-start gap-1"
+							className="text-[10px] text-warning flex items-start gap-1"
 						>
 							<span className="shrink-0">⚠</span>
 							{w}
@@ -123,7 +123,7 @@ export function OpticalBudgetPanel({
 			)}
 
 			{result.status === "gray" && (
-				<p className="text-[10px] text-[#777879]">
+				<p className="text-[10px] text-fg-muted">
 					Define la clase óptica del OLT para calcular el margen de la ruta.
 				</p>
 			)}
@@ -147,12 +147,10 @@ function BudgetRow({
 	return (
 		<div className="flex items-baseline justify-between">
 			<span
-				className={`text-[11px] ${bold ? "font-semibold text-[#d7d7d7]" : "text-[#a4a4a4]"}`}
+				className={`text-[11px] ${bold ? "font-semibold text-fg-soft" : "text-fg-secondary"}`}
 			>
 				{label}
-				{sub && (
-					<span className="ml-1.5 text-[10px] text-[#5c5d5f]">{sub}</span>
-				)}
+				{sub && <span className="ml-1.5 text-[10px] text-fg-muted">{sub}</span>}
 			</span>
 			<span
 				className={`font-mono text-[11px] ${bold ? "font-bold" : ""}`}

@@ -3,6 +3,7 @@
 import { Keyboard } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AppDrawer } from "@/components/ui/app-drawer";
+import { useModifierKey } from "@/lib/hooks/use-modifier-key";
 
 interface ShortcutRow {
 	keys: string[];
@@ -34,7 +35,7 @@ const SECTIONS: Section[] = [
 			{ keys: ["e"], label: "Modo edición de inventario" },
 			{ keys: ["⌘", "Z"], label: "Deshacer" },
 			{ keys: ["⌘", "⇧", "Z"], label: "Rehacer" },
-			{ keys: ["Esc"], label: "Cerrar inspector / deseleccionar" },
+			{ keys: ["Esc"], label: "Cerrar inspector / cancelar acción" },
 		],
 	},
 	{
@@ -57,6 +58,7 @@ function Kbd({ children }: { children: string }) {
 
 export function ShortcutsOverlay() {
 	const [open, setOpen] = useState(false);
+	const modifierKey = useModifierKey();
 
 	useEffect(() => {
 		const onToggle = () => setOpen((v) => !v);
@@ -79,7 +81,7 @@ export function ShortcutsOverlay() {
 			description="Navegación global, editor de red y paleta de comandos."
 			size="lg"
 			accent="#8bdff4"
-			className="bg-[rgba(28,29,30,0.92)] text-[#d7d7d7] backdrop-blur-xl"
+			className="bg-[rgba(28,29,30,0.92)] text-fg-soft backdrop-blur-xl"
 			contentClassName="space-y-5"
 			footer={
 				<div className="flex items-center gap-2 text-[10px] text-muted-foreground">
@@ -105,7 +107,7 @@ export function ShortcutsOverlay() {
 									</span>
 									<span className="flex shrink-0 items-center gap-1">
 										{row.keys.map((k) => (
-											<Kbd key={k}>{k}</Kbd>
+											<Kbd key={k}>{k === "⌘" ? modifierKey : k}</Kbd>
 										))}
 									</span>
 								</div>

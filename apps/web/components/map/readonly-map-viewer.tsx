@@ -41,6 +41,14 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+	DATA_QUALITY_LABEL,
+	FIBER_TYPE_LABEL,
+	INSTALLATION_LABEL,
+	labelOf,
+	STATUS_LABEL,
+	ELEMENT_TYPE_LABEL as TYPE_LABEL,
+} from "@/lib/gpon/labels";
+import {
 	NAP_MODE_LABEL,
 	type NapMode,
 	napPropertyLabel,
@@ -109,53 +117,6 @@ const STATUS_FILTERS = [
 	{ value: "inactive", label: "Inactivo", color: "#858585" },
 	{ value: "retired", label: "Retirado", color: "#5c5d5f" },
 ];
-
-const TYPE_LABEL: Record<string, string> = {
-	olt: "OLT",
-	splitter: "Splitter",
-	nap: "NAP",
-	ont: "ONT",
-	amplifier: "Amplificador",
-	wdm: "WDM",
-	unknown: "Equipo",
-};
-
-const STATUS_LABEL: Record<string, string> = {
-	online: "En linea",
-	active: "Activo",
-	planned: "Planificado",
-	installed: "Instalado",
-	inactive: "Inactivo",
-	faulty: "Con falla",
-	alarm: "Alarma",
-	damaged: "Danado",
-	offline: "Fuera de linea",
-	maintenance: "Mantenimiento",
-	retired: "Retirado",
-	decommissioned: "Dado de baja",
-	unknown: "Desconocido",
-};
-
-const DATA_QUALITY_LABEL: Record<string, string> = {
-	unknown: "Desconocida",
-	approximate: "Aproximada",
-	drawn: "Dibujada",
-	gps_captured: "GPS",
-	verified: "Verificada",
-};
-
-const INSTALLATION_LABEL: Record<string, string> = {
-	aerial: "Aerea",
-	underground: "Subterranea",
-	duct: "Ducto",
-	facade: "Fachada",
-};
-
-const FIBER_TYPE_LABEL: Record<string, string> = {
-	g652d: "G.652.D",
-	g657a1: "G.657.A1",
-	g657a2: "G.657.A2",
-};
 
 const ZOOM_ROUTE_POINTS = 15;
 const UNIFILAR_DEFAULT_HEIGHT = 420;
@@ -654,7 +615,7 @@ export function ReadonlyMapViewer({
 
 	return (
 		<MapPanelContainerContext.Provider value={panelHost}>
-			<div className="gpon-readonly-map fixed inset-x-0 bottom-0 top-12 overflow-hidden bg-[#1b1c1d]">
+			<div className="gpon-readonly-map fixed inset-x-0 bottom-0 top-12 overflow-hidden bg-surface">
 				<style>{`
 				.gpon-readonly-map > .gpon-mapbox-host,
 				.gpon-readonly-map .mapboxgl-map {
@@ -952,7 +913,7 @@ function ReadonlyUnifilarPanel({
 			style={{
 				height: panelHeight,
 			}}
-			className={`z-30 border-t border-[rgba(164,164,164,0.18)] bg-[#111213] shadow-[0_-18px_40px_rgba(0,0,0,0.34)] ${
+			className={`z-30 border-t border-border bg-surface-sunken shadow-[0_-18px_40px_rgba(0,0,0,0.34)] ${
 				isResizing ? "" : "transition-[height] duration-200"
 			} md:!inset-x-0 md:!bottom-0 md:!left-0 md:!right-0 md:!top-auto md:!mx-0 md:!w-full md:!max-w-none md:!rounded-t-none`}
 			contentClassName="min-h-0 px-0 py-0"
@@ -970,20 +931,20 @@ function ReadonlyUnifilarPanel({
 				aria-valuenow={panelHeight}
 				tabIndex={0}
 			>
-				<div className="flex h-2.5 w-24 items-center justify-center rounded-full border border-white/10 bg-[#1b1c1d] shadow-lg transition-colors group-hover:border-[#38d8ff]/40">
-					<div className="h-0.5 w-12 rounded-full bg-[rgba(164,164,164,0.34)] transition-colors group-hover:bg-[#38d8ff]" />
+				<div className="flex h-2.5 w-24 items-center justify-center rounded-full border border-white/10 bg-surface shadow-lg transition-colors group-hover:border-info/40">
+					<div className="h-0.5 w-12 rounded-full bg-tint/34 transition-colors group-hover:bg-info" />
 				</div>
 			</div>
-			<div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[rgba(164,164,164,0.12)] bg-[#111213]/96 px-4 py-2.5">
+			<div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border-subtle bg-surface-sunken/96 px-4 py-2.5">
 				<div className="flex min-w-0 items-center gap-3">
-					<div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-[#38d8ff]/20 bg-[#38d8ff]/10 text-[#38d8ff]">
+					<div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-info/20 bg-info/10 text-info">
 						<Network className="size-4" aria-hidden="true" />
 					</div>
 					<div className="min-w-0">
-						<p className="truncate text-sm font-semibold text-[#e6e6e6]">
+						<p className="truncate text-sm font-semibold text-fg">
 							Vista unifilar
 						</p>
-						<p className="mt-0.5 truncate text-[11px] text-[#777879]">
+						<p className="mt-0.5 truncate text-[11px] text-fg-muted">
 							<span className="font-mono text-[#cfd2d4]">{root.code}</span>
 							{root.name ? ` · ${root.name}` : ""}
 						</p>
@@ -1009,14 +970,14 @@ function ReadonlyUnifilarPanel({
 					/>
 				</div>
 			</div>
-			<div className="grid min-h-0 flex-1 grid-cols-1 gap-2.5 bg-[#151617] p-2.5 lg:grid-cols-[minmax(0,1fr)_540px]">
+			<div className="grid min-h-0 flex-1 grid-cols-1 gap-2.5 bg-surface-sunken p-2.5 lg:grid-cols-[minmax(0,1fr)_540px]">
 				{roots.length === 0 ? (
 					<div className="flex h-full items-center justify-center rounded-md border border-dashed border-white/12 bg-white/[0.025] px-6 text-center lg:col-span-2">
 						<div className="max-w-lg">
-							<p className="text-sm font-medium text-[#d7d7d7]">
+							<p className="text-sm font-medium text-fg-soft">
 								Esta OLT no tiene unifilar disponible
 							</p>
-							<p className="mt-2 text-xs leading-5 text-[#777879]">
+							<p className="mt-2 text-xs leading-5 text-fg-muted">
 								No se encontraron rutas descendentes conectadas a esta OLT.
 								Revisa que las rutas tengan origen y destino, y que los
 								splitters o NAPs no estén ocultos por filtros del mapa.
@@ -1025,7 +986,7 @@ function ReadonlyUnifilarPanel({
 					</div>
 				) : (
 					<>
-						<div className="h-full min-h-0 overflow-hidden rounded-md bg-[#1b1c1d] ring-1 ring-white/8">
+						<div className="h-full min-h-0 overflow-hidden rounded-md bg-surface ring-1 ring-white/8">
 							<LogicalDiagram
 								key={root.id}
 								layoutNodes={layoutNodes}
@@ -1075,16 +1036,16 @@ function UnifilarSelectionPanel({
 	).length;
 
 	return (
-		<aside className="hidden min-h-0 flex-col overflow-hidden rounded-md border border-white/10 bg-[#1b1c1d] lg:flex">
+		<aside className="hidden min-h-0 flex-col overflow-hidden rounded-md border border-white/10 bg-surface lg:flex">
 			<div className="h-1 shrink-0" style={{ backgroundColor: accent }} />
 			<div className="border-b border-white/10 p-3">
-				<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+				<p className="text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 					Seleccionado
 				</p>
-				<p className="mt-2 truncate font-mono text-sm font-semibold text-[#e6e6e6]">
+				<p className="mt-2 truncate font-mono text-sm font-semibold text-fg">
 					{element.code}
 				</p>
-				<p className="mt-1 truncate text-xs text-[#858585]">
+				<p className="mt-1 truncate text-xs text-fg-muted">
 					{TYPE_LABEL[element.type] ?? element.type}
 					{" · "}
 					{STATUS_LABEL[element.status] ?? element.status}
@@ -1109,21 +1070,21 @@ function UnifilarSelectionPanel({
 				</div>
 				<div className="rounded-md border border-white/8 bg-white/[0.03] p-2.5 text-xs">
 					<div className="flex items-center justify-between gap-3">
-						<span className="text-[#777879]">Calidad</span>
+						<span className="text-fg-muted">Calidad</span>
 						<DataQualityBadge quality={element.location_quality} size="sm" />
 					</div>
 					{element.split_ratio && (
 						<div className="mt-2 flex items-center justify-between gap-3">
-							<span className="text-[#777879]">Split</span>
-							<span className="font-mono text-[#d7d7d7]">
+							<span className="text-fg-muted">Split</span>
+							<span className="font-mono text-fg-soft">
 								{element.split_ratio}
 							</span>
 						</div>
 					)}
 					{element.total_ports != null && (
 						<div className="mt-2 flex items-center justify-between gap-3">
-							<span className="text-[#777879]">Puertos</span>
-							<span className="font-mono text-[#d7d7d7]">
+							<span className="text-fg-muted">Puertos</span>
+							<span className="font-mono text-fg-soft">
 								{element.ports_used ?? 0}/{element.total_ports}
 							</span>
 						</div>
@@ -1165,7 +1126,7 @@ function UnifilarOpticalBudgetSummary({
 			}}
 		>
 			<div className="mb-2 flex items-center justify-between gap-3">
-				<span className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+				<span className="text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 					Presupuesto óptico
 				</span>
 				<span
@@ -1231,7 +1192,7 @@ function UnifilarOpticalBudgetSummary({
 			{warnings.length > 0 && (
 				<div className="mt-2 space-y-1">
 					{warnings.map((warning) => (
-						<p key={warning} className="text-[10px] leading-4 text-[#fbbf24]">
+						<p key={warning} className="text-[10px] leading-4 text-warning-fg">
 							{warning}
 						</p>
 					))}
@@ -1255,7 +1216,7 @@ function BudgetMiniRow({
 	return (
 		<div className="flex items-baseline justify-between gap-3">
 			<span
-				className={bold ? "font-semibold text-[#d7d7d7]" : "text-[#a4a4a4]"}
+				className={bold ? "font-semibold text-fg-soft" : "text-fg-secondary"}
 			>
 				{label}
 			</span>
@@ -1314,7 +1275,7 @@ function DiagramMetric({
 }) {
 	return (
 		<div className="flex min-w-20 items-center justify-between gap-2 rounded-md border border-white/8 bg-white/[0.035] px-2.5 py-1.5">
-			<p className="text-[10px] font-medium text-[#777879]">{label}</p>
+			<p className="text-[10px] font-medium text-fg-muted">{label}</p>
 			<p
 				className="font-mono text-[11px] font-semibold"
 				style={{ color: color ?? "#e6e6e6" }}
@@ -1607,7 +1568,7 @@ function LeftPanel({
 			onValueChange={(value) => onTabChange(value as LeftPanelTab)}
 			className="flex min-h-0 flex-1 flex-col gap-0"
 		>
-			<div className="border-b border-[rgba(164,164,164,0.12)] px-3 py-2.5">
+			<div className="border-b border-border-subtle px-3 py-2.5">
 				<div className="mb-2.5 grid grid-cols-4 gap-1.5">
 					<MapStatChip
 						label="OLT"
@@ -1646,7 +1607,7 @@ function LeftPanel({
 					/>
 				</div>
 				{counts.saturatedNaps > 0 && (
-					<div className="mb-2 flex items-center gap-2 rounded-md border border-[rgba(251,77,109,0.28)] bg-[rgba(251,77,109,0.08)] px-2 py-1 text-[10px] text-[#fb7185]">
+					<div className="mb-2 flex items-center gap-2 rounded-md border border-danger/28 bg-danger/8 px-2 py-1 text-[10px] text-danger-fg">
 						<AlertTriangle className="size-3" aria-hidden="true" />
 						<span>
 							{counts.saturatedNaps} NAP
@@ -1655,7 +1616,7 @@ function LeftPanel({
 						</span>
 					</div>
 				)}
-				<TabsList className="grid w-full grid-cols-3 bg-[rgba(164,164,164,0.05)]">
+				<TabsList className="grid w-full grid-cols-3 bg-tint/5">
 					{PANEL_TABS.map(({ value, label, icon: Icon }) => (
 						<TabsTrigger
 							key={value}
@@ -1665,7 +1626,7 @@ function LeftPanel({
 							<Icon className="size-3" aria-hidden="true" />
 							<span className="hidden sm:inline">{label}</span>
 							{value === "alerts" && warnings.length > 0 && (
-								<Badge className="absolute -right-1 -top-1 h-4 min-w-4 rounded-full bg-[#f59e0b] px-1 text-[10px] text-[#1b1c1d]">
+								<Badge className="absolute -right-1 -top-1 h-4 min-w-4 rounded-full bg-warning px-1 text-[10px] text-surface">
 									{warnings.length}
 								</Badge>
 							)}
@@ -1676,7 +1637,7 @@ function LeftPanel({
 
 			<TabsContent value="layers" className="min-h-0 flex-1 overflow-hidden">
 				<ScrollArea className="h-full px-3 py-3">
-					<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+					<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 						Filtros de visibilidad
 					</p>
 					<FilterBar
@@ -1690,7 +1651,7 @@ function LeftPanel({
 							nap: counts.totalNaps,
 						}}
 					/>
-					<div className="mt-4 space-y-1.5 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.04)] p-2.5 text-xs">
+					<div className="mt-4 space-y-1.5 rounded-md border border-border-subtle bg-tint/4 p-2.5 text-xs">
 						<StatRow
 							label="Elementos"
 							value={counts.olts + counts.splitters + counts.naps}
@@ -1703,7 +1664,7 @@ function LeftPanel({
 
 			<TabsContent value="tree" className="min-h-0 flex-1 overflow-hidden">
 				<ScrollArea className="h-full px-3 py-3">
-					<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+					<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 						Topología OLT → Splitter → NAP
 					</p>
 					<NetworkTree
@@ -1716,12 +1677,12 @@ function LeftPanel({
 
 			<TabsContent value="alerts" className="min-h-0 flex-1 overflow-hidden">
 				<ScrollArea className="h-full px-3 py-3">
-					<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+					<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 						Alertas de red — {warnings.length} activas
 					</p>
 					{warnings.length === 0 ? (
-						<div className="rounded-md border border-[rgba(52,211,153,0.2)] bg-[rgba(52,211,153,0.08)] px-3 py-2.5">
-							<p className="flex items-center gap-1.5 text-[11px] font-semibold text-[#34d399]">
+						<div className="rounded-md border border-success/20 bg-success/8 px-3 py-2.5">
+							<p className="flex items-center gap-1.5 text-[11px] font-semibold text-success">
 								Red sin alertas
 							</p>
 							<p className="mt-0.5 text-[10px] text-[#9ee8c9]">
@@ -1732,13 +1693,13 @@ function LeftPanel({
 						warnings.map((warning) => (
 							<div
 								key={warning}
-								className="mb-1.5 flex items-start gap-2 rounded-md border border-[rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.08)] px-2.5 py-2"
+								className="mb-1.5 flex items-start gap-2 rounded-md border border-warning/22 bg-warning/8 px-2.5 py-2"
 							>
 								<AlertTriangle
-									className="mt-0.5 size-3 shrink-0 text-[#f59e0b]"
+									className="mt-0.5 size-3 shrink-0 text-warning"
 									aria-hidden="true"
 								/>
-								<p className="text-[11px] leading-snug text-[#f6c768]">
+								<p className="text-[11px] leading-snug text-warning-fg">
 									{warning}
 								</p>
 							</div>
@@ -1759,7 +1720,7 @@ function LeftPanel({
 					type="button"
 					onClick={() => setMobileOpen(true)}
 					aria-label="Abrir panel de mapa"
-					className="fixed left-4 top-16 z-20 inline-flex items-center gap-2 rounded-full border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] px-3 py-2 text-xs font-medium text-[#d7d7d7] shadow-2xl backdrop-blur-md transition-colors hover:bg-[rgba(34,35,36,0.98)]"
+					className="fixed left-4 top-16 z-20 inline-flex items-center gap-2 rounded-full border border-border bg-surface-panel/92 px-3 py-2 text-xs font-medium text-fg-soft shadow-2xl backdrop-blur-md transition-colors hover:bg-surface-panel/98"
 				>
 					<Layers className="size-3.5" aria-hidden="true" />
 					<span>Mapa</span>
@@ -1778,8 +1739,8 @@ function LeftPanel({
 				size="md"
 				className={
 					isDesktop
-						? "md:!left-4 md:!right-auto md:!top-16 md:!bottom-4 md:!w-[min(22rem,calc(100vw-2rem))] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md"
-						: "bg-[rgba(34,35,36,0.95)] shadow-2xl backdrop-blur-md"
+						? "md:!left-4 md:!right-auto md:!top-16 md:!bottom-4 md:!w-[min(22rem,calc(100vw-2rem))] bg-surface-panel/92 shadow-2xl backdrop-blur-md"
+						: "bg-surface-panel/95 shadow-2xl backdrop-blur-md"
 				}
 				contentClassName="min-h-0 p-0"
 			>
@@ -1883,8 +1844,8 @@ function FilterBar({
 function StatRow({ label, value }: { label: string; value: number }) {
 	return (
 		<div className="flex items-center justify-between">
-			<span className="text-[#777879]">{label}</span>
-			<span className="font-mono font-semibold text-[#d7d7d7]">{value}</span>
+			<span className="text-fg-muted">{label}</span>
+			<span className="font-mono font-semibold text-fg-soft">{value}</span>
 		</div>
 	);
 }
@@ -1941,7 +1902,7 @@ function NetworkTree({
 
 	if (olts.length === 0) {
 		return (
-			<p className="py-4 text-center text-[11px] text-[#5c5d5f]">
+			<p className="py-4 text-center text-[11px] text-fg-muted">
 				Sin OLTs visibles
 			</p>
 		);
@@ -1950,7 +1911,7 @@ function NetworkTree({
 	return (
 		<div className="space-y-2">
 			<div className="mb-1 flex min-w-0 items-center justify-between gap-3">
-				<span className="min-w-0 truncate text-[10px] text-[#5c5d5f]">
+				<span className="min-w-0 truncate text-[10px] text-fg-muted">
 					{olts.length} OLT{olts.length !== 1 ? "s" : ""}
 				</span>
 				<button
@@ -1960,7 +1921,7 @@ function NetworkTree({
 							allExpanded ? new Set() : new Set(allExpandableIds),
 						)
 					}
-					className="shrink-0 whitespace-nowrap text-[10px] text-[#5c5d5f] transition-colors hover:text-[#a4a4a4]"
+					className="shrink-0 whitespace-nowrap text-[10px] text-fg-muted transition-colors hover:text-fg-secondary"
 				>
 					{allExpanded ? "Contraer todo" : "Expandir todo"}
 				</button>
@@ -1981,7 +1942,7 @@ function NetworkTree({
 				return (
 					<div
 						key={olt.id}
-						className="min-w-0 overflow-hidden rounded-md border border-[rgba(56,189,248,0.2)] bg-[rgba(56,189,248,0.05)] p-2"
+						className="min-w-0 overflow-hidden rounded-md border border-info/20 bg-info/5 p-2"
 					>
 						<div className="flex min-w-0 items-center gap-1.5">
 							<button
@@ -1993,7 +1954,7 @@ function NetworkTree({
 										: `Expandir ${olt.name ?? olt.code}`
 								}
 								aria-expanded={isOltExpanded}
-								className="flex size-6 shrink-0 items-center justify-center rounded-md text-[#a4a4a4] transition-colors hover:bg-white/10 hover:text-[#e6e6e6]"
+								className="flex size-6 shrink-0 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-white/10 hover:text-fg"
 							>
 								{isOltExpanded ? (
 									<ChevronDown className="size-3.5" aria-hidden="true" />
@@ -2006,16 +1967,16 @@ function NetworkTree({
 								onClick={() => onSelectEquipment?.(olt)}
 								className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-80"
 							>
-								<span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#38bdf8]" />
-								<span className="min-w-0 flex-1 truncate text-xs font-semibold text-[#e6e6e6]">
+								<span className="h-2.5 w-2.5 shrink-0 rounded-full bg-info" />
+								<span className="min-w-0 flex-1 truncate text-xs font-semibold text-fg">
 									{olt.name ?? olt.code}
 								</span>
 								{olt.optical_class && (
-									<span className="shrink-0 rounded border border-[rgba(56,189,248,0.22)] bg-[rgba(56,189,248,0.08)] px-1 font-mono text-[10px] text-[#38bdf8]">
+									<span className="shrink-0 rounded border border-info/22 bg-info/8 px-1 font-mono text-[10px] text-info">
 										{olt.optical_class}
 									</span>
 								)}
-								<span className="shrink-0 whitespace-nowrap text-[10px] text-[#777879]">
+								<span className="shrink-0 whitespace-nowrap text-[10px] text-fg-muted">
 									{connectedSplitters.length} spl
 								</span>
 							</button>
@@ -2052,7 +2013,7 @@ function NetworkTree({
 														: `Expandir ${spl.name ?? spl.code}`
 												}
 												aria-expanded={isSplExpanded}
-												className="flex size-5 shrink-0 items-center justify-center rounded text-[#858585] transition-colors hover:bg-white/10 hover:text-[#d7d7d7]"
+												className="flex size-5 shrink-0 items-center justify-center rounded text-fg-muted transition-colors hover:bg-white/10 hover:text-fg-soft"
 											>
 												{isSplExpanded ? (
 													<ChevronDown className="size-3" aria-hidden="true" />
@@ -2066,14 +2027,14 @@ function NetworkTree({
 												className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-80"
 											>
 												<span className="h-2 w-2 shrink-0 rounded-full bg-[#a78bfa]" />
-												<span className="min-w-0 flex-1 truncate text-[11px] text-[#d7d7d7]">
+												<span className="min-w-0 flex-1 truncate text-[11px] text-fg-soft">
 													{spl.name ?? spl.code}
 												</span>
-												<span className="shrink-0 whitespace-nowrap text-[10px] text-[#777879]">
+												<span className="shrink-0 whitespace-nowrap text-[10px] text-fg-muted">
 													{connectedNaps.length} NAPs
 												</span>
 												{spl.split_ratio && (
-													<span className="shrink-0 text-[10px] text-[#777879]">
+													<span className="shrink-0 text-[10px] text-fg-muted">
 														{spl.split_ratio}
 													</span>
 												)}
@@ -2094,7 +2055,7 @@ function NetworkTree({
 												return (
 													<div
 														key={nap.id}
-														className="ml-3 mt-1 border-l border-[rgba(245,158,11,0.2)] pl-2.5"
+														className="ml-3 mt-1 border-l border-warning/20 pl-2.5"
 													>
 														<button
 															type="button"
@@ -2105,7 +2066,7 @@ function NetworkTree({
 																className="h-1.5 w-1.5 shrink-0 rounded-full"
 																style={{ background: napColor }}
 															/>
-															<span className="min-w-0 flex-1 truncate text-[10px] text-[#a4a4a4]">
+															<span className="min-w-0 flex-1 truncate text-[10px] text-fg-secondary">
 																{nap.name ?? nap.code}
 															</span>
 															{nap.total_ports && (
@@ -2121,7 +2082,7 @@ function NetworkTree({
 												);
 											})}
 										{isSplExpanded && connectedNaps.length === 0 && (
-											<p className="ml-3 mt-0.5 text-[10px] text-[#5c5d5f]">
+											<p className="ml-3 mt-0.5 text-[10px] text-fg-muted">
 												Sin NAPs conectadas
 											</p>
 										)}
@@ -2129,7 +2090,7 @@ function NetworkTree({
 								);
 							})}
 						{isOltExpanded && connectedSplitters.length === 0 && (
-							<p className="ml-3 mt-1 text-[10px] text-[#5c5d5f]">
+							<p className="ml-3 mt-1 text-[10px] text-fg-muted">
 								Sin splitters conectados
 							</p>
 						)}
@@ -2178,7 +2139,7 @@ function RightPanel({
 			modal={!isDesktop}
 			showOverlay={!isDesktop}
 			container={container}
-			className="md:!w-[min(24rem,calc(100%-2rem))] bg-[rgba(28,29,30,0.92)] text-[#d7d7d7] backdrop-blur-xl"
+			className="md:!w-[min(24rem,calc(100%-2rem))] bg-[rgba(28,29,30,0.92)] text-fg-soft backdrop-blur-xl"
 			contentClassName="p-4"
 			title={featureTitle(feature)}
 		>
@@ -2266,7 +2227,7 @@ function ElementDetails({
 
 	return (
 		<div className="space-y-3 text-xs">
-			<Property label="Codigo" value={element.code} />
+			<Property label="Código" value={element.code} />
 			{element.name && <Property label="Nombre" value={element.name} />}
 			<Property
 				label="Tipo"
@@ -2277,11 +2238,11 @@ function ElementDetails({
 				value={STATUS_LABEL[element.status] ?? element.status}
 			/>
 			<div className="flex items-center justify-between gap-3">
-				<span className="text-[#777879]">Calidad</span>
+				<span className="text-fg-muted">Calidad</span>
 				<DataQualityBadge quality={element.location_quality} size="sm" />
 			</div>
 			<Property
-				label="Posicion"
+				label="Posición"
 				value={`${element.lat.toFixed(5)}, ${element.lng.toFixed(5)}`}
 			/>
 			{element.total_ports != null && (
@@ -2294,7 +2255,7 @@ function ElementDetails({
 				<TextBlock label="Referencia" value={element.address_reference} />
 			)}
 			{element.address && (
-				<TextBlock label="Direccion" value={element.address} />
+				<TextBlock label="Dirección" value={element.address} />
 			)}
 			<PropertiesBlock properties={element.properties} />
 			{element.notes && <TextBlock label="Notas" value={element.notes} />}
@@ -2347,23 +2308,23 @@ function SplitterDetails({
 			<div className="rounded-lg border border-[rgba(167,139,250,0.2)] bg-[rgba(167,139,250,0.06)] p-3">
 				<div className="mb-3 flex items-start justify-between gap-3">
 					<div className="min-w-0">
-						<p className="truncate font-mono text-sm font-semibold text-[#e6e6e6]">
+						<p className="truncate font-mono text-sm font-semibold text-fg">
 							{element.code}
 						</p>
 						{element.name && (
-							<p className="mt-0.5 truncate text-[11px] text-[#a4a4a4]">
+							<p className="mt-0.5 truncate text-[11px] text-fg-secondary">
 								{element.name}
 							</p>
 						)}
 					</div>
-					<span className="rounded-full border border-[rgba(167,139,250,0.24)] bg-[rgba(27,28,29,0.6)] px-2 py-0.5 text-[10px] font-semibold text-[#c4b5fd]">
+					<span className="rounded-full border border-[rgba(167,139,250,0.24)] bg-surface/60 px-2 py-0.5 text-[10px] font-semibold text-[#c4b5fd]">
 						{element.split_ratio ?? "Ratio N/D"}
 					</span>
 				</div>
 				<div className="grid grid-cols-3 gap-2">
 					<RouteMetric label="Ratio" value={element.split_ratio ?? "-"} />
 					<RouteMetric
-						label="Perdida"
+						label="Pérdida"
 						value={formatDb(element.insertion_loss_db)}
 					/>
 					<RouteMetric
@@ -2378,9 +2339,9 @@ function SplitterDetails({
 					label="Estado"
 					value={STATUS_LABEL[element.status] ?? element.status}
 				/>
-				<Property label="Relacion" value={element.split_ratio ?? "Sin dato"} />
+				<Property label="Relación" value={element.split_ratio ?? "Sin dato"} />
 				<Property
-					label="Perdida insercion"
+					label="Pérdida inserción"
 					value={formatDb(element.insertion_loss_db)}
 				/>
 				<Property
@@ -2393,7 +2354,7 @@ function SplitterDetails({
 				<Property label="Entradas" value={String(incomingRoutes.length)} />
 				<Property label="Salidas" value={String(outgoingRoutes.length)} />
 				<Property
-					label="Distribucion"
+					label="Distribución"
 					value={String(distributionRoutes.length)}
 				/>
 				<Property
@@ -2418,9 +2379,9 @@ function SplitterDetails({
 				)}
 			</DetailSection>
 
-			<DetailSection title="Ubicacion">
+			<DetailSection title="Ubicación">
 				<div className="flex items-center justify-between gap-3">
-					<span className="text-[#777879]">Calidad</span>
+					<span className="text-fg-muted">Calidad</span>
 					<DataQualityBadge quality={element.location_quality} size="sm" />
 				</div>
 				<Property
@@ -2492,19 +2453,19 @@ function NapDetails({
 
 	return (
 		<div className="space-y-3 text-xs">
-			<div className="rounded-lg border border-[rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.06)] p-3">
+			<div className="rounded-lg border border-warning/20 bg-warning/6 p-3">
 				<div className="mb-3 flex items-start justify-between gap-3">
 					<div className="min-w-0">
-						<p className="truncate font-mono text-sm font-semibold text-[#e6e6e6]">
+						<p className="truncate font-mono text-sm font-semibold text-fg">
 							{element.code}
 						</p>
 						{element.name && (
-							<p className="mt-0.5 truncate text-[11px] text-[#a4a4a4]">
+							<p className="mt-0.5 truncate text-[11px] text-fg-secondary">
 								{element.name}
 							</p>
 						)}
 					</div>
-					<span className="rounded-full border border-[rgba(245,158,11,0.24)] bg-[rgba(27,28,29,0.6)] px-2 py-0.5 text-[10px] font-semibold text-[#fbbf24]">
+					<span className="rounded-full border border-warning/24 bg-surface/60 px-2 py-0.5 text-[10px] font-semibold text-warning-fg">
 						{NAP_MODE_LABEL[napMode]}
 					</span>
 				</div>
@@ -2522,14 +2483,14 @@ function NapDetails({
 						value={availablePorts != null ? String(availablePorts) : "-"}
 					/>
 					<RouteMetric
-						label="Ocupacion"
+						label="Ocupación"
 						value={occupancy != null ? `${occupancy}%` : "-"}
 					/>
 				</div>
 			</div>
 
 			{element.total_ports != null && (
-				<div className="border-t border-[rgba(164,164,164,0.12)] pt-3">
+				<div className="border-t border-border-subtle pt-3">
 					<NapCapacity element={element} />
 				</div>
 			)}
@@ -2545,7 +2506,7 @@ function NapDetails({
 					value={napPropertyLabel(element, "connector_type", "SC/APC")}
 				/>
 				<Property
-					label="Proteccion"
+					label="Protección"
 					value={napPropertyLabel(element, "protection_rating", "IP65")}
 				/>
 			</DetailSection>
@@ -2570,7 +2531,7 @@ function NapDetails({
 			{hasInternalSplitter && (
 				<DetailSection title="Splitter interno">
 					<Property
-						label="Relacion"
+						label="Relación"
 						value={
 							splitterRatio
 								? element.split_ratio
@@ -2580,7 +2541,7 @@ function NapDetails({
 						}
 					/>
 					<Property
-						label="Perdida insercion"
+						label="Pérdida inserción"
 						value={
 							element.insertion_loss_db != null
 								? formatDb(element.insertion_loss_db)
@@ -2595,7 +2556,7 @@ function NapDetails({
 			<DetailSection title="Conectividad">
 				<Property label="Entradas" value={String(incomingRoutes.length)} />
 				<Property
-					label="Entrada distribucion"
+					label="Entrada distribución"
 					value={String(distributionRoutes.length)}
 				/>
 				<Property label="Salidas drop" value={String(dropRoutes.length)} />
@@ -2621,9 +2582,9 @@ function NapDetails({
 				)}
 			</DetailSection>
 
-			<DetailSection title="Ubicacion">
+			<DetailSection title="Ubicación">
 				<div className="flex items-center justify-between gap-3">
-					<span className="text-[#777879]">Calidad</span>
+					<span className="text-fg-muted">Calidad</span>
 					<DataQualityBadge quality={element.location_quality} size="sm" />
 				</div>
 				<Property
@@ -2674,19 +2635,19 @@ function OltDetails({
 
 	return (
 		<div className="space-y-3 text-xs">
-			<div className="rounded-lg border border-[rgba(56,189,248,0.18)] bg-[rgba(56,189,248,0.055)] p-3">
+			<div className="rounded-lg border border-info/18 bg-info/[0.055] p-3">
 				<div className="mb-3 flex items-start justify-between gap-3">
 					<div className="min-w-0">
-						<p className="truncate font-mono text-sm font-semibold text-[#e6e6e6]">
+						<p className="truncate font-mono text-sm font-semibold text-fg">
 							{element.code}
 						</p>
 						{element.name && (
-							<p className="mt-0.5 truncate text-[11px] text-[#a4a4a4]">
+							<p className="mt-0.5 truncate text-[11px] text-fg-secondary">
 								{element.name}
 							</p>
 						)}
 					</div>
-					<span className="rounded-full border border-[rgba(56,189,248,0.22)] bg-[rgba(27,28,29,0.6)] px-2 py-0.5 text-[10px] font-semibold text-[#7dd3fc]">
+					<span className="rounded-full border border-info/22 bg-surface/60 px-2 py-0.5 text-[10px] font-semibold text-info-fg">
 						{element.pon_standard?.toUpperCase() ?? "PON N/D"}
 					</span>
 				</div>
@@ -2714,7 +2675,7 @@ function OltDetails({
 					value={propertyString(element.properties, "olt_model", "Sin modelo")}
 				/>
 				<Property
-					label="Estandar PON"
+					label="Estándar PON"
 					value={element.pon_standard?.toUpperCase() ?? "Sin dato"}
 				/>
 				<Property
@@ -2726,7 +2687,7 @@ function OltDetails({
 					}
 				/>
 				<Property
-					label="Clase optica"
+					label="Clase óptica"
 					value={element.optical_class ?? "Sin definir"}
 				/>
 			</DetailSection>
@@ -2757,9 +2718,9 @@ function OltDetails({
 				/>
 			</DetailSection>
 
-			<DetailSection title="Cabecera optica">
+			<DetailSection title="Cabecera óptica">
 				<Property
-					label="Perdida cabecera"
+					label="Pérdida cabecera"
 					value={`${propertyNumber(element.properties, "headend_loss_db")?.toFixed(1) ?? "-"} dB`}
 				/>
 				<Property
@@ -2812,9 +2773,9 @@ function OltDetails({
 				)}
 			</DetailSection>
 
-			<DetailSection title="Ubicacion">
+			<DetailSection title="Ubicación">
 				<div className="flex items-center justify-between gap-3">
-					<span className="text-[#777879]">Calidad</span>
+					<span className="text-fg-muted">Calidad</span>
 					<DataQualityBadge quality={element.location_quality} size="sm" />
 				</div>
 				<Property
@@ -2909,16 +2870,16 @@ function RouteDetails({
 								className="h-2 w-8 rounded-full"
 								style={{ backgroundColor: fiberColor }}
 							/>
-							<span className="truncate font-semibold text-[#e6e6e6]">
-								{route.code ?? "Ruta sin codigo"}
+							<span className="truncate font-semibold text-fg">
+								{route.code ?? "Ruta sin código"}
 							</span>
 						</div>
-						<p className="mt-1 truncate text-[11px] text-[#a4a4a4]">
+						<p className="mt-1 truncate text-[11px] text-fg-secondary">
 							{endpointSummary}
 						</p>
 					</div>
 					<span
-						className="rounded-full border bg-[rgba(27,28,29,0.72)] px-2 py-0.5 text-[10px] font-semibold"
+						className="rounded-full border bg-surface/72 px-2 py-0.5 text-[10px] font-semibold"
 						style={{ borderColor: `${fiberColor}33`, color: fiberColor }}
 					>
 						{routeTypeLabel}
@@ -2934,18 +2895,18 @@ function RouteDetails({
 						value={route.fiber_count != null ? String(route.fiber_count) : "-"}
 					/>
 					<RouteMetric
-						label={route.total_loss_db != null ? "Perdida" : "Estimado"}
+						label={route.total_loss_db != null ? "Pérdida" : "Estimado"}
 						value={estimatedLoss != null ? formatDb(estimatedLoss) : "-"}
 					/>
 				</div>
 			</div>
 
 			{routeWarnings.length > 0 && (
-				<div className="space-y-1 rounded-lg border border-[rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.07)] px-3 py-2">
+				<div className="space-y-1 rounded-lg border border-warning/22 bg-warning/7 px-3 py-2">
 					{routeWarnings.map((warning) => (
 						<div
 							key={warning}
-							className="flex items-start gap-2 text-[#fbbf24]"
+							className="flex items-start gap-2 text-warning-fg"
 						>
 							<AlertTriangle className="mt-0.5 size-3 shrink-0" />
 							<span className="leading-relaxed">{warning}</span>
@@ -2954,14 +2915,14 @@ function RouteDetails({
 				</div>
 			)}
 
-			<DetailSection title="Operacion">
+			<DetailSection title="Operación">
 				<Property
 					label="Estado"
 					value={STATUS_LABEL[route.status] ?? route.status}
 				/>
 				<Property label="Tipo" value={routeTypeLabel} />
 				<Property
-					label="Instalacion"
+					label="Instalación"
 					value={
 						route.installation_type
 							? (INSTALLATION_LABEL[route.installation_type] ??
@@ -2996,9 +2957,9 @@ function RouteDetails({
 				</div>
 			</DetailSection>
 
-			<DetailSection title="Cable y perdida">
+			<DetailSection title="Cable y pérdida">
 				<Property
-					label="Estandar"
+					label="Estándar"
 					value={
 						route.fiber_type
 							? (FIBER_TYPE_LABEL[route.fiber_type] ?? route.fiber_type)
@@ -3012,7 +2973,7 @@ function RouteDetails({
 					}
 				/>
 				<Property
-					label={`Perdida ${lossLabel}`}
+					label={`Pérdida ${lossLabel}`}
 					value={estimatedLoss != null ? formatDb(estimatedLoss) : "Sin dato"}
 				/>
 				<Property
@@ -3020,7 +2981,7 @@ function RouteDetails({
 					value={fiberLoss != null ? formatDb(fiberLoss) : "Sin dato"}
 				/>
 				<Property
-					label="Atenuacion"
+					label="Atenuación"
 					value={formatDbPerKm(route.attenuation_db_per_km)}
 				/>
 				<Property label="Empalmes" value={formatDb(route.splice_loss_db)} />
@@ -3030,7 +2991,7 @@ function RouteDetails({
 				/>
 			</DetailSection>
 
-			<div className="border-t border-[rgba(164,164,164,0.12)] pt-3">
+			<div className="border-t border-border-subtle pt-3">
 				<OpticalBudgetPanel
 					route={route}
 					splitterRatio={inferredSplitRatio}
@@ -3053,9 +3014,9 @@ function RouteEndpoint({
 	fallbackId: string | null | undefined;
 }) {
 	return (
-		<div className="rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(27,28,29,0.42)] px-2.5 py-2">
+		<div className="rounded-md border border-border-subtle bg-surface/42 px-2.5 py-2">
 			<div className="flex items-center justify-between gap-3">
-				<span className="text-[10px] uppercase tracking-wider text-[#777879]">
+				<span className="text-[10px] uppercase tracking-wider text-fg-muted">
 					{label}
 				</span>
 				{equipment && (
@@ -3067,11 +3028,11 @@ function RouteEndpoint({
 					/>
 				)}
 			</div>
-			<p className="mt-1 truncate font-mono text-[12px] font-semibold text-[#e6e6e6]">
+			<p className="mt-1 truncate font-mono text-[12px] font-semibold text-fg">
 				{endpointLabel(equipment, fallbackId)}
 			</p>
 			{equipment && (
-				<p className="mt-0.5 truncate text-[10px] text-[#858585]">
+				<p className="mt-0.5 truncate text-[10px] text-fg-muted">
 					{TYPE_LABEL[equipment.type] ?? equipment.type} ·{" "}
 					{STATUS_LABEL[equipment.status] ?? equipment.status}
 				</p>
@@ -3107,7 +3068,7 @@ function buildRouteWarnings(
 		warnings.push("Cantidad de hilos sin definir.");
 	}
 	if (estimatedLoss == null) {
-		warnings.push("Perdida optica sin datos suficientes.");
+		warnings.push("Pérdida óptica sin datos suficientes.");
 	}
 	return warnings;
 }
@@ -3116,11 +3077,17 @@ function RoutePointDetails({ point }: { point: RoutePoint }) {
 	return (
 		<div className="space-y-3 text-xs">
 			<Property label="Tipo" value={routePointLabel(point.type)} />
-			<Property label="Codigo" value={point.code ?? "Sin codigo"} />
-			<Property label="Estado" value={point.status ?? "Sin estado"} />
-			<Property label="Calidad" value={point.location_quality} />
+			<Property label="Código" value={point.code ?? "Sin código"} />
 			<Property
-				label="Posicion"
+				label="Estado"
+				value={labelOf(STATUS_LABEL, point.status, "Sin estado")}
+			/>
+			<Property
+				label="Calidad"
+				value={labelOf(DATA_QUALITY_LABEL, point.location_quality)}
+			/>
+			<Property
+				label="Posición"
 				value={`${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`}
 			/>
 			{point.reserve_length_m != null && (
@@ -3130,7 +3097,7 @@ function RoutePointDetails({ point }: { point: RoutePoint }) {
 				/>
 			)}
 			{point.splice_loss_db != null && (
-				<Property label="Perdida" value={`${point.splice_loss_db} dB`} />
+				<Property label="Pérdida" value={`${point.splice_loss_db} dB`} />
 			)}
 			{point.reference_text && (
 				<TextBlock label="Referencia" value={point.reference_text} />
@@ -3161,7 +3128,7 @@ function PropertiesBlock({
 				/>
 			))}
 			{entries.length > 8 && (
-				<p className="text-right text-[10px] text-[#777879]">
+				<p className="text-right text-[10px] text-fg-muted">
 					+{entries.length - 8} propiedades mas
 				</p>
 			)}

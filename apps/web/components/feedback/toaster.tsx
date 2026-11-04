@@ -20,17 +20,15 @@ const TONE_STYLE: Record<ToastTone, { icon: typeof Info; className: string }> =
 	{
 		success: {
 			icon: CheckCircle2,
-			className:
-				"border-l-[var(--status-online)] [&_svg]:text-[var(--status-online)]",
+			className: "border-l-success [&_svg]:text-success",
 		},
 		error: {
 			icon: AlertTriangle,
-			className:
-				"border-l-[var(--status-alarm)] [&_svg]:text-[var(--status-alarm)]",
+			className: "border-l-danger [&_svg]:text-danger",
 		},
 		info: {
 			icon: Info,
-			className: "border-l-[var(--gpon-olt)] [&_svg]:text-[var(--gpon-olt)]",
+			className: "border-l-info [&_svg]:text-info",
 		},
 	};
 
@@ -59,14 +57,14 @@ export function Toaster() {
 						<div className="min-w-0 space-y-0.5">
 							<ToastTitle>{item.title}</ToastTitle>
 							{item.description && (
-								<ToastDescription className="text-[var(--text-secondary)]">
+								<ToastDescription className="text-fg-secondary">
 									{item.description}
 								</ToastDescription>
 							)}
 						</div>
 						<ToastPrimitive.Close
 							aria-label="Cerrar notificación"
-							className="absolute top-2 right-2 rounded p-1 text-[var(--text-secondary)] transition-colors hover:bg-muted hover:text-foreground"
+							className="absolute top-2 right-2 rounded p-1 text-fg-secondary transition-colors hover:bg-muted hover:text-foreground"
 						>
 							<X className="size-3.5 !text-current" aria-hidden="true" />
 						</ToastPrimitive.Close>

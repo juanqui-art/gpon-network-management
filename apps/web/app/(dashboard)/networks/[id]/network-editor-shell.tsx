@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from "react";
 import { DiagramPanel } from "@/components/map/logical-diagram";
 import { NetworkEditorMap } from "@/components/map/network-editor-map";
 import { NetworkLoadState } from "@/components/map/network-load-state";
+import { Button } from "@/components/ui/button";
 import { confirmAction } from "@/lib/feedback/confirm";
 import { toast } from "@/lib/feedback/toast";
 import { useEditorShortcuts } from "@/lib/hooks/use-editor-shortcuts";
@@ -147,13 +148,13 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 	return (
 		<div className="flex h-full min-h-0 flex-col">
 			{/* Editor topbar */}
-			<div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-[rgba(164,164,164,0.14)] bg-[#1e1f20] px-3 sm:gap-4 sm:px-4">
+			<div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-surface-panel px-3 sm:gap-4 sm:px-4">
 				{/* Left: breadcrumb + workspace identity */}
 				<div className="flex min-w-0 items-center gap-2 sm:gap-4">
 					<Link
 						href="/networks"
 						aria-label="Volver a Redes"
-						className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs text-[var(--text-secondary)] transition-colors hover:text-[#e6e6e6]"
+						className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs text-fg-secondary transition-colors hover:text-fg"
 					>
 						<ArrowLeft className="size-4" aria-hidden="true" />
 						<span className="hidden sm:inline">Redes</span>
@@ -164,11 +165,11 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 					>
 						/
 					</span>
-					<span className="hidden max-w-48 truncate text-xs font-medium text-[#e6e6e6] md:inline">
+					<span className="hidden max-w-48 truncate text-xs font-medium text-fg md:inline">
 						{network.name}
 					</span>
 					{canEdit ? (
-						<fieldset className="inline-flex items-center rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(164,164,164,0.04)] p-0.5">
+						<fieldset className="inline-flex items-center rounded-md border border-border bg-tint/4 p-0.5">
 							<legend className="sr-only">Modo del editor</legend>
 							{(
 								[
@@ -190,9 +191,9 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 										className={`inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors ${
 											active
 												? option.value === "edit"
-													? "bg-[rgba(56,189,248,0.16)] text-[#bdeafe]"
-													: "bg-[rgba(164,164,164,0.14)] text-[#e6e6e6]"
-												: "text-[var(--text-secondary)] hover:text-[#e6e6e6]"
+													? "bg-info/16 text-info-strong"
+													: "bg-tint/14 text-fg"
+												: "text-fg-secondary hover:text-fg"
 										}`}
 									>
 										<Icon className="size-3.5" aria-hidden="true" />
@@ -202,7 +203,7 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 							})}
 						</fieldset>
 					) : (
-						<div className="inline-flex items-center gap-1.5 rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(164,164,164,0.06)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)]">
+						<div className="inline-flex items-center gap-1.5 rounded-md border border-border bg-tint/6 px-2.5 py-1 text-[11px] font-medium text-fg-secondary">
 							<Eye className="size-3.5" aria-hidden="true" />
 							Solo lectura
 						</div>
@@ -216,7 +217,7 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 							href={`/networks/${networkId}/capture`}
 							aria-label="Captura rápida"
 							title="Captura rápida"
-							className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[rgba(52,211,153,0.3)] bg-[rgba(52,211,153,0.1)] px-2.5 text-xs font-medium text-[#34d399] transition-colors hover:bg-[rgba(52,211,153,0.16)]"
+							className="inline-flex h-8 items-center gap-1.5 rounded-md border border-success/30 bg-success/10 px-2.5 text-xs font-medium text-success transition-colors hover:bg-success/16"
 						>
 							<Plus className="size-3.5" aria-hidden="true" />
 							<span className="hidden lg:inline">Captura rápida</span>
@@ -224,25 +225,25 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 					)}
 					{validationErrors.length > 0 && (
 						<span
-							className="hidden max-w-52 truncate rounded-md border border-[rgba(245,158,11,0.22)] md:inline-block bg-[rgba(245,158,11,0.08)] px-2 py-1 text-xs text-[#f59e0b]"
+							className="hidden max-w-52 truncate rounded-md border border-warning/22 md:inline-block bg-warning/8 px-2 py-1 text-xs text-warning"
 							title={statusMessage}
 						>
 							{validationErrors.length} advertencia
 							{validationErrors.length > 1 ? "s" : ""}
 						</span>
 					)}
-					<button
-						type="button"
+					<Button
+						variant="info"
 						onClick={() => setDiagramOpen(!diagramOpen)}
 						aria-label={diagramOpen ? "Ocultar unifilar" : "Abrir unifilar"}
 						aria-expanded={diagramOpen}
-						className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[rgba(56,216,255,0.18)] bg-[rgba(56,216,255,0.06)] px-2.5 text-xs font-medium text-[#8bdff4] transition-colors hover:border-[rgba(56,216,255,0.32)] hover:bg-[rgba(56,216,255,0.1)]"
+						className="text-xs"
 					>
 						<NetworkIcon className="size-3.5" aria-hidden="true" />
 						<span className="hidden lg:inline">
 							{diagramOpen ? "Ocultar" : "Abrir"} unifilar
 						</span>
-					</button>
+					</Button>
 					{canEdit && (canUndo || canRedo) && (
 						<div className="inline-flex items-center gap-0.5">
 							<button
@@ -254,7 +255,7 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 								disabled={!canUndo}
 								aria-label="Deshacer último cambio"
 								title="Deshacer último cambio (Ctrl+Z)"
-								className="inline-flex size-8 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[rgba(164,164,164,0.1)] hover:text-[#e6e6e6] disabled:opacity-40"
+								className="inline-flex size-8 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-tint/10 hover:text-fg disabled:opacity-40"
 							>
 								<Undo2 className="size-3.5" aria-hidden="true" />
 							</button>
@@ -267,7 +268,7 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 								disabled={!canRedo}
 								aria-label="Rehacer"
 								title="Rehacer (Ctrl+Shift+Z o Ctrl+Y)"
-								className="hidden size-8 sm:inline-flex items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[rgba(164,164,164,0.1)] hover:text-[#e6e6e6] disabled:opacity-40"
+								className="hidden size-8 sm:inline-flex items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-tint/10 hover:text-fg disabled:opacity-40"
 							>
 								<Redo2 className="size-3.5" aria-hidden="true" />
 							</button>
@@ -277,36 +278,36 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 						<>
 							<span
 								role="status"
-								className="inline-flex items-center gap-1.5 text-xs text-[#fbbf24]"
+								className="inline-flex items-center gap-1.5 text-xs text-warning-fg"
 							>
 								<span
-									className="size-1.5 rounded-full bg-[#fbbf24]"
+									className="size-1.5 rounded-full bg-warning-fg"
 									aria-hidden="true"
 								/>
 								<span className="sr-only xl:not-sr-only">
 									Cambios sin guardar
 								</span>
 							</span>
-							<button
-								type="button"
+							<Button
+								variant="ghost"
 								onClick={handleDiscard}
 								disabled={isSaving}
-								className="h-8 rounded-md px-2 text-xs text-[var(--text-secondary)] transition-colors hover:bg-[rgba(251,77,109,0.1)] hover:text-[#fb7185] disabled:opacity-50"
+								className="text-xs text-fg-secondary hover:bg-danger/10 hover:text-danger-fg"
 							>
 								Descartar
-							</button>
-							<button
-								type="button"
+							</Button>
+							<Button
+								variant="success"
 								onClick={() => void saveChanges()}
 								disabled={isSaving}
-								className="h-8 rounded-md border border-[rgba(52,211,153,0.35)] bg-[rgba(52,211,153,0.12)] px-3 text-xs font-medium text-[#34d399] transition-colors hover:bg-[rgba(52,211,153,0.2)] disabled:opacity-50"
+								className="text-xs"
 							>
 								{isSaving ? "Guardando…" : "Guardar"}
-							</button>
+							</Button>
 						</>
 					)}
 					{!isDirty && networkQuery.isSuccess && (
-						<span className="hidden text-xs text-[var(--text-secondary)] sm:inline">
+						<span className="hidden text-xs text-fg-secondary sm:inline">
 							Todo guardado
 						</span>
 					)}

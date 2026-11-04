@@ -54,7 +54,7 @@ export function generateOperativeCode(ctx: CodeContext): string {
 
 /**
  * Código propuesto para un draft.
- * Debe ser operativo desde el inicio porque puede guardarse sin edicion manual.
+ * Debe ser operativo desde el inicio porque puede guardarse sin edición manual.
  * La zona puede ser especificada por el usuario; si no, usa Z05 como default.
  */
 export function generateDraftCode(

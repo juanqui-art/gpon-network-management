@@ -32,15 +32,15 @@ export function OltModelSelector({
 		<div className="space-y-3">
 			{/* Manufacturer filter */}
 			<fieldset className="space-y-2">
-				<legend className="text-xs font-medium text-[#d7d7d7]">Marca</legend>
+				<legend className="text-xs font-medium text-fg-soft">Marca</legend>
 				<div className="flex flex-wrap gap-2">
 					<button
 						type="button"
 						onClick={() => setFilterManufacturer(null)}
 						className={`rounded-sm px-3 py-1.5 text-xs font-medium transition-colors ${
 							filterManufacturer === null
-								? "bg-[#38bdf8] text-[#1b1c1d]"
-								: "border border-[rgba(164,164,164,0.18)] bg-transparent text-[#a4a4a4] hover:border-[#a4a4a4]"
+								? "bg-info text-surface"
+								: "border border-border bg-transparent text-fg-secondary hover:border-tint"
 						}`}
 					>
 						Todas
@@ -52,8 +52,8 @@ export function OltModelSelector({
 							onClick={() => setFilterManufacturer(mfr)}
 							className={`rounded-sm px-3 py-1.5 text-xs font-medium transition-colors ${
 								filterManufacturer === mfr
-									? "bg-[#38bdf8] text-[#1b1c1d]"
-									: "border border-[rgba(164,164,164,0.18)] bg-transparent text-[#a4a4a4] hover:border-[#a4a4a4]"
+									? "bg-info text-surface"
+									: "border border-border bg-transparent text-fg-secondary hover:border-tint"
 							}`}
 						>
 							{mfr}
@@ -64,9 +64,7 @@ export function OltModelSelector({
 
 			{/* Models grid */}
 			<fieldset className="space-y-2">
-				<legend className="text-xs font-medium text-[#d7d7d7]">
-					Modelo OLT
-				</legend>
+				<legend className="text-xs font-medium text-fg-soft">Modelo OLT</legend>
 				<div className="grid gap-2">
 					{filteredModels.map((model) => {
 						const isSelected = selectedModelId
@@ -79,24 +77,24 @@ export function OltModelSelector({
 								onClick={() => onSelect(model)}
 								className={`rounded-md border p-3 text-left transition-colors ${
 									isSelected
-										? "border-[#38bdf8] bg-[rgba(56,189,248,0.1)]"
-										: "border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)] hover:border-[rgba(164,164,164,0.18)]"
+										? "border-info bg-info/10"
+										: "border-border-subtle bg-tint/5 hover:border-border"
 								}`}
 							>
 								<div className="flex items-start justify-between gap-2">
 									<div className="min-w-0 flex-1">
-										<div className="text-xs font-semibold text-[#e6e6e6]">
+										<div className="text-xs font-semibold text-fg">
 											{model.manufacturer} {model.model}
 										</div>
-										<div className="mt-1 text-[10px] text-[#777879]">
+										<div className="mt-1 text-[10px] text-fg-muted">
 											{model.notes}
 										</div>
 									</div>
 									<div className="flex shrink-0 flex-col items-end gap-1 text-right">
-										<div className="rounded-sm bg-[#34d399]/20 px-2 py-1 text-[10px] font-semibold text-[#34d399]">
+										<div className="rounded-sm bg-success/20 px-2 py-1 text-[10px] font-semibold text-success">
 											{model.opticalClass}
 										</div>
-										<div className="text-[10px] text-[#a4a4a4]">
+										<div className="text-[10px] text-fg-secondary">
 											{model.maxPonPorts}x PON
 										</div>
 									</div>

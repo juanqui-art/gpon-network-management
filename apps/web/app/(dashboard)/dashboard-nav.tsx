@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { signOut } from "@/app/actions/auth";
 import { AppDrawer } from "@/components/ui/app-drawer";
 import { Button } from "@/components/ui/button";
+import { useModifierKey } from "@/lib/hooks/use-modifier-key";
 import {
 	isLeaveBlocked,
 	requestNavigation,
@@ -31,7 +32,7 @@ const NAV_LINKS = [
 	{ href: "/monitoring", label: "Monitoreo" },
 	{ href: "/admin/users", label: "Usuarios" },
 	{ href: "/admin/audit", label: "Auditoría" },
-	{ href: "/admin/settings", label: "Settings" },
+	{ href: "/admin/settings", label: "Configuración" },
 ] as const;
 
 function isActive(pathname: string, href: string): boolean {
@@ -42,6 +43,8 @@ function isActive(pathname: string, href: string): boolean {
 export function DashboardNav() {
 	const [open, setOpen] = useState(false);
 	const pathname = usePathname();
+	const modifierKey = useModifierKey();
+	const paletteShortcut = modifierKey === "⌘" ? "⌘K" : "Ctrl K";
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: pathname from usePathname is reactive; close menu on route change
 	useEffect(() => {
@@ -78,13 +81,13 @@ export function DashboardNav() {
 				<button
 					type="button"
 					onClick={openPalette}
-					aria-label="Abrir búsqueda (⌘K)"
+					aria-label={`Abrir búsqueda (${paletteShortcut})`}
 					className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
 				>
 					<Search className="size-3" />
 					<span>Buscar...</span>
 					<kbd className="rounded bg-background/60 px-1.5 py-0.5 font-mono text-[10px]">
-						⌘K
+						{paletteShortcut}
 					</kbd>
 				</button>
 				<form action={signOut} onSubmit={guardSignOut}>

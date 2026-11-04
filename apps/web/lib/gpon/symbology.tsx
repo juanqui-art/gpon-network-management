@@ -1,27 +1,9 @@
 import type { ReactElement } from "react";
+import { ELEMENT_TYPE_LABEL, STATUS_LABEL } from "@/lib/gpon/labels";
 
-export const EQUIPMENT_TYPE_LABEL: Record<string, string> = {
-	olt: "OLT",
-	splitter: "Splitter",
-	closure: "Mufa",
-	nap: "NAP",
-	ont: "ONT",
-	unknown: "Equipo",
-};
+export const EQUIPMENT_TYPE_LABEL = ELEMENT_TYPE_LABEL;
 
-export const EQUIPMENT_STATUS_LABEL: Record<string, string> = {
-	online: "En línea",
-	active: "Activo",
-	planned: "Planificado",
-	inactive: "Inactivo",
-	faulty: "Falla",
-	retired: "Retirado",
-	alarm: "Alarma",
-	offline: "Fuera de línea",
-	maintenance: "Mantenimiento",
-	decommissioned: "Retirado",
-	unknown: "Sin estado",
-};
+export const EQUIPMENT_STATUS_LABEL = STATUS_LABEL;
 
 export const EQUIPMENT_STATUS_MARK: Record<string, string> = {
 	online: "",

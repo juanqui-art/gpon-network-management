@@ -117,20 +117,20 @@ export function AppDrawer({
 			{modal && (
 				<div className="mx-auto mt-3 h-1.5 w-12 shrink-0 rounded-full bg-white/20 md:hidden" />
 			)}
-			<header className="flex shrink-0 items-start justify-between gap-3 border-b border-[rgba(164,164,164,0.12)] px-5 py-4">
+			<header className="flex shrink-0 items-start justify-between gap-3 border-b border-border-subtle px-5 py-4">
 				<div className="min-w-0">
 					<Title
 						// Only for the docked panel: an explicit `undefined` would
 						// override the id Radix wires to aria-labelledby.
 						{...(ids ? { id: ids.title } : {})}
-						className="truncate text-base font-semibold text-[#e6e6e6]"
+						className="truncate text-base font-semibold text-fg"
 					>
 						{title}
 					</Title>
 					{description && (
 						<Description
 							{...(ids ? { id: ids.description } : {})}
-							className="mt-1 text-sm leading-6 text-[#a4a4a4]"
+							className="mt-1 text-sm leading-6 text-fg-secondary"
 						>
 							{description}
 						</Description>
@@ -141,7 +141,7 @@ export function AppDrawer({
 						type="button"
 						aria-label="Cerrar panel"
 						onClick={() => onOpenChange(false)}
-						className="rounded-md p-1 text-[#777879] transition-colors hover:bg-[rgba(164,164,164,0.08)] hover:text-[#e6e6e6]"
+						className="rounded-md p-1 text-fg-muted transition-colors hover:bg-tint/8 hover:text-fg"
 					>
 						<X className="size-4" />
 					</button>
@@ -157,7 +157,7 @@ export function AppDrawer({
 				{children}
 			</div>
 			{footer && (
-				<footer className="shrink-0 border-t border-[rgba(164,164,164,0.12)] px-5 py-4">
+				<footer className="shrink-0 border-t border-border-subtle px-5 py-4">
 					{footer}
 				</footer>
 			)}

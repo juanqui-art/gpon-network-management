@@ -19,7 +19,7 @@ import { requireAdmin } from "@/lib/auth/permissions";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS, USER_ROLES } from "@/lib/auth/roles";
 import { env } from "@/lib/env";
 
-export const metadata = { title: "Settings" };
+export const metadata = { title: "Configuración" };
 
 function maskValue(value: string): string {
 	if (value.length <= 12) return "Configurado";
@@ -32,7 +32,7 @@ function StatusBadge({ enabled }: { enabled: boolean }) {
 			variant="outline"
 			className={
 				enabled
-					? "border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]"
+					? "border-success/35 bg-success/10 text-success"
 					: "border-[var(--severity-high)]/35 bg-[var(--severity-high)]/10 text-[var(--severity-high)]"
 			}
 		>
@@ -83,7 +83,7 @@ function PermissionDot({
 			<span
 				className={
 					enabled
-						? "size-2 rounded-full bg-[var(--status-online)]"
+						? "size-2 rounded-full bg-success"
 						: "size-2 rounded-full bg-[var(--status-offline)]"
 				}
 			/>
@@ -235,7 +235,7 @@ export default async function SettingsPage() {
 						<CardContent className="grid gap-3 md:grid-cols-2">
 							<div className="rounded-lg border border-border bg-muted/25 p-3">
 								<p className="flex items-center gap-2 text-sm font-medium text-foreground">
-									<KeyRound className="size-4 text-[var(--gpon-olt)]" />
+									<KeyRound className="size-4 text-info" />
 									Callbacks
 								</p>
 								<p className="mt-2 text-xs leading-5 text-muted-foreground">

@@ -127,7 +127,7 @@ function MetricPill({
 	color?: string;
 }) {
 	return (
-		<span className="inline-flex h-5 min-w-0 items-center gap-1 rounded border border-white/14 bg-white/7 px-1.5 text-[8px] leading-none text-[#a4a4a4]">
+		<span className="inline-flex h-5 min-w-0 items-center gap-1 rounded border border-white/14 bg-white/7 px-1.5 text-[8px] leading-none text-fg-secondary">
 			<span className="shrink-0 text-[#7b8086]">{label}</span>
 			<span className="min-w-0 truncate font-semibold" style={{ color }}>
 				{value}
@@ -182,7 +182,7 @@ function CapacityBar({
 			)}
 			{reservedRatio > 0 && (
 				<div
-					className="h-full bg-[#f59e0b]/60"
+					className="h-full bg-warning/60"
 					style={{ width: `${reservedRatio * 100}%` }}
 				/>
 			)}
@@ -292,10 +292,10 @@ function OltCapacityStage({ element }: { element: InfrastructureElement }) {
 	return (
 		<div className="mt-1.5 space-y-1.5">
 			<div className="flex min-w-0 items-center justify-between gap-2">
-				<span className="truncate text-[8px] font-semibold leading-none text-[#d7d7d7]">
+				<span className="truncate text-[8px] font-semibold leading-none text-fg-soft">
 					{capacity.modelLabel ?? element.pon_standard?.toUpperCase() ?? "OLT"}
 				</span>
-				<span className="shrink-0 text-[8px] font-bold leading-none text-[#38bdf8]">
+				<span className="shrink-0 text-[8px] font-bold leading-none text-info">
 					{element.optical_class ?? "N/D"}
 				</span>
 			</div>
@@ -319,11 +319,11 @@ function OltCapacityStage({ element }: { element: InfrastructureElement }) {
 			</div>
 			<div className="flex h-[3px] overflow-hidden rounded-full bg-white/8">
 				<div
-					className="h-full bg-[#38bdf8]"
+					className="h-full bg-info"
 					style={{ width: `${Math.max(4, slotRatio * 100)}%` }}
 				/>
 				<div
-					className="h-full bg-[#34d399]"
+					className="h-full bg-success"
 					style={{ width: `${Math.max(0, (ponRatio - slotRatio) * 100)}%` }}
 				/>
 			</div>
@@ -388,7 +388,7 @@ function NapOpticalStage({
 			}}
 		>
 			<div className="flex items-center justify-between gap-2">
-				<span className="truncate text-[8px] font-semibold leading-none text-[#d7d7d7]">
+				<span className="truncate text-[8px] font-semibold leading-none text-fg-soft">
 					{label}
 				</span>
 				<span
@@ -515,13 +515,13 @@ function GponFlowNodeComponent({ data, selected }: NodeProps<GponFlowNode>) {
 			<Handle
 				type="target"
 				position={Position.Left}
-				className="!h-2 !w-2 !border !border-[#111213] !bg-[#858585]"
+				className="!h-2 !w-2 !border !border-surface-sunken !bg-[#858585]"
 				isConnectable={false}
 			/>
 			<Handle
 				type="source"
 				position={Position.Right}
-				className="!h-2 !w-2 !border !border-[#111213]"
+				className="!h-2 !w-2 !border !border-surface-sunken"
 				style={{ backgroundColor: color }}
 				isConnectable={false}
 			/>
@@ -558,7 +558,7 @@ function GponFlowNodeComponent({ data, selected }: NodeProps<GponFlowNode>) {
 						hasInternalSplitter={hasInternalSplitter(el)}
 					/>
 					<span
-						className="absolute -right-1 -bottom-1 flex size-3 items-center justify-center rounded-full border border-[#111213] text-[7px] font-bold leading-none text-[#111213]"
+						className="absolute -right-1 -bottom-1 flex size-3 items-center justify-center rounded-full border border-surface-sunken text-[7px] font-bold leading-none text-[#111213]"
 						style={{ backgroundColor: statusColor }}
 						title={statusLabel}
 						aria-hidden="true"
@@ -567,7 +567,7 @@ function GponFlowNodeComponent({ data, selected }: NodeProps<GponFlowNode>) {
 					</span>
 					{node.budget.margin !== null && (
 						<span
-							className="absolute -right-1 -top-1 block size-2.5 rounded-full border border-[#111213]"
+							className="absolute -right-1 -top-1 block size-2.5 rounded-full border border-surface-sunken"
 							style={{
 								backgroundColor: OPTICAL_STATUS_COLOR[node.budget.status],
 							}}
@@ -587,7 +587,7 @@ function GponFlowNodeComponent({ data, selected }: NodeProps<GponFlowNode>) {
 								event.stopPropagation();
 								onToggleGroup(el.id);
 							}}
-							className="nodrag nopan h-4 min-w-6 rounded border border-white/10 bg-white/5 px-1 text-[8px] text-[#6b7280] hover:bg-white/10 hover:text-[#a4a4a4]"
+							className="nodrag nopan h-4 min-w-6 rounded border border-white/10 bg-white/5 px-1 text-[8px] text-fg-muted hover:bg-white/10 hover:text-fg-secondary"
 							aria-label={
 								isExpanded
 									? `Contraer ${el.code ?? el.name ?? "splitter"}`
@@ -655,7 +655,7 @@ function GponCableEdgeComponent({
 			{active && (
 				<EdgeLabelRenderer>
 					<div
-						className="nodrag nopan absolute size-2 rounded-full border border-[#111213]"
+						className="nodrag nopan absolute size-2 rounded-full border border-surface-sunken"
 						style={{
 							backgroundColor: data?.statusColor ?? color,
 							transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
@@ -666,7 +666,7 @@ function GponCableEdgeComponent({
 			{data?.label && opacity > 0.2 && (
 				<EdgeLabelRenderer>
 					<div
-						className="nodrag nopan absolute rounded border border-white/10 bg-[#111213]/95 px-1.5 py-0.5 text-[8px] text-[#858585] shadow-sm"
+						className="nodrag nopan absolute rounded border border-white/10 bg-surface-sunken/95 px-1.5 py-0.5 text-[8px] text-fg-muted shadow-sm"
 						style={{
 							transform: `translate(-50%, calc(-50% - 13px)) translate(${labelX}px, ${labelY}px)`,
 						}}
@@ -694,7 +694,7 @@ function FlowButton({
 		<button
 			type="button"
 			onClick={onClick}
-			className="flex size-7 items-center justify-center rounded border border-white/10 bg-[#1b1c1d]/90 text-[#858585] shadow-sm transition-colors hover:bg-white/10 hover:text-[#e6e6e6] aria-pressed:border-[#38bdf8]/40 aria-pressed:text-[#38bdf8]"
+			className="flex size-7 items-center justify-center rounded border border-white/10 bg-surface/90 text-fg-muted shadow-sm transition-colors hover:bg-white/10 hover:text-fg aria-pressed:border-info/40 aria-pressed:text-info"
 			aria-label={label}
 			aria-pressed={active}
 			title={label}
@@ -719,7 +719,7 @@ function DiagramToolbar({
 
 	return (
 		<Panel position="top-left" className="!m-3">
-			<div className="flex items-center gap-1 rounded-md border border-white/10 bg-[#111213]/90 p-1 shadow-xl backdrop-blur">
+			<div className="flex items-center gap-1 rounded-md border border-white/10 bg-surface-sunken/90 p-1 shadow-xl backdrop-blur">
 				<FlowButton
 					label="Ajustar vista"
 					onClick={() => fitView({ padding: 0.16, duration: 240 })}
@@ -803,20 +803,20 @@ function ActivePathPanel({ summary }: { summary: ActiveSummary | null }) {
 	return (
 		<Panel position="bottom-right" className="!m-3">
 			<div className="w-[min(760px,calc(100vw-360px))] rounded-lg border border-white/10 bg-[#0d0f10]/94 p-2.5 text-xs shadow-[0_20px_70px_rgba(0,0,0,0.46)] backdrop-blur">
-				<div className="mb-2 flex items-center justify-between gap-3 text-[#d7d7d7]">
+				<div className="mb-2 flex items-center justify-between gap-3 text-fg-soft">
 					<div className="flex min-w-0 items-center gap-2">
-						<BadgeInfo className="size-3.5 text-[#38bdf8]" aria-hidden="true" />
+						<BadgeInfo className="size-3.5 text-info" aria-hidden="true" />
 						<div className="min-w-0">
 							<p className="truncate font-semibold">
 								Presupuesto en ruta: {summary.code}
 							</p>
-							<p className="mt-0.5 truncate text-[10px] text-[#858585]">
+							<p className="mt-0.5 truncate text-[10px] text-fg-muted">
 								{summary.pathLabel}
 							</p>
 						</div>
 					</div>
 					<div className="flex shrink-0 items-center gap-1.5">
-						<MetricPill label="Fisica" value={`${summary.physicalLoss} dB`} />
+						<MetricPill label="Física" value={`${summary.physicalLoss} dB`} />
 						<MetricPill
 							label="Rx"
 							value={
@@ -853,7 +853,7 @@ function ActivePathPanel({ summary }: { summary: ActiveSummary | null }) {
 				<OpticalPowerBudgetChart budget={summary.budget} height={135} />
 				{warnings.length > 0 && (
 					<p
-						className="mt-1.5 truncate rounded border border-[#f59e0b]/20 bg-[#f59e0b]/8 px-2 py-1 text-[10px] text-[#f6c768]"
+						className="mt-1.5 truncate rounded border border-warning/20 bg-warning/8 px-2 py-1 text-[10px] text-warning-fg"
 						title={warnings.join(" · ")}
 					>
 						Supuestos: {warnings.join(" · ")}
@@ -1110,7 +1110,7 @@ export function LogicalDiagram({
 							const layout = (node as GponFlowNode).data.layout;
 							return TYPE_COLOR[layout.tree.element.type];
 						}}
-						className="!h-20 !w-32 !border !border-white/10 !bg-[#111213]/90"
+						className="!h-20 !w-32 !border !border-white/10 !bg-surface-sunken/90"
 						maskColor="rgba(17,18,19,0.62)"
 					/>
 				)}

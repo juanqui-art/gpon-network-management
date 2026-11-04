@@ -27,6 +27,7 @@ import type {
 	InfrastructureElement,
 	RoutePoint,
 } from "@/components/map/types";
+import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/feedback/toast";
 import { generateDraftCode, nextSequence } from "@/lib/gpon/operative-code";
 import { useIsCoarsePointer } from "@/lib/hooks/use-media-query";
@@ -714,13 +715,13 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 	});
 
 	return (
-		<div className="flex h-full min-h-0 flex-col bg-[#151617]">
-			<header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-[rgba(164,164,164,0.14)] bg-[#1e1f20] px-3 sm:px-4">
+		<div className="flex h-full min-h-0 flex-col bg-surface-sunken">
+			<header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-surface-panel px-3 sm:px-4">
 				<div className="flex min-w-0 items-center gap-2 sm:gap-3">
 					<Link
 						href={`/networks/${networkId}`}
 						aria-label="Volver al inventario"
-						className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs text-[var(--text-secondary)] transition-colors hover:text-[#e6e6e6]"
+						className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs text-fg-secondary transition-colors hover:text-fg"
 					>
 						<ArrowLeft className="size-4" aria-hidden="true" />
 						<span className="hidden sm:inline">Inventario</span>
@@ -732,10 +733,10 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 						/
 					</span>
 					<div className="min-w-0">
-						<p className="truncate text-xs font-medium text-[#e6e6e6]">
+						<p className="truncate text-xs font-medium text-fg">
 							{network.name}
 						</p>
-						<p className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+						<p className="text-[11px] uppercase tracking-[0.14em] text-fg-secondary">
 							Captura rápida
 						</p>
 					</div>
@@ -743,26 +744,27 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 				<div className="flex shrink-0 items-center gap-2">
 					<Link
 						href={`/networks/${networkId}`}
-						className="hidden h-9 items-center whitespace-nowrap rounded-md border border-[rgba(164,164,164,0.14)] bg-[rgba(164,164,164,0.06)] px-3 text-xs sm:inline-flex text-[#d7d7d7] transition-colors hover:bg-[rgba(164,164,164,0.1)]"
+						className="hidden h-9 items-center whitespace-nowrap rounded-md border border-border-subtle bg-tint/6 px-3 text-xs sm:inline-flex text-fg-soft transition-colors hover:bg-tint/10"
 					>
 						Ver mapa
 					</Link>
-					<button
-						type="button"
+					<Button
+						variant="success"
+						size="lg"
 						disabled={!canCapture || !isDirty || isSaving}
 						onClick={() => void persistCapture()}
-						className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[rgba(52,211,153,0.28)] bg-[rgba(52,211,153,0.1)] px-3 text-xs font-semibold text-[#86efac] transition-colors hover:bg-[rgba(52,211,153,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
+						className="text-xs font-semibold"
 					>
-						<Save className="size-3.5" aria-hidden="true" />
-						{isSaving ? "Guardando..." : "Guardar"}
-					</button>
+						<Save aria-hidden="true" />
+						{isSaving ? "Guardando…" : "Guardar"}
+					</Button>
 				</div>
 			</header>
 
 			{/* Mobile: map fills the screen, form docks at the bottom.
 			    md+: form column beside the map. */}
 			<main className="flex min-h-0 flex-1 flex-col overflow-hidden md:grid md:grid-cols-[minmax(340px,400px)_1fr]">
-				<section className="order-last flex min-h-0 shrink-0 flex-col border-t border-[rgba(164,164,164,0.14)] bg-[radial-gradient(circle_at_20%_0%,rgba(56,216,255,0.1),transparent_34%),#1b1c1d] md:order-none md:border-t-0 md:border-r">
+				<section className="order-last flex min-h-0 shrink-0 flex-col border-t border-border-subtle bg-[radial-gradient(circle_at_20%_0%,rgba(56,216,255,0.1),transparent_34%),#1b1c1d] md:order-none md:border-t-0 md:border-r">
 					<CaptureMobileDock
 						activeTool={activeTool}
 						canCapture={canCapture}
@@ -783,21 +785,21 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 						id="capture-panel"
 						className={`${mobilePanelOpen ? "block" : "hidden"} max-h-[55dvh] min-h-0 overflow-y-auto p-4 md:block md:max-h-none md:flex-1`}
 					>
-						<div className="mb-3 overflow-hidden rounded-xl border border-[rgba(56,216,255,0.2)] bg-[linear-gradient(135deg,rgba(56,216,255,0.12),rgba(164,164,164,0.035)_55%,rgba(17,18,19,0.7))] p-3 shadow-[0_18px_45px_rgba(0,0,0,0.22)]">
+						<div className="mb-3 overflow-hidden rounded-xl border border-info/20 bg-[linear-gradient(135deg,rgba(56,216,255,0.12),rgba(164,164,164,0.035)_55%,rgba(17,18,19,0.7))] p-3 shadow-[0_18px_45px_rgba(0,0,0,0.22)]">
 							<div className="flex items-start justify-between gap-3">
 								<div>
 									<p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7ddfff]">
 										Captura de campo
 									</p>
-									<p className="mt-1 text-sm font-semibold text-[#e6e6e6]">
+									<p className="mt-1 text-sm font-semibold text-fg">
 										Alta rápida de infraestructura
 									</p>
 								</div>
-								<div className="rounded-lg border border-[rgba(56,216,255,0.24)] bg-[rgba(56,216,255,0.1)] p-2">
-									<Zap className="size-4 text-[#38d8ff]" aria-hidden="true" />
+								<div className="rounded-lg border border-info/24 bg-info/10 p-2">
+									<Zap className="size-4 text-info" aria-hidden="true" />
 								</div>
 							</div>
-							<p className="mt-2 text-xs leading-5 text-[#9fa6ad]">
+							<p className="mt-2 text-xs leading-5 text-fg-secondary">
 								Dibuja primero; completa datos mínimos solo cuando el mapa ya
 								tenga sentido.
 							</p>
@@ -808,18 +810,18 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 							hasSelection={Boolean(selection)}
 						/>
 
-						<div className="mt-3 rounded-xl border border-[rgba(164,164,164,0.12)] bg-[rgba(17,18,19,0.55)] p-3">
+						<div className="mt-3 rounded-xl border border-border-subtle bg-surface-sunken/55 p-3">
 							<div className="mb-3 flex items-center gap-2">
-								<span className="flex size-6 items-center justify-center rounded-md bg-[rgba(56,216,255,0.1)] text-[11px] font-bold text-[#8bdff4]">
+								<span className="flex size-6 items-center justify-center rounded-md bg-info/10 text-[11px] font-bold text-info-fg">
 									01
 								</span>
-								<p className="text-sm font-semibold text-[#e6e6e6]">
+								<p className="text-sm font-semibold text-fg">
 									Alta rápida de infraestructura
 								</p>
 							</div>
 
 							{!canCapture && (
-								<div className="mb-4 rounded-md border border-[rgba(251,77,109,0.28)] bg-[rgba(251,77,109,0.08)] p-3 text-xs text-[#fb7185]">
+								<div className="mb-4 rounded-md border border-danger/28 bg-danger/8 p-3 text-xs text-danger-fg">
 									Tu rol puede consultar esta red, pero no crear
 									infraestructura.
 								</div>
@@ -833,7 +835,7 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 								}}
 							>
 								<div>
-									<span className="mb-2 block text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
+									<span className="mb-2 block text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
 										Tipo
 									</span>
 									<div className="grid grid-cols-2 gap-1.5">
@@ -862,28 +864,28 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 								</div>
 
 								<div className="grid grid-cols-[1fr_96px] gap-3">
-									<div className="rounded-md border border-[rgba(164,164,164,0.12)] bg-[#111213] px-3 py-2">
-										<p className="text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
+									<div className="rounded-md border border-border-subtle bg-surface-sunken px-3 py-2">
+										<p className="text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
 											Próximo código
 										</p>
-										<p className="mt-1 font-mono text-sm font-semibold text-[#e6e6e6]">
+										<p className="mt-1 font-mono text-sm font-semibold text-fg">
 											{suggestedCode}
 										</p>
 									</div>
 									<label className="block">
-										<span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
+										<span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
 											Zona
 										</span>
 										<input
 											value={zone}
 											onChange={(event) => setZone(event.target.value)}
-											className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#111213] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none focus:border-[#38d8ff]/40"
+											className="w-full rounded-md border border-border bg-surface-sunken px-2.5 py-2 text-xs text-fg outline-none focus:border-info/40"
 										/>
 									</label>
 								</div>
 
 								{lastCreatedCode && (
-									<p className="flex items-center gap-2 rounded-md border border-[rgba(52,211,153,0.22)] bg-[rgba(52,211,153,0.08)] px-3 py-2 text-xs text-[#86efac]">
+									<p className="flex items-center gap-2 rounded-md border border-success/22 bg-success/8 px-3 py-2 text-xs text-success-fg">
 										<CheckCircle2 className="size-3.5" aria-hidden="true" />
 										{lastCreatedCode} creado localmente
 									</p>
@@ -894,12 +896,12 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 										type="button"
 										disabled={!canCapture}
 										onClick={() => selectCreateTool(type)}
-										className="flex items-center justify-center gap-2 rounded-md border border-[rgba(56,216,255,0.3)] bg-[rgba(56,216,255,0.1)] px-3 py-2.5 text-xs font-semibold text-[#8bdff4] transition-colors hover:bg-[rgba(56,216,255,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
+										className="flex items-center justify-center gap-2 rounded-md border border-info/30 bg-info/10 px-3 py-2.5 text-xs font-semibold text-info-fg transition-colors hover:bg-info/16 disabled:cursor-not-allowed disabled:opacity-50"
 									>
 										<Plus className="size-4" aria-hidden="true" />
 										Preparar herramienta
 									</button>
-									<p className="text-[11px] leading-5 text-[#777879]">
+									<p className="text-[11px] leading-5 text-fg-muted">
 										Las capturas se ven al instante y quedan pendientes hasta
 										que pulses Guardar. Ctrl+Z (o el botón deshacer) revierte el
 										último cambio.
@@ -912,7 +914,7 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 							<button
 								type="button"
 								onClick={() => startRouteFromElement(connectableSelection)}
-								className="mt-4 flex w-full items-center justify-center gap-2 rounded-md border border-[rgba(56,216,255,0.3)] bg-[rgba(56,216,255,0.1)] px-3 py-2.5 text-xs font-semibold text-[#8bdff4] transition-colors hover:bg-[rgba(56,216,255,0.16)]"
+								className="mt-4 flex w-full items-center justify-center gap-2 rounded-md border border-info/30 bg-info/10 px-3 py-2.5 text-xs font-semibold text-info-fg transition-colors hover:bg-info/16"
 							>
 								<Cable className="size-4" aria-hidden="true" />
 								Conectar fibra desde {connectableSelection.code}
@@ -931,37 +933,37 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 						<div
 							className={`mt-4 rounded-xl border p-3 ${
 								captureIssues.length === 0
-									? "border-[rgba(52,211,153,0.2)] bg-[rgba(52,211,153,0.07)]"
+									? "border-success/20 bg-success/7"
 									: captureErrorCount > 0
-										? "border-[rgba(251,77,109,0.24)] bg-[rgba(251,77,109,0.08)]"
-										: "border-[rgba(245,158,11,0.24)] bg-[rgba(245,158,11,0.08)]"
+										? "border-danger/24 bg-danger/8"
+										: "border-warning/24 bg-warning/8"
 							}`}
 						>
 							<div className="flex items-center justify-between gap-3">
 								<div className="flex items-center gap-2">
-									<span className="flex size-6 items-center justify-center rounded-md bg-[rgba(245,158,11,0.1)] text-[11px] font-bold text-[#fbbf24]">
+									<span className="flex size-6 items-center justify-center rounded-md bg-warning/10 text-[11px] font-bold text-warning-fg">
 										03
 									</span>
 									<AlertTriangle
 										className={`size-4 ${
 											captureIssues.length === 0
-												? "text-[#86efac]"
+												? "text-success-fg"
 												: captureErrorCount > 0
-													? "text-[#fb7185]"
-													: "text-[#fbbf24]"
+													? "text-danger-fg"
+													: "text-warning-fg"
 										}`}
 										aria-hidden="true"
 									/>
-									<p className="text-xs font-semibold text-[#e6e6e6]">
+									<p className="text-xs font-semibold text-fg">
 										Revisión rápida
 									</p>
 								</div>
-								<span className="font-mono text-[11px] text-[#8f969e]">
+								<span className="font-mono text-[11px] text-fg-muted">
 									{captureErrorCount} errores · {captureWarningCount} avisos
 								</span>
 							</div>
 							{captureIssues.length === 0 ? (
-								<p className="mt-2 text-[11px] leading-5 text-[#86efac]">
+								<p className="mt-2 text-[11px] leading-5 text-success-fg">
 									Sin alertas locales por ahora. Buen trazo, seguimos ligeros.
 								</p>
 							) : (
@@ -971,15 +973,15 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 											key={issue.id}
 											className={`rounded border px-2 py-1.5 text-[11px] leading-4 ${
 												issue.level === "error"
-													? "border-[rgba(251,77,109,0.18)] bg-[rgba(251,77,109,0.06)] text-[#fda4af]"
-													: "border-[rgba(245,158,11,0.18)] bg-[rgba(245,158,11,0.06)] text-[#fcd58d]"
+													? "border-danger/18 bg-danger/6 text-[#fda4af]"
+													: "border-warning/18 bg-warning/6 text-[#fcd58d]"
 											}`}
 										>
 											{issue.message}
 										</p>
 									))}
 									{captureIssues.length > 4 && (
-										<p className="text-[11px] text-[#777879]">
+										<p className="text-[11px] text-fg-muted">
 											+{captureIssues.length - 4} pendientes más.
 										</p>
 									)}
@@ -1030,7 +1032,7 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 						onStatusMessageChange={setStatusMessage}
 					/>
 					{routeSource && (
-						<div className="absolute top-16 left-1/2 z-30 hidden -translate-x-1/2 items-center gap-3 rounded-lg border border-[rgba(56,216,255,0.28)] bg-[rgba(17,18,19,0.92)] py-1.5 pr-1.5 pl-3 text-xs text-[#8bdff4] shadow-2xl backdrop-blur-md md:flex">
+						<div className="absolute top-16 left-1/2 z-30 hidden -translate-x-1/2 items-center gap-3 rounded-lg border border-info/28 bg-surface-sunken/92 py-1.5 pr-1.5 pl-3 text-xs text-info-fg shadow-2xl backdrop-blur-md md:flex">
 							<span>
 								<span className="font-semibold">{routeSource.code}</span>:{" "}
 								{isCoarsePointer ? "toca" : "haz click en"} el elemento destino
@@ -1039,7 +1041,7 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 							<button
 								type="button"
 								onClick={cancelRoute}
-								className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-[#d7d7d7] transition-colors hover:bg-[rgba(164,164,164,0.12)]"
+								className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-fg-soft transition-colors hover:bg-tint/12"
 							>
 								<X className="size-3.5" aria-hidden="true" />
 								Cancelar
@@ -1047,16 +1049,16 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 						</div>
 					)}
 					<div className="pointer-events-none absolute inset-x-4 top-4 z-30 flex items-start justify-between gap-3">
-						<div className="pointer-events-auto hidden max-w-xl rounded-lg border border-[rgba(56,216,255,0.22)] bg-[rgba(17,18,19,0.9)] px-3 py-2 text-xs text-[#bdeafe] shadow-2xl backdrop-blur-md md:block">
+						<div className="pointer-events-auto hidden max-w-xl rounded-lg border border-info/22 bg-surface-sunken/90 px-3 py-2 text-xs text-info-strong shadow-2xl backdrop-blur-md md:block">
 							<p className="font-semibold">
 								{isCoarsePointer
 									? "Elige el tipo en el panel y toca el mapa para colocarlo"
 									: "Click derecho elige herramienta · click izquierdo coloca"}
 							</p>
-							<p className="mt-0.5 text-[#8f969e]">{statusMessage}</p>
+							<p className="mt-0.5 text-fg-muted">{statusMessage}</p>
 						</div>
-						<div className="pointer-events-auto ml-auto hidden items-center gap-2 rounded-lg md:flex border border-[rgba(164,164,164,0.14)] bg-[rgba(17,18,19,0.88)] px-2.5 py-1.5 text-xs text-[#8f969e] shadow-2xl backdrop-blur-md">
-							<span className="inline-flex items-center gap-1.5 text-[#8bdff4]">
+						<div className="pointer-events-auto ml-auto hidden items-center gap-2 rounded-lg md:flex border border-border-subtle bg-surface-sunken/88 px-2.5 py-1.5 text-xs text-fg-muted shadow-2xl backdrop-blur-md">
+							<span className="inline-flex items-center gap-1.5 text-info-fg">
 								<LocateFixed className="size-3.5" aria-hidden="true" />
 								{equipment.length}
 							</span>
@@ -1091,12 +1093,12 @@ function CaptureSelectionEditor({
 	const selected = element ?? route ?? routePoint;
 	if (!selected) {
 		return (
-			<div className="mt-4 rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.04)] p-3 text-xs text-[#8f969e]">
-				<div className="flex items-center gap-2 text-[#d7d7d7]">
-					<span className="flex size-6 items-center justify-center rounded-md bg-[rgba(164,164,164,0.08)] text-[11px] font-bold text-[#777879]">
+			<div className="mt-4 rounded-md border border-border-subtle bg-tint/4 p-3 text-xs text-fg-muted">
+				<div className="flex items-center gap-2 text-fg-soft">
+					<span className="flex size-6 items-center justify-center rounded-md bg-tint/8 text-[11px] font-bold text-fg-muted">
 						02
 					</span>
-					<SlidersHorizontal className="size-4 text-[#8bdff4]" />
+					<SlidersHorizontal className="size-4 text-info-fg" />
 					<span className="font-semibold">Editar selección</span>
 				</div>
 				<p className="mt-2 leading-5">
@@ -1107,18 +1109,16 @@ function CaptureSelectionEditor({
 	}
 
 	return (
-		<div className="mt-4 rounded-xl border border-[rgba(56,216,255,0.16)] bg-[linear-gradient(180deg,rgba(56,216,255,0.06),rgba(17,18,19,0.86))] p-3">
+		<div className="mt-4 rounded-xl border border-info/16 bg-[linear-gradient(180deg,rgba(56,216,255,0.06),rgba(17,18,19,0.86))] p-3">
 			<div className="mb-3 flex items-center justify-between gap-3">
 				<div className="flex items-center gap-2">
-					<span className="flex size-6 items-center justify-center rounded-md bg-[rgba(56,216,255,0.1)] text-[11px] font-bold text-[#8bdff4]">
+					<span className="flex size-6 items-center justify-center rounded-md bg-info/10 text-[11px] font-bold text-info-fg">
 						02
 					</span>
-					<SlidersHorizontal className="size-4 text-[#8bdff4]" />
-					<p className="text-xs font-semibold text-[#e6e6e6]">
-						Editar selección
-					</p>
+					<SlidersHorizontal className="size-4 text-info-fg" />
+					<p className="text-xs font-semibold text-fg">Editar selección</p>
 				</div>
-				<span className="font-mono text-[11px] text-[#777879]">
+				<span className="font-mono text-[11px] text-fg-muted">
 					{selected.code ?? "Sin código"}
 				</span>
 			</div>
@@ -1169,27 +1169,27 @@ function CaptureFlowSteps({
 					key={step.label}
 					className={`rounded-lg border px-2.5 py-2 transition-colors ${
 						step.active
-							? "border-[rgba(56,216,255,0.34)] bg-[rgba(56,216,255,0.1)]"
-							: "border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.035)]"
+							? "border-info/34 bg-info/10"
+							: "border-border-subtle bg-tint/[0.035]"
 					}`}
 				>
 					<div className="flex items-center gap-1.5">
 						<span
 							className={`font-mono text-[11px] ${
-								step.active ? "text-[#8bdff4]" : "text-[#777879]"
+								step.active ? "text-info-fg" : "text-fg-muted"
 							}`}
 						>
 							0{index + 1}
 						</span>
 						<p
 							className={`text-[11px] font-semibold ${
-								step.active ? "text-[#dff8ff]" : "text-[#a4a4a4]"
+								step.active ? "text-[#dff8ff]" : "text-fg-secondary"
 							}`}
 						>
 							{step.label}
 						</p>
 					</div>
-					<p className="mt-1 line-clamp-2 text-[11px] leading-4 text-[#777879]">
+					<p className="mt-1 line-clamp-2 text-[11px] leading-4 text-fg-muted">
 						{step.text}
 					</p>
 				</div>
@@ -1231,8 +1231,8 @@ function ElementMiniEditor({
 			</div>
 
 			{element.type === "closure" && (
-				<div className="rounded-md border border-[rgba(56,216,255,0.14)] bg-[rgba(56,216,255,0.05)] p-2">
-					<p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#8bdff4]">
+				<div className="rounded-md border border-info/14 bg-info/5 p-2">
+					<p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-info-fg">
 						Mufa
 					</p>
 					<div className="grid grid-cols-2 gap-2">
@@ -1461,13 +1461,13 @@ function CaptureTextField({
 }) {
 	return (
 		<label className="block">
-			<span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
+			<span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
 				{label}
 			</span>
 			<input
 				value={value}
 				onChange={(event) => onChange(event.target.value)}
-				className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#111213] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none focus:border-[#38d8ff]/40"
+				className="w-full rounded-md border border-border bg-surface-sunken px-2.5 py-2 text-xs text-fg outline-none focus:border-info/40"
 			/>
 		</label>
 	);
@@ -1484,7 +1484,7 @@ function CaptureNumberField({
 }) {
 	return (
 		<label className="block">
-			<span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
+			<span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
 				{label}
 			</span>
 			<input
@@ -1496,7 +1496,7 @@ function CaptureNumberField({
 						event.target.value === "" ? null : Number(event.target.value),
 					)
 				}
-				className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#111213] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none focus:border-[#38d8ff]/40"
+				className="w-full rounded-md border border-border bg-surface-sunken px-2.5 py-2 text-xs text-fg outline-none focus:border-info/40"
 			/>
 		</label>
 	);
@@ -1515,13 +1515,13 @@ function CaptureSelectField({
 }) {
 	return (
 		<label className="block">
-			<span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
+			<span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
 				{label}
 			</span>
 			<select
 				value={value}
 				onChange={(event) => onChange(event.target.value)}
-				className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#111213] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none focus:border-[#38d8ff]/40"
+				className="w-full rounded-md border border-border bg-surface-sunken px-2.5 py-2 text-xs text-fg outline-none focus:border-info/40"
 			>
 				{options.map(([optionValue, optionLabel]) => (
 					<option key={optionValue} value={optionValue}>
@@ -1543,7 +1543,7 @@ function CaptureCheckboxField({
 	onChange: (checked: boolean) => void;
 }) {
 	return (
-		<label className="flex items-center gap-2 rounded-md border border-[rgba(164,164,164,0.12)] bg-[#111213] px-2.5 py-2 text-xs text-[#d7d7d7]">
+		<label className="flex items-center gap-2 rounded-md border border-border-subtle bg-surface-sunken px-2.5 py-2 text-xs text-fg-soft">
 			<input
 				type="checkbox"
 				checked={checked}
@@ -1595,9 +1595,9 @@ function CaptureMobileDock({
 	const issueCount = errorCount + warningCount;
 
 	return (
-		<div className="space-y-2 border-b border-[rgba(164,164,164,0.12)] px-3 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] md:hidden">
+		<div className="space-y-2 border-b border-border-subtle px-3 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] md:hidden">
 			{routeSourceCode ? (
-				<div className="flex items-center gap-2 rounded-lg border border-[rgba(56,216,255,0.28)] bg-[rgba(56,216,255,0.08)] py-1.5 pr-1.5 pl-3 text-sm text-[#bdeafe]">
+				<div className="flex items-center gap-2 rounded-lg border border-info/28 bg-info/8 py-1.5 pr-1.5 pl-3 text-sm text-info-strong">
 					<Cable className="size-4 shrink-0" aria-hidden="true" />
 					<span className="min-w-0 flex-1 truncate">
 						Toca el destino de{" "}
@@ -1606,7 +1606,7 @@ function CaptureMobileDock({
 					<button
 						type="button"
 						onClick={onCancelRoute}
-						className="inline-flex h-9 items-center gap-1 rounded-md px-2.5 text-sm text-[#e6e6e6] transition-colors hover:bg-[rgba(164,164,164,0.12)]"
+						className="inline-flex h-9 items-center gap-1 rounded-md px-2.5 text-sm text-fg transition-colors hover:bg-tint/12"
 					>
 						<X className="size-4" aria-hidden="true" />
 						Cancelar
@@ -1616,7 +1616,7 @@ function CaptureMobileDock({
 				<button
 					type="button"
 					onClick={() => onConnect(connectable)}
-					className="flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-[rgba(56,216,255,0.3)] bg-[rgba(56,216,255,0.1)] px-3 text-sm font-semibold text-[#8bdff4]"
+					className="flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-info/30 bg-info/10 px-3 text-sm font-semibold text-info-fg"
 				>
 					<Cable className="size-4" aria-hidden="true" />
 					<span className="truncate">
@@ -1624,10 +1624,7 @@ function CaptureMobileDock({
 					</span>
 				</button>
 			) : (
-				<p
-					className="truncate text-xs text-[var(--text-secondary)]"
-					aria-live="polite"
-				>
+				<p className="truncate text-xs text-fg-secondary" aria-live="polite">
 					{statusMessage}
 				</p>
 			)}
@@ -1648,8 +1645,8 @@ function CaptureMobileDock({
 								onClick={() => onPickTool(tool)}
 								className={`h-11 rounded-lg border text-sm font-semibold transition-colors ${
 									active
-										? "border-[rgba(56,216,255,0.45)] bg-[rgba(56,216,255,0.16)] text-[#bdeafe]"
-										: "border-[rgba(164,164,164,0.16)] bg-[rgba(164,164,164,0.05)] text-[#d7d7d7]"
+										? "border-info/45 bg-info/16 text-info-strong"
+										: "border-border bg-tint/5 text-fg-soft"
 								}`}
 							>
 								{TYPE_LABELS[tool]}
@@ -1662,7 +1659,7 @@ function CaptureMobileDock({
 					onClick={onUndo}
 					disabled={!canUndo}
 					aria-label="Deshacer último cambio"
-					className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg border border-[rgba(164,164,164,0.16)] text-[#d7d7d7] transition-colors disabled:opacity-40"
+					className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg border border-border text-fg-soft transition-colors disabled:opacity-40"
 				>
 					<Undo2 className="size-4" aria-hidden="true" />
 				</button>
@@ -1672,7 +1669,7 @@ function CaptureMobileDock({
 					aria-expanded={panelOpen}
 					aria-controls="capture-panel"
 					aria-label={panelOpen ? "Ocultar detalles" : "Mostrar detalles"}
-					className="relative inline-flex size-11 shrink-0 items-center justify-center rounded-lg border border-[rgba(164,164,164,0.16)] text-[#d7d7d7]"
+					className="relative inline-flex size-11 shrink-0 items-center justify-center rounded-lg border border-border text-fg-soft"
 				>
 					{panelOpen ? (
 						<ChevronDown className="size-4" aria-hidden="true" />
@@ -1682,7 +1679,7 @@ function CaptureMobileDock({
 					{issueCount > 0 && (
 						<span
 							className={`absolute -top-1.5 -right-1.5 min-w-5 rounded-full px-1 text-center font-mono text-[11px] leading-5 text-[#151617] ${
-								errorCount > 0 ? "bg-[#fb7185]" : "bg-[#fbbf24]"
+								errorCount > 0 ? "bg-[#fb7185]" : "bg-warning-fg"
 							}`}
 						>
 							{issueCount}

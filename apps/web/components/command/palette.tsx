@@ -78,7 +78,7 @@ export function CommandPalette() {
 			description="Busca rutas, módulos administrativos y accesos rápidos."
 			size="lg"
 			accent="#8bdff4"
-			className="bg-[rgba(28,29,30,0.88)] text-[#d7d7d7] backdrop-blur-xl"
+			className="bg-[rgba(28,29,30,0.88)] text-fg-soft backdrop-blur-xl"
 			contentClassName="space-y-0 px-0 py-0"
 			footer={
 				<div className="flex items-center gap-4 text-[10px] text-muted-foreground">

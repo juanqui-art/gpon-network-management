@@ -20,18 +20,18 @@ export default function DashboardError({
 	return (
 		<RouteStateFrame>
 			<AlertTriangle
-				className="mx-auto size-8 text-[var(--status-alarm)]"
+				className="mx-auto size-8 text-danger"
 				aria-hidden="true"
 			/>
 			<h1 className="mt-4 text-lg font-semibold text-foreground">
 				Algo salió mal al cargar esta sección
 			</h1>
-			<p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+			<p className="mt-2 text-sm leading-6 text-fg-secondary">
 				Puede ser un problema temporal de conexión con el servidor. Inténtalo de
 				nuevo; si persiste, comparte el código de referencia con soporte.
 			</p>
 			{error.digest && (
-				<p className="mt-3 font-mono text-xs text-[var(--text-secondary)]">
+				<p className="mt-3 font-mono text-xs text-fg-secondary">
 					Ref: {error.digest}
 				</p>
 			)}
@@ -47,7 +47,7 @@ export default function DashboardError({
 				</Button>
 				<Link
 					href="/networks"
-					className="inline-flex h-8 items-center justify-center rounded-lg px-4 text-sm text-[var(--text-secondary)] transition-colors hover:bg-muted hover:text-foreground"
+					className="inline-flex h-8 items-center justify-center rounded-lg px-4 text-sm text-fg-secondary transition-colors hover:bg-muted hover:text-foreground"
 				>
 					Ir a Redes
 				</Link>

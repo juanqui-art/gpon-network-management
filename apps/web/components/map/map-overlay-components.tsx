@@ -30,7 +30,7 @@ export function MapStatChip({
 			<p className="font-mono text-xs font-bold" style={{ color }}>
 				{value}
 			</p>
-			<p className="text-[10px] font-semibold uppercase text-[#777879]">
+			<p className="text-[10px] font-semibold uppercase text-fg-muted">
 				{label}
 			</p>
 		</>
@@ -41,10 +41,10 @@ export function MapStatChip({
 			<button
 				type="button"
 				onClick={onClick}
-				className={`rounded-md border px-2 py-1.5 text-center transition-colors hover:bg-[rgba(164,164,164,0.1)] ${
+				className={`rounded-md border px-2 py-1.5 text-center transition-colors hover:bg-tint/10 ${
 					active
-						? "border-[rgba(164,164,164,0.32)] bg-[rgba(164,164,164,0.14)]"
-						: "border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)]"
+						? "border-tint/32 bg-tint/14"
+						: "border-border-subtle bg-tint/5"
 				}`}
 			>
 				{inner}
@@ -53,7 +53,7 @@ export function MapStatChip({
 	}
 
 	return (
-		<div className="rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)] px-2 py-1.5 text-center">
+		<div className="rounded-md border border-border-subtle bg-tint/5 px-2 py-1.5 text-center">
 			{inner}
 		</div>
 	);
@@ -61,11 +61,11 @@ export function MapStatChip({
 
 export function MapLegend({ compact = false }: { compact?: boolean }) {
 	const wrapperClass = compact
-		? "w-36 rounded-md border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.84)] p-2 text-[10px] text-[#d7d7d7] shadow-2xl backdrop-blur-md"
-		: "w-44 rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.9)] p-3 text-xs text-[#d7d7d7] shadow-2xl backdrop-blur-md";
+		? "w-36 rounded-md border border-border bg-surface-panel/84 p-2 text-[10px] text-fg-soft shadow-2xl backdrop-blur-md"
+		: "w-44 rounded-lg border border-border bg-surface-panel/90 p-3 text-xs text-fg-soft shadow-2xl backdrop-blur-md";
 	const sectionLabelClass = compact
-		? "mb-1 font-semibold uppercase tracking-widest text-[10px] text-[#777879]"
-		: "mb-2 font-semibold uppercase tracking-widest text-[#777879]";
+		? "mb-1 font-semibold uppercase tracking-widest text-[10px] text-fg-muted"
+		: "mb-2 font-semibold uppercase tracking-widest text-fg-muted";
 	const itemGapClass = compact
 		? "mb-1 flex items-center gap-1.5"
 		: "mb-1.5 flex items-center gap-2";
@@ -81,7 +81,7 @@ export function MapLegend({ compact = false }: { compact?: boolean }) {
 				type="button"
 				onClick={() => setUserOpen(true)}
 				aria-expanded={false}
-				className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.9)] px-3 text-xs text-[#d7d7d7] shadow-2xl backdrop-blur-md transition-colors hover:bg-[rgba(34,35,36,0.98)]"
+				className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-surface-panel/90 px-3 text-xs text-fg-soft shadow-2xl backdrop-blur-md transition-colors hover:bg-surface-panel/98"
 			>
 				<List className="size-3.5" aria-hidden="true" />
 				Leyenda
@@ -96,7 +96,7 @@ export function MapLegend({ compact = false }: { compact?: boolean }) {
 				onClick={() => setUserOpen(false)}
 				aria-expanded={true}
 				aria-label="Ocultar leyenda"
-				className="absolute top-1.5 right-1.5 inline-flex size-7 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[rgba(164,164,164,0.1)] hover:text-[#e6e6e6]"
+				className="absolute top-1.5 right-1.5 inline-flex size-7 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-tint/10 hover:text-fg"
 			>
 				<X className="size-3.5" aria-hidden="true" />
 			</button>
@@ -132,8 +132,8 @@ export function MapLegend({ compact = false }: { compact?: boolean }) {
 				<span
 					className={
 						compact
-							? "size-2.5 rounded-full border-2 border-[#f59e0b]"
-							: "size-3 rounded-full border-2 border-[#f59e0b]"
+							? "size-2.5 rounded-full border-2 border-warning"
+							: "size-3 rounded-full border-2 border-warning"
 					}
 				/>
 				<span>Margen ajustado</span>
@@ -142,8 +142,8 @@ export function MapLegend({ compact = false }: { compact?: boolean }) {
 				<span
 					className={
 						compact
-							? "size-2.5 rounded-full border-2 border-[#fb4d6d]"
-							: "size-3 rounded-full border-2 border-[#fb4d6d]"
+							? "size-2.5 rounded-full border-2 border-danger"
+							: "size-3 rounded-full border-2 border-danger"
 					}
 				/>
 				<span>Deficiente</span>
@@ -166,8 +166,8 @@ export function MapControls({
 	compact?: boolean;
 }) {
 	const wrapperClass = compact
-		? "flex flex-col overflow-hidden rounded-md border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.94)] shadow-xl backdrop-blur-md"
-		: "flex overflow-hidden rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md";
+		? "flex flex-col overflow-hidden rounded-md border border-border bg-surface-panel/94 shadow-xl backdrop-blur-md"
+		: "flex overflow-hidden rounded-lg border border-border bg-surface-panel/92 shadow-2xl backdrop-blur-md";
 
 	return (
 		<div className={wrapperClass}>
@@ -204,7 +204,7 @@ function IconControl({
 			aria-label={label}
 			title={label}
 			onClick={onClick}
-			className={`grid place-items-center border-r border-[rgba(164,164,164,0.12)] text-[#d7d7d7] transition-colors last:border-r-0 hover:bg-white/10 ${
+			className={`grid place-items-center border-r border-border-subtle text-fg-soft transition-colors last:border-r-0 hover:bg-white/10 ${
 				compact
 					? "size-8 border-r-0 border-b last:border-b-0 last:border-r-0"
 					: "size-9"
