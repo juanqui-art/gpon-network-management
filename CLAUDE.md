@@ -95,7 +95,7 @@ apps/web/
 apps/collector/                   # Node SNMP → Supabase (ver apps/collector/README.md)
 └── src/{config,index}.ts, snmp/, parser/, decide/, persist/
 
-database/migrations/              # 001-027 (ver advertencia abajo)
+database/migrations/              # 001-028 (ver advertencia abajo)
 docs/                             # ver "Mapa de documentación"
 ```
 
@@ -122,7 +122,7 @@ docs/                             # ver "Mapa de documentación"
 
 ### Administración
 - ✅ Gestión de usuarios/roles (admin), cierre de sesiones vía `auth.sessions`
-- ✅ Audit log + visor (solo acciones de gestión de usuarios; lectura solo admin)
+- ✅ Audit log + visor `/admin/audit` (lectura solo admin): gestión de usuarios (server actions) + **todo cambio de red/infraestructura vía triggers** (028)
 - ✅ Archivado lógico de redes (`archived_at`, solo admin, RPC `SECURITY DEFINER`)
 - ✅ Rate limiting de auth (si faltan las vars de Upstash: **fail-open** con warning)
 
@@ -135,15 +135,14 @@ docs/                             # ver "Mapa de documentación"
 6. 🟢 Splitters desbalanceados (10/90, 20/80…)
 7. 🟢 Flujo de propuesta/verificación para `outside_plant` (hoy no puede escribir infraestructura)
 8. 🟢 Retención de `ont_signal_history` (hoy crece sin límite) — ADR 0004
-9. 🟢 Audit de ediciones de infraestructura (hoy `audit_logs` solo registra acciones de usuarios) — ADR 0004
-10. 🔵 Fase 4: clientes, servicios, drops, incidentes (ADR 0003)
+9. 🔵 Fase 4: clientes, servicios, drops, incidentes (ADR 0003)
 
 ## Base de datos (Supabase)
 
 > ⚠️ **Las migraciones del repo NO reconstruyen la BD.** La tabla `networks`, las columnas
 > `network_id` de infraestructura y el RPC `create_network` se aplicaron directamente en Supabase
 > y no están en ninguna migración. `010_network_zones.sql` referencia `networks(id)`, por lo que
-> aplicar 001→027 sobre una BD vacía falla. No asumir que el repo es la fuente de verdad del schema
+> aplicar 001→028 sobre una BD vacía falla. No asumir que el repo es la fuente de verdad del schema
 > hasta resolverlo (dump + migración baseline).
 
 **Tablas:**
@@ -154,7 +153,7 @@ docs/                             # ver "Mapa de documentación"
 | `fiber_routes` | feeder / distribution; `from/to_element_id`; `reservation_m` (020) |
 | `route_points` | crossing, reserve, splice, mufa |
 | `network_zones` | zonas por red → `{ZONA}` del código operativo (010) |
-| `audit_logs` | trazabilidad de cambios (012) |
+| `audit_logs` | trazabilidad: acciones de usuarios (app) + cambios de red/infraestructura (triggers, 028) |
 | `ont_current_state` | último estado por ONT (UPSERT del colector) (021) |
 | `ont_signal_history` | historial filtrado (change / degradation / sample) (021) |
 
@@ -163,12 +162,17 @@ docs/                             # ver "Mapa de documentación"
 **RPCs de lectura:** `infrastructure_elements_for_map`, `fiber_routes_for_map`, `route_points_for_map` (variante con `p_network_id` desde 022), `list_networks` (027), `network_zones_for_network` (011).
 **RPCs de escritura:** `create_*_draft`, `update_*`, `delete_*` (005-008, 015-016), captura closure/mufa (019). Son `SECURITY INVOKER` → aplica RLS.
 
-**Migraciones:** 001-027. Notables desde 017:
+**Auditoría por triggers (028):** `audit_row_change()` (`SECURITY DEFINER`, AFTER ROW) escribe `<target_type>.created|updated|deleted` con actor desde el JWT (`NULL` + `source: postgres` si es SQL directo).
+Update → `metadata.changes` `{col: {old, new}}` (geometría solo `{changed: true}`); delete → `metadata.snapshot` con la fila completa.
+Omite updates que solo tocan `updated_at/by` y el archivado (lo registra `archive_network()`). Si el insert de auditoría falla, la escritura falla.
+
+**Migraciones:** 001-028. Notables desde 017:
 - 018-019 closures/mufas y splitters dentro de closure/NAP
 - 020 `reservation_m` (slack óptico)
 - 021 tablas de monitoreo ONT · 022 `management_ip` · 023 seed telemetría Cuenca · 024 índices + Realtime delete
 - 025 **restringe escritura de infraestructura a admin/network_engineer**
 - 026 `WITH CHECK` en update de `networks` · 027 archivado de redes
+- 028 triggers de auditoría `audit_row_change()` en `networks`, `network_zones`, `infrastructure_elements`, `fiber_routes`, `route_points`
 
 **Seeds:** 003 (Quito: 8 elementos, 7 rutas, 3 puntos), 014 (Cuenca, Star 1:16), 023 (16 ONTs mock).
 
@@ -246,5 +250,6 @@ UPSTASH_REDIS_REST_TOKEN
 
 ## Convenciones para mantener este archivo
 - Al añadir una migración: actualizar la sección BD (y la matriz RLS si toca políticas).
+- Al añadir una tabla de red: agregarle el trigger `audit_row_change('<target_type>')` y su etiqueta en `app/(dashboard)/admin/audit/page.tsx`.
 - Al añadir una ruta en `app/`: actualizar "Rutas".
 - Valores numéricos de la calculadora: solo aquí y en `optical-budget.ts`; los demás docs enlazan.

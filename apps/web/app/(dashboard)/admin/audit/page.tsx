@@ -3,6 +3,7 @@ import {
 	BadgeCheck,
 	FileClock,
 	Filter,
+	Network,
 	ShieldCheck,
 	UserRoundCog,
 } from "lucide-react";
@@ -33,21 +34,61 @@ interface AuditLogRow {
 
 const actionLabels: Record<string, string> = {
 	"user.invited": "Invitación enviada",
+	"user.invitation_resent": "Invitación reenviada",
 	"user.role_updated": "Rol actualizado",
 	"user.suspended": "Usuario suspendido",
 	"user.reactivated": "Usuario reactivado",
+	"user.password_reset_sent": "Reset de contraseña enviado",
+	"user.deleted": "Usuario eliminado",
+	"network.created": "Red creada",
+	"network.updated": "Red modificada",
+	"network.archived": "Red archivada",
+	"network.deleted": "Red eliminada",
+	"network_zone.created": "Zona creada",
+	"network_zone.updated": "Zona modificada",
+	"network_zone.deleted": "Zona eliminada",
+	"infrastructure_element.created": "Elemento creado",
+	"infrastructure_element.updated": "Elemento modificado",
+	"infrastructure_element.deleted": "Elemento eliminado",
+	"fiber_route.created": "Ruta creada",
+	"fiber_route.updated": "Ruta modificada",
+	"fiber_route.deleted": "Ruta eliminada",
+	"route_point.created": "Punto creado",
+	"route_point.updated": "Punto modificado",
+	"route_point.deleted": "Punto eliminado",
 };
 
-const actionTones: Record<string, string> = {
-	"user.invited":
-		"border-[var(--gpon-olt)]/35 bg-[var(--gpon-olt)]/10 text-[var(--gpon-olt)]",
-	"user.role_updated":
-		"border-[var(--gpon-splitter)]/35 bg-[var(--gpon-splitter)]/10 text-[var(--gpon-splitter)]",
-	"user.suspended":
-		"border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1]",
-	"user.reactivated":
-		"border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]",
-};
+const TONE_CREATE =
+	"border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]";
+const TONE_UPDATE =
+	"border-[var(--gpon-splitter)]/35 bg-[var(--gpon-splitter)]/10 text-[var(--gpon-splitter)]";
+const TONE_DESTRUCTIVE =
+	"border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1]";
+const TONE_INFO =
+	"border-[var(--gpon-olt)]/35 bg-[var(--gpon-olt)]/10 text-[var(--gpon-olt)]";
+
+function actionTone(action: string): string {
+	if (action === "user.reactivated") return TONE_CREATE;
+	if (action.startsWith("user.invit") || action.endsWith("_sent"))
+		return TONE_INFO;
+	if (action.endsWith(".created")) return TONE_CREATE;
+	if (
+		action.endsWith(".deleted") ||
+		action.endsWith(".archived") ||
+		action.endsWith(".suspended")
+	)
+		return TONE_DESTRUCTIVE;
+	if (action.endsWith(".updated")) return TONE_UPDATE;
+	return "border-border";
+}
+
+const NETWORK_TARGET_TYPES = new Set([
+	"network",
+	"network_zone",
+	"infrastructure_element",
+	"fiber_route",
+	"route_point",
+]);
 
 function formatDate(value: string): string {
 	return new Intl.DateTimeFormat("es-EC", {
@@ -56,12 +97,44 @@ function formatDate(value: string): string {
 	}).format(new Date(value));
 }
 
+function formatScalar(value: unknown): string {
+	if (value === null || value === undefined) return "∅";
+	if (typeof value === "object") return "{…}";
+	const text = String(value);
+	return text.length > 40 ? `${text.slice(0, 40)}…` : text;
+}
+
+function formatChanges(changes: Record<string, unknown>): string {
+	return Object.entries(changes)
+		.map(([field, change]) => {
+			if (change && typeof change === "object" && "changed" in change) {
+				return `${field}: geometría modificada`;
+			}
+			if (change && typeof change === "object" && "old" in change) {
+				const { old, new: next } = change as { old: unknown; new: unknown };
+				return `${field}: ${formatScalar(old)} → ${formatScalar(next)}`;
+			}
+			return `${field}: ${formatScalar(change)}`;
+		})
+		.join(" · ");
+}
+
 function formatMetadata(metadata: Record<string, unknown>): string {
 	const entries = Object.entries(metadata).filter(
-		([, value]) => value !== null,
+		([, value]) => value !== null && value !== undefined,
 	);
 	if (entries.length === 0) return "Sin metadatos";
-	return entries.map(([key, value]) => `${key}: ${String(value)}`).join(" · ");
+	return entries
+		.map(([key, value]) => {
+			if (key === "changes" && value && typeof value === "object") {
+				return formatChanges(value as Record<string, unknown>);
+			}
+			if (key === "snapshot") return "snapshot guardado";
+			if (key === "network_id") return `red: ${String(value).slice(0, 8)}`;
+			if (key === "source") return `origen: ${String(value)}`;
+			return `${key}: ${formatScalar(value)}`;
+		})
+		.join(" · ");
 }
 
 export default async function AuditPage({
@@ -109,6 +182,9 @@ export default async function AuditPage({
 	const userEvents = rows.filter(
 		(row) => row.target_type === "auth.user",
 	).length;
+	const networkEvents = rows.filter((row) =>
+		NETWORK_TARGET_TYPES.has(row.target_type),
+	).length;
 
 	return (
 		<div className="h-full overflow-y-auto bg-background">
@@ -123,14 +199,14 @@ export default async function AuditPage({
 							Auditoría
 						</h1>
 						<p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-							Registro de acciones sensibles realizadas por administradores.
-							Empieza con usuarios y roles, y queda listo para extenderse a red,
-							incidentes y configuración.
+							Registro de acciones sensibles: gestión de usuarios y todo cambio
+							sobre redes, zonas, elementos, rutas y puntos (registrado por
+							triggers en la base de datos, incluso fuera de la app).
 						</p>
 					</div>
 				</section>
 
-				<section className="grid gap-3 md:grid-cols-3">
+				<section className="grid gap-3 md:grid-cols-4">
 					<Card className="rounded-lg border-border/80 bg-card/80">
 						<CardHeader>
 							<CardDescription>Eventos visibles</CardDescription>
@@ -155,6 +231,15 @@ export default async function AuditPage({
 							<CardTitle className="flex items-center gap-2 text-2xl">
 								<BadgeCheck className="size-5 text-[var(--status-online)]" />
 								{userEvents}
+							</CardTitle>
+						</CardHeader>
+					</Card>
+					<Card className="rounded-lg border-border/80 bg-card/80">
+						<CardHeader>
+							<CardDescription>Eventos de red</CardDescription>
+							<CardTitle className="flex items-center gap-2 text-2xl">
+								<Network className="size-5 text-[var(--gpon-nap)]" />
+								{networkEvents}
 							</CardTitle>
 						</CardHeader>
 					</Card>
@@ -221,7 +306,7 @@ export default async function AuditPage({
 											<div className="flex items-start justify-between gap-3">
 												<Badge
 													variant="outline"
-													className={actionTones[row.action] ?? "border-border"}
+													className={actionTone(row.action)}
 												>
 													{actionLabels[row.action] ?? row.action}
 												</Badge>
@@ -292,9 +377,7 @@ export default async function AuditPage({
 													<td className="py-3 pr-4">
 														<Badge
 															variant="outline"
-															className={
-																actionTones[row.action] ?? "border-border"
-															}
+															className={actionTone(row.action)}
 														>
 															{actionLabels[row.action] ?? row.action}
 														</Badge>

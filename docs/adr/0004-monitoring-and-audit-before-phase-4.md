@@ -27,7 +27,7 @@ El resto de ADR 0003 sigue vigente: `customers`, `service_plans`, `services`, `d
 | ADR 0003 planeaba | Implementado | Consecuencia |
 |---|---|---|
 | `signal_history` con retención de 90 días + vista `ont_latest_signal` | Tabla `ont_current_state` separada (reemplaza la vista); **sin retención automática** | El volumen crece sin límite; la política de historial del colector (change / degradation / sample) lo reduce ~94%, pero no lo acota |
-| `audit_log` llenado por trigger `SECURITY DEFINER` en tablas operativas | Inserción desde la app con service key, solo en acciones de usuarios | **Las ediciones de infraestructura no quedan auditadas**; una escritura directa a la BD tampoco |
+| `audit_log` llenado por trigger `SECURITY DEFINER` en tablas operativas | Inserción desde la app con service key para acciones de usuarios + **triggers `SECURITY DEFINER` desde 028** para redes e infraestructura | Resuelto en 028: toda escritura de red queda auditada, incluido SQL directo |
 | Migraciones `004_distribution_schema` / `005_operations_schema` | Numeración real 012 y 021 | Solo nominal |
 
 ## Consecuencias
@@ -35,6 +35,5 @@ El resto de ADR 0003 sigue vigente: `customers`, `service_plans`, `services`, `d
 - Hay datos operativos (telemetría) antes de que exista el modelo de clientes: las ONTs no se pueden asociar todavía a un servicio ni a un `drop_route`. El presupuesto óptico end-to-end sigue incompleto.
 - Pendientes derivados de esta decisión:
   - Política de retención para `ont_signal_history` (job `pg_cron` o partición por mes).
-  - Decidir si el audit de infraestructura se hace por trigger (cubre todo, incluido SQL directo) o desde los RPCs.
   - `locate_fault_along_route()`: correlacionar distancia ONT con la topología.
 - Lectura de `audit_logs` restringida a `admin` (policy en 012).

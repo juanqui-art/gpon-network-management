@@ -27,7 +27,7 @@ It combines a GIS map editor for the passive network (OLT → splitter → NAP),
 - ONT status, RX power, temperature and distance, pushed live via Supabase Realtime
 - Filtered history: only status changes, degradations (> 1.5 dB) and periodic samples (~94% less volume)
 
-**Administration** (`/admin`) — user and role management, audit log, network archiving.
+**Administration** (`/admin`) — user and role management, network archiving, and an audit log that records every network/infrastructure change via database triggers.
 
 **Not yet:** live map markers, fault localization along routes, distance measuring tool, customers / services / drops (Phase 4). See *Pendiente* in [`CLAUDE.md`](CLAUDE.md).
 
@@ -53,7 +53,7 @@ apps/
 ├── web/           # Next.js app
 └── collector/     # SNMP → Supabase poller (see apps/collector/README.md)
 database/
-└── migrations/    # 001-027 SQL migrations (schema, RLS, RPCs, seeds)
+└── migrations/    # 001-028 SQL migrations (schema, RLS, RPCs, seeds)
 docs/              # Domain research, UX specs, ADRs — index in CLAUDE.md
 ```
 
