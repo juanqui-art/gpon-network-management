@@ -3,6 +3,17 @@
 Alcance: 34 archivos `.md` (~12.3k líneas) contrastados contra el código en `apps/web`, `apps/collector` y `database/migrations` (HEAD `08ab943`).
 Método: verificación cruzada de afirmaciones concretas (rutas, archivos, constantes, políticas RLS, migraciones, RPCs), escaneo de enlaces y rutas de archivo, y fecha del último commit de cada doc.
 
+**Estado de resolución**
+| Hallazgo | Estado |
+|---|---|
+| C2, A1, A2, A3, A6 — CLAUDE.md | ✅ Reescrito (2026-11-04) |
+| C4 — `AGENTS.md` raíz | ✅ Reducido a puntero + reglas de seguridad |
+| A5 — README raíz | ✅ Reescrito |
+| M3 — `apps/web/README.md` | ✅ Reemplazado |
+| C1 — schema `networks` sin versionar | ⬜ Pendiente (requiere dump de Supabase) |
+| C3 — semáforo óptico | ⬜ Pendiente de decisión; CLAUDE.md documenta el código |
+| A4, M1, M2 — ADR 0004, banners, archivar MVP_TASKS | ⬜ Pendiente |
+
 **Conclusión corta:** la documentación de *dominio* (investigación GPON, topologías, OLT) está sólida. La documentación *de proyecto* (CLAUDE.md, AGENTS.md, README.md, MVP_TASKS) tiene deriva seria: contradice al código en seguridad (RLS) y en el cálculo óptico, y describe rutas y fases que ya no existen. Además, el repo **no puede reconstruir la base de datos** desde sus migraciones.
 
 ---

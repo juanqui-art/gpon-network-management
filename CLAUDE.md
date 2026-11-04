@@ -56,7 +56,7 @@ pnpm dev          # colector (MOCK_MODE=true por defecto en .env.example)
 /admin/audit                   → visor de audit_logs
 /admin/settings                → ajustes
 ```
-No hay registro público: los usuarios se crean desde `/admin/users`.
+No hay registro público: un admin invita usuarios por email desde `/admin/users` (`inviteUserByEmail`).
 `proxy.ts`: sin sesión → `/login`; rutas `/api/*` sin sesión → 401.
 
 ## Estructura (por responsabilidad)
