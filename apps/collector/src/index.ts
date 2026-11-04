@@ -1,12 +1,16 @@
 import { type Config, loadConfig } from "./config.js";
 import { HistoryDecider } from "./decide/history-trigger.js";
 import { parseOntRows } from "./parser/ont-parser.js";
-import { SupabasePersister, type OntWithTrigger } from "./persist/supabase.js";
+import { type OntWithTrigger, SupabasePersister } from "./persist/supabase.js";
 import { createMockSession } from "./snmp/mock-session.js";
 import { createRealSession } from "./snmp/session.js";
 import type { SnmpSession } from "./snmp/types.js";
 
-function log(level: "info" | "warn" | "error", message: string, meta?: object): void {
+function log(
+	level: "info" | "warn" | "error",
+	message: string,
+	meta?: object,
+): void {
 	const entry = {
 		ts: new Date().toISOString(),
 		level,

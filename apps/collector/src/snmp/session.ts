@@ -84,14 +84,47 @@ export function createRealSession(opts: CreateRealSessionOptions): SnmpSession {
 				serials,
 				descriptions,
 			] = await Promise.all([
-				walkSubtree(session, fullOid(HUAWEI_OID.STATUS.subtree, HUAWEI_OID.STATUS.column)),
-				walkSubtree(session, fullOid(HUAWEI_OID.RX_POWER.subtree, HUAWEI_OID.RX_POWER.column)),
-				walkSubtree(session, fullOid(HUAWEI_OID.TX_POWER.subtree, HUAWEI_OID.TX_POWER.column)),
-				walkSubtree(session, fullOid(HUAWEI_OID.TEMPERATURE.subtree, HUAWEI_OID.TEMPERATURE.column)),
-				walkSubtree(session, fullOid(HUAWEI_OID.DISTANCE.subtree, HUAWEI_OID.DISTANCE.column)),
-				walkSubtree(session, fullOid(HUAWEI_OID.LAST_DISCONNECT_REASON.subtree, HUAWEI_OID.LAST_DISCONNECT_REASON.column)),
-				walkSubtree(session, fullOid(HUAWEI_OID.SERIAL.subtree, HUAWEI_OID.SERIAL.column)),
-				walkSubtree(session, fullOid(HUAWEI_OID.DESCRIPTION.subtree, HUAWEI_OID.DESCRIPTION.column)),
+				walkSubtree(
+					session,
+					fullOid(HUAWEI_OID.STATUS.subtree, HUAWEI_OID.STATUS.column),
+				),
+				walkSubtree(
+					session,
+					fullOid(HUAWEI_OID.RX_POWER.subtree, HUAWEI_OID.RX_POWER.column),
+				),
+				walkSubtree(
+					session,
+					fullOid(HUAWEI_OID.TX_POWER.subtree, HUAWEI_OID.TX_POWER.column),
+				),
+				walkSubtree(
+					session,
+					fullOid(
+						HUAWEI_OID.TEMPERATURE.subtree,
+						HUAWEI_OID.TEMPERATURE.column,
+					),
+				),
+				walkSubtree(
+					session,
+					fullOid(HUAWEI_OID.DISTANCE.subtree, HUAWEI_OID.DISTANCE.column),
+				),
+				walkSubtree(
+					session,
+					fullOid(
+						HUAWEI_OID.LAST_DISCONNECT_REASON.subtree,
+						HUAWEI_OID.LAST_DISCONNECT_REASON.column,
+					),
+				),
+				walkSubtree(
+					session,
+					fullOid(HUAWEI_OID.SERIAL.subtree, HUAWEI_OID.SERIAL.column),
+				),
+				walkSubtree(
+					session,
+					fullOid(
+						HUAWEI_OID.DESCRIPTION.subtree,
+						HUAWEI_OID.DESCRIPTION.column,
+					),
+				),
 			]);
 
 			// Combinamos por index. Status es el atributo "ancla" — si una ONT
@@ -122,7 +155,8 @@ export function createRealSession(opts: CreateRealSessionOptions): SnmpSession {
 
 				const reason = disconnects.get(index);
 				if (typeof reason === "string") row.lastDisconnectReason = reason;
-				else if (Buffer.isBuffer(reason)) row.lastDisconnectReason = reason.toString("utf8");
+				else if (Buffer.isBuffer(reason))
+					row.lastDisconnectReason = reason.toString("utf8");
 
 				const serial = serials.get(index);
 				if (typeof serial === "string") row.serial = serial;

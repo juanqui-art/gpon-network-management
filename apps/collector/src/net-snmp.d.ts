@@ -96,6 +96,8 @@ declare module "net-snmp" {
 	}
 
 	export {
+		createSession,
+		isVarbindError,
 		Session,
 		SessionOptions,
 		Varbind,
@@ -103,8 +105,6 @@ declare module "net-snmp" {
 		Version1,
 		Version2c,
 		Version3,
-		isVarbindError,
-		createSession,
 	};
 
 	export const Version1: Version;
