@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AppDrawer } from "@/components/ui/app-drawer";
+import { toast } from "@/lib/feedback/toast";
 import type { UserRole } from "@/lib/types/gpon";
 import {
 	type NetworkSummary,
@@ -79,6 +80,11 @@ export function NetworksClient({
 				p_reason: archiveReason.trim() || null,
 			});
 			if (rpcError) throw rpcError;
+			toast({
+				tone: "success",
+				title: "Red archivada",
+				description: archiveTarget.name,
+			});
 			setArchiveTarget(null);
 			setArchiveConfirmation("");
 			setArchiveReason("");

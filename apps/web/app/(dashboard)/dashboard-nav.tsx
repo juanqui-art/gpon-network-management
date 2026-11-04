@@ -7,9 +7,21 @@ import { useEffect, useState } from "react";
 import { signOut } from "@/app/actions/auth";
 import { AppDrawer } from "@/components/ui/app-drawer";
 import { Button } from "@/components/ui/button";
+import {
+	isLeaveBlocked,
+	requestNavigation,
+} from "@/lib/navigation/leave-guard";
 
 function openPalette() {
 	window.dispatchEvent(new Event("gpon:palette"));
+}
+
+/** Sign-out drops in-memory editor state: route it through the leave guard. */
+function guardSignOut(event: React.FormEvent<HTMLFormElement>) {
+	if (!isLeaveBlocked("/login")) return;
+	event.preventDefault();
+	const form = event.currentTarget;
+	void requestNavigation("/login", () => form.requestSubmit());
 }
 
 const NAV_LINKS = [
@@ -75,7 +87,7 @@ export function DashboardNav() {
 						⌘K
 					</kbd>
 				</button>
-				<form action={signOut}>
+				<form action={signOut} onSubmit={guardSignOut}>
 					<Button type="submit" variant="ghost" size="sm">
 						Salir
 					</Button>
@@ -126,7 +138,11 @@ export function DashboardNav() {
 						</Link>
 					))}
 				</nav>
-				<form action={signOut} className="border-t border-border pt-2">
+				<form
+					action={signOut}
+					onSubmit={guardSignOut}
+					className="border-t border-border pt-2"
+				>
 					<Button
 						type="submit"
 						variant="ghost"

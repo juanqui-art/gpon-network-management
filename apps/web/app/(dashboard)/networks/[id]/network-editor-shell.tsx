@@ -1,19 +1,26 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { MapPinned, NetworkIcon, Plus } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Eye, NetworkIcon, Pencil, Plus, Redo2, Undo2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { DiagramPanel } from "@/components/map/logical-diagram";
 import { NetworkEditorMap } from "@/components/map/network-editor-map";
+import { NetworkLoadState } from "@/components/map/network-load-state";
+import { confirmAction } from "@/lib/feedback/confirm";
+import { toast } from "@/lib/feedback/toast";
 import { useEditorShortcuts } from "@/lib/hooks/use-editor-shortcuts";
 import { useNetworkEditorHistoryShortcuts } from "@/lib/hooks/use-network-editor-history-shortcuts";
+import { useUnsavedChangesGuard } from "@/lib/hooks/use-unsaved-changes-guard";
 import { MAPBOX_TOKEN } from "@/lib/mapbox/config";
 import {
 	fetchNetworkEditorData,
 	networkEditorKeys,
 } from "@/lib/queries/network-editor";
-import { useNetworkEditorStore } from "@/lib/store/network-editor";
+import {
+	type EditorMode,
+	useNetworkEditorStore,
+} from "@/lib/store/network-editor";
 import type { UserRole } from "@/lib/types/gpon";
 import { canWriteInfrastructure } from "@/lib/types/gpon";
 import type { Network } from "@/lib/types/network";
@@ -48,15 +55,65 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 		hydrateNetwork,
 		save,
 		discard,
+		resetEditor,
 		getElementsArray,
 		getRoutesArray,
 		getRoutePointsArray,
 	} = useNetworkEditorStore();
 
 	const canEdit = canWriteInfrastructure(userRole);
+	const queryClient = useQueryClient();
 	const networkQuery = useQuery({
 		queryKey: networkEditorKeys.detail(networkId),
 		queryFn: () => fetchNetworkEditorData(networkId),
+	});
+
+	/** Save, refresh the cached snapshot and report the outcome. */
+	const saveChanges = useCallback(async (): Promise<boolean> => {
+		const ok = await save();
+		const message = useNetworkEditorStore.getState().statusMessage;
+		if (ok) {
+			void queryClient.invalidateQueries({
+				queryKey: networkEditorKeys.detail(networkId),
+			});
+			toast({ tone: "success", title: "Cambios guardados" });
+		} else {
+			toast({
+				tone: "error",
+				title: "No se pudieron guardar los cambios",
+				description: message,
+			});
+		}
+		return ok;
+	}, [networkId, queryClient, save]);
+
+	const handleDiscard = async () => {
+		const confirmed = await confirmAction({
+			title: "¿Descartar los cambios?",
+			description:
+				"Se perderán todas las modificaciones locales desde el último guardado. Esta acción no se puede deshacer.",
+			confirmLabel: "Descartar cambios",
+			cancelLabel: "Conservar",
+			tone: "danger",
+		});
+		if (!confirmed) return;
+		discard();
+		toast({ tone: "info", title: "Cambios descartados" });
+	};
+
+	const changeMode = (next: EditorMode) => {
+		setMode(next);
+		setActiveTool("select");
+		deselect();
+	};
+
+	useUnsavedChangesGuard({
+		enabled: isDirty,
+		allowPathPrefix: `/networks/${networkId}`,
+		message:
+			"Hay cambios en elementos, rutas o puntos de esta red que aún no se guardaron en la base de datos.",
+		onSave: saveChanges,
+		onLeave: resetEditor,
 	});
 
 	useEditorShortcuts({ canEdit });
@@ -72,10 +129,12 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 		}
 	}, [networkId, networkQuery.data, hydrateNetwork]);
 
+	// Always open in read mode: editing (dragging elements / vertices) is an
+	// explicit choice, so a consultation never mutates geometry by accident.
 	useEffect(() => {
-		setMode(canEdit ? "edit" : "view");
+		setMode("view");
 		setActiveTool("select");
-	}, [canEdit, setActiveTool, setMode]);
+	}, [setActiveTool, setMode]);
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -93,10 +152,45 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 					<span className="max-w-48 truncate text-xs font-medium text-[#e6e6e6]">
 						{network.name}
 					</span>
-					<div className="inline-flex items-center gap-1.5 rounded-md border border-[rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.08)] px-2.5 py-1 text-[11px] font-medium text-[#fbbf24]">
-						<MapPinned className="size-3.5" aria-hidden="true" />
-						{canEdit ? "Edición de inventario" : "Consulta"}
-					</div>
+					{canEdit ? (
+						<fieldset className="inline-flex items-center rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(164,164,164,0.04)] p-0.5">
+							<legend className="sr-only">Modo del editor</legend>
+							{(
+								[
+									{ value: "view", label: "Consulta", icon: Eye, key: "V" },
+									{ value: "edit", label: "Edición", icon: Pencil, key: "E" },
+								] as const
+							).map((option) => {
+								const active =
+									option.value === "view" ? mode !== "edit" : mode === "edit";
+								const Icon = option.icon;
+								return (
+									<button
+										key={option.value}
+										type="button"
+										aria-pressed={active}
+										title={`${option.label} (atajo: ${option.key})`}
+										onClick={() => changeMode(option.value)}
+										className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${
+											active
+												? option.value === "edit"
+													? "bg-[rgba(56,189,248,0.16)] text-[#bdeafe]"
+													: "bg-[rgba(164,164,164,0.14)] text-[#e6e6e6]"
+												: "text-[var(--text-secondary)] hover:text-[#e6e6e6]"
+										}`}
+									>
+										<Icon className="size-3.5" aria-hidden="true" />
+										{option.label}
+									</button>
+								);
+							})}
+						</fieldset>
+					) : (
+						<div className="inline-flex items-center gap-1.5 rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(164,164,164,0.06)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)]">
+							<Eye className="size-3.5" aria-hidden="true" />
+							Solo lectura
+						</div>
+					)}
 				</div>
 
 				{/* Right: diagram toggle + dirty indicator + save */}
@@ -127,32 +221,59 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 						<NetworkIcon className="size-3.5" aria-hidden="true" />
 						{diagramOpen ? "Ocultar" : "Abrir"} unifilar
 					</button>
+					{canEdit && (canUndo || canRedo) && (
+						<div className="inline-flex items-center gap-0.5">
+							<button
+								type="button"
+								onClick={() => {
+									useNetworkEditorStore.temporal.getState().undo();
+									deselect();
+								}}
+								disabled={!canUndo}
+								aria-label="Deshacer último cambio"
+								title="Deshacer último cambio (Ctrl+Z)"
+								className="inline-flex size-7 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[rgba(164,164,164,0.1)] hover:text-[#e6e6e6] disabled:opacity-40"
+							>
+								<Undo2 className="size-3.5" aria-hidden="true" />
+							</button>
+							<button
+								type="button"
+								onClick={() => {
+									useNetworkEditorStore.temporal.getState().redo();
+									deselect();
+								}}
+								disabled={!canRedo}
+								aria-label="Rehacer"
+								title="Rehacer (Ctrl+Shift+Z o Ctrl+Y)"
+								className="inline-flex size-7 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[rgba(164,164,164,0.1)] hover:text-[#e6e6e6] disabled:opacity-40"
+							>
+								<Redo2 className="size-3.5" aria-hidden="true" />
+							</button>
+						</div>
+					)}
 					{isDirty && (
 						<>
-							<span className="text-xs text-[#777879]">
-								Cambios sin guardar · Ctrl+Z revierte
-							</span>
 							<span
-								className="rounded-md border border-[rgba(164,164,164,0.14)] bg-[rgba(164,164,164,0.05)] px-2 py-1 text-[11px] text-[#8f969e]"
-								title={
-									canUndo
-										? "Ctrl+Z para deshacer. Ctrl+Shift+Z o Ctrl+Y para rehacer."
-										: "No hay cambios reversibles todavía."
-								}
+								role="status"
+								className="inline-flex items-center gap-1.5 text-xs text-[#fbbf24]"
 							>
-								{canUndo ? "Deshacer disponible" : "Sin historial"}
-								{canRedo ? " · Rehacer" : ""}
+								<span
+									className="size-1.5 rounded-full bg-[#fbbf24]"
+									aria-hidden="true"
+								/>
+								Cambios sin guardar
 							</span>
 							<button
 								type="button"
-								onClick={discard}
-								className="text-xs text-[#777879] transition-colors hover:text-[#a4a4a4]"
+								onClick={handleDiscard}
+								disabled={isSaving}
+								className="rounded-md px-2 py-1 text-xs text-[var(--text-secondary)] transition-colors hover:bg-[rgba(251,77,109,0.1)] hover:text-[#fb7185] disabled:opacity-50"
 							>
 								Descartar
 							</button>
 							<button
 								type="button"
-								onClick={save}
+								onClick={() => void saveChanges()}
 								disabled={isSaving}
 								className="rounded-md border border-[rgba(52,211,153,0.35)] bg-[rgba(52,211,153,0.12)] px-3 py-1 text-xs font-medium text-[#34d399] transition-colors hover:bg-[rgba(52,211,153,0.2)] disabled:opacity-50"
 							>
@@ -160,17 +281,22 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 							</button>
 						</>
 					)}
-					{!isDirty && <span className="text-xs text-[#5c5d5f]">Guardado</span>}
+					{!isDirty && networkQuery.isSuccess && (
+						<span className="text-xs text-[var(--text-secondary)]">
+							Todo guardado
+						</span>
+					)}
 				</div>
 			</div>
 
 			{/* Map editor — full remaining height with min-h-0 */}
 			<div className="relative min-h-0 flex-1 overflow-hidden">
-				{networkQuery.isError && (
-					<div className="absolute left-1/2 top-16 z-30 -translate-x-1/2 rounded-md border border-[rgba(251,77,109,0.35)] bg-[rgba(34,35,36,0.94)] px-3 py-2 text-xs text-[#fb7185] shadow-xl">
-						No se pudo cargar la red.
-					</div>
-				)}
+				<NetworkLoadState
+					isPending={networkQuery.isPending}
+					isError={networkQuery.isError}
+					isRefetching={networkQuery.isFetching}
+					onRetry={() => void networkQuery.refetch()}
+				/>
 				<NetworkEditorMap
 					token={MAPBOX_TOKEN}
 					equipment={getElementsArray()}

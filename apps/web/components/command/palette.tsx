@@ -21,6 +21,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AppDrawer } from "@/components/ui/app-drawer";
+import { requestNavigation } from "@/lib/navigation/leave-guard";
 
 const NAV_COMMANDS = [
 	{ label: "Dashboard", href: "/dashboard", icon: BarChart3, group: "Navegar" },
@@ -65,8 +66,8 @@ export function CommandPalette() {
 	}, [toggle, close]);
 
 	function run(href: string) {
-		router.push(href);
 		close();
+		void requestNavigation(href, () => router.push(href));
 	}
 
 	return (

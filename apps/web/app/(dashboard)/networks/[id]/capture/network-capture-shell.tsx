@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	AlertTriangle,
 	ArrowLeft,
@@ -14,6 +14,7 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { NetworkEditorMap } from "@/components/map/network-editor-map";
+import { NetworkLoadState } from "@/components/map/network-load-state";
 import type {
 	ConnectionMapItem,
 	EquipmentMapItem,
@@ -21,8 +22,10 @@ import type {
 	InfrastructureElement,
 	RoutePoint,
 } from "@/components/map/types";
+import { toast } from "@/lib/feedback/toast";
 import { generateDraftCode, nextSequence } from "@/lib/gpon/operative-code";
 import { useNetworkEditorHistoryShortcuts } from "@/lib/hooks/use-network-editor-history-shortcuts";
+import { useUnsavedChangesGuard } from "@/lib/hooks/use-unsaved-changes-guard";
 import { calculateRouteLengthMeters } from "@/lib/map/route-geometry-editor";
 import { MAPBOX_TOKEN } from "@/lib/mapbox/config";
 import {
@@ -193,6 +196,7 @@ interface Props {
 }
 
 export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
+	const queryClient = useQueryClient();
 	const networkQuery = useQuery({
 		queryKey: networkEditorKeys.detail(networkId),
 		queryFn: () => fetchNetworkEditorData(networkId),
@@ -219,6 +223,7 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 		updateRoutePoint,
 		isDirty,
 		isSaving,
+		resetEditor,
 	} = useNetworkEditorStore();
 
 	const [type, setType] = useState<CaptureType>("nap");
@@ -642,11 +647,34 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 		setStatusMessage("Datos mínimos del punto físico actualizados localmente.");
 	};
 
-	const persistCapture = async () => {
+	const persistCapture = async (): Promise<boolean> => {
 		setStatusMessage("Guardando captura en la base de datos...");
-		await save();
-		setStatusMessage(useNetworkEditorStore.getState().statusMessage);
+		const ok = await save();
+		const message = useNetworkEditorStore.getState().statusMessage;
+		setStatusMessage(message);
+		if (ok) {
+			void queryClient.invalidateQueries({
+				queryKey: networkEditorKeys.detail(networkId),
+			});
+			toast({ tone: "success", title: "Captura guardada" });
+		} else {
+			toast({
+				tone: "error",
+				title: "No se pudo guardar la captura",
+				description: message,
+			});
+		}
+		return ok;
 	};
+
+	useUnsavedChangesGuard({
+		enabled: isDirty,
+		allowPathPrefix: `/networks/${networkId}`,
+		message:
+			"Hay elementos, fibras o puntos capturados que aún no se guardaron en la base de datos.",
+		onSave: persistCapture,
+		onLeave: resetEditor,
+	});
 
 	return (
 		<div className="flex h-full min-h-0 flex-col bg-[#151617]">
@@ -679,7 +707,7 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 					<button
 						type="button"
 						disabled={!canCapture || !isDirty || isSaving}
-						onClick={persistCapture}
+						onClick={() => void persistCapture()}
 						className="inline-flex items-center gap-1.5 rounded-md border border-[rgba(52,211,153,0.28)] bg-[rgba(52,211,153,0.1)] px-3 py-1.5 text-xs font-semibold text-[#86efac] transition-colors hover:bg-[rgba(52,211,153,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						<Save className="size-3.5" aria-hidden="true" />
@@ -884,6 +912,12 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 				</section>
 
 				<section className="relative min-h-0 overflow-hidden">
+					<NetworkLoadState
+						isPending={networkQuery.isPending}
+						isError={networkQuery.isError}
+						isRefetching={networkQuery.isFetching}
+						onRetry={() => void networkQuery.refetch()}
+					/>
 					<NetworkEditorMap
 						token={MAPBOX_TOKEN}
 						equipment={equipment}
