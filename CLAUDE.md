@@ -122,7 +122,7 @@ docs/                             # ver "Mapa de documentación"
 
 ### Administración
 - ✅ Gestión de usuarios/roles (admin), cierre de sesiones vía `auth.sessions`
-- ✅ Audit log + visor
+- ✅ Audit log + visor (solo acciones de gestión de usuarios; lectura solo admin)
 - ✅ Archivado lógico de redes (`archived_at`, solo admin, RPC `SECURITY DEFINER`)
 - ✅ Rate limiting de auth (si faltan las vars de Upstash: **fail-open** con warning)
 
@@ -134,7 +134,9 @@ docs/                             # ver "Mapa de documentación"
 5. 🟡 Consolidar flujo de creación y formularios del inspector
 6. 🟢 Splitters desbalanceados (10/90, 20/80…)
 7. 🟢 Flujo de propuesta/verificación para `outside_plant` (hoy no puede escribir infraestructura)
-8. 🔵 Fase 4: clientes, servicios, drops, incidentes (ADR 0003)
+8. 🟢 Retención de `ont_signal_history` (hoy crece sin límite) — ADR 0004
+9. 🟢 Audit de ediciones de infraestructura (hoy `audit_logs` solo registra acciones de usuarios) — ADR 0004
+10. 🔵 Fase 4: clientes, servicios, drops, incidentes (ADR 0003)
 
 ## Base de datos (Supabase)
 
@@ -235,11 +237,11 @@ UPSTASH_REDIS_REST_TOKEN
 | Estado | Documentos |
 |---|---|
 | **Canónico** | `GPON_FTTH_ECUADOR_RESEARCH.md` (referencia técnica), `TOPOLOGIES.md`, `GPON_SPLIT_RATIO_GUIDELINES.md`, `GPON_SYMBOLOGY.md`, `NAP_CAPACITY.md`, `FIBER_ROUTE_THREAD_MODEL.md`, `UNIFILAR_EJEMPLO_REAL.md` |
-| **Decisiones** | `adr/0001-single-tenant-mvp.md`, `adr/0002-no-port-tracking.md`, `adr/0003-operational-tables-phase-4.md` (*parcialmente superado*: `audit_logs` y monitoreo ONT ya existen) |
+| **Decisiones** | `adr/0001-single-tenant-mvp.md`, `adr/0002-no-port-tracking.md`, `adr/0003-operational-tables-phase-4.md` (*parcialmente superado*), `adr/0004-monitoring-and-audit-before-phase-4.md` |
 | **Producto / UX** | `MVP_SCOPE.md`, `EDITOR_UI_UX_SPEC.md`, `NETWORK_MAP_UX_FLOW.md`, `WORKFLOW_ANALYSIS.md`, `OPERATIONAL_ROLES.md` |
 | **OLT / monitoreo** | `REALTIME_MONITORING_RESEARCH.md` (base del colector), `OLT_REFERENCE.md`, `OLT_OPERATIONS.md`, `OLT_DEPLOYMENT.md`, `OLT_INTEGRATION_GUIDE.md` (*su arquitectura de colector dentro de Next.js fue descartada*) |
 | **Planes / investigación** | `PREMIUM_UI_UX_RESEARCH.md` (propuesta; cita archivos no creados), `INFRASTRUCTURE_EDITOR_PLAN.md` (previo a ADR 0001), `OPERATIONAL_ROLE_RESEARCH.md`, `research-sources/ANALISIS_TECNICO.md` |
-| **Desactualizados** | `MVP_TASKS.md`, `CREATION_FLOW_TEST.md` — no usar como estado actual |
+| **Archivo** | `archive/MVP_TASKS.md`, `archive/CREATION_FLOW_TEST.md` — snapshots de abril 2026, no usar como estado actual |
 | **Auditoría** | `DOCS_AUDIT.md` |
 
 ## Convenciones para mantener este archivo

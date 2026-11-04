@@ -1,4 +1,6 @@
 # Flujo Completo de Creación de Red — Prueba Funcional
+
+> **Archivado (2026-11-04).** Snapshot de 2026-04-29; no refleja el estado actual. Estado vigente: `CLAUDE.md` § Estado funcional y § Pendiente.
 Fecha: 2026-04-29
 
 ## Objetivo

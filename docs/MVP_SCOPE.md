@@ -12,11 +12,8 @@ La especificacion de comportamiento UI/UX por modo, zoom y herramienta esta en:
 docs/EDITOR_UI_UX_SPEC.md
 ```
 
-La lista de tareas realizadas y pendientes esta en:
-
-```txt
-docs/MVP_TASKS.md
-```
+La lista de tareas realizadas y pendientes esta en `CLAUDE.md` (§ Estado funcional y § Pendiente).
+El checklist original quedo archivado en `docs/archive/MVP_TASKS.md`.
 
 El objetivo no es construir todavia un OSS/BSS completo, ni resolver clientes,
 facturacion, ONTs, ordenes de instalacion o monitoreo en tiempo real. El primer

@@ -12,7 +12,10 @@ Método: verificación cruzada de afirmaciones concretas (rutas, archivos, const
 | M3 — `apps/web/README.md` | ✅ Reemplazado |
 | C1 — schema `networks` sin versionar | ⬜ Pendiente (requiere dump de Supabase) |
 | C3 — semáforo óptico | ⬜ Pendiente de decisión; CLAUDE.md documenta el código |
-| A4, M1, M2 — ADR 0004, banners, archivar MVP_TASKS | ⬜ Pendiente |
+| A4 — ADR 0004 + estado de ADR 0003 | ✅ Creado |
+| M1 — banners en OLT_INTEGRATION_GUIDE, PREMIUM_UI_UX_RESEARCH, INFRASTRUCTURE_EDITOR_PLAN, REALTIME_MONITORING_RESEARCH | ✅ |
+| M2 — MVP_TASKS y CREATION_FLOW_TEST → `docs/archive/` | ✅ |
+| Frontmatter `Estado:` en todos los docs | ⬜ Pendiente (opcional) |
 
 **Conclusión corta:** la documentación de *dominio* (investigación GPON, topologías, OLT) está sólida. La documentación *de proyecto* (CLAUDE.md, AGENTS.md, README.md, MVP_TASKS) tiene deriva seria: contradice al código en seguridad (RLS) y en el cálculo óptico, y describe rutas y fases que ya no existen. Además, el repo **no puede reconstruir la base de datos** desde sus migraciones.
 
