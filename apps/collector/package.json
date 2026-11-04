@@ -11,6 +11,7 @@
 		"dev": "tsx watch src/index.ts",
 		"start": "node --import tsx src/index.ts",
 		"build": "tsc",
+		"test": "node --import tsx --test \"src/**/*.test.ts\"",
 		"check": "biome check .",
 		"check:fix": "biome check --write ."
 	},

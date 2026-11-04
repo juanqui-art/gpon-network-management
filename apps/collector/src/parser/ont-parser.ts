@@ -1,7 +1,9 @@
 import {
 	decodeOltPort,
 	mapHuaweiStatus,
-	snmpIntToDbm,
+	parseDistanceM,
+	parseOpticalPowerDbm,
+	parseTemperatureC,
 } from "../snmp/huawei-oids.js";
 import type { RawOntRow } from "../snmp/types.js";
 
@@ -26,17 +28,14 @@ export function parseOntRows(rows: RawOntRow[]): OntReading[] {
 		ontSerial: row.serial ?? null,
 		ontDescription: row.description ?? null,
 		pon_port: decodeOltPort(row.oltPort),
-		rxPowerDbm:
-			typeof row.rxPowerRaw === "number" ? snmpIntToDbm(row.rxPowerRaw) : null,
-		txPowerDbm:
-			typeof row.txPowerRaw === "number" ? snmpIntToDbm(row.txPowerRaw) : null,
-		temperatureC:
-			typeof row.temperatureRaw === "number" ? row.temperatureRaw : null,
+		rxPowerDbm: parseOpticalPowerDbm(row.rxPowerRaw),
+		txPowerDbm: parseOpticalPowerDbm(row.txPowerRaw),
+		temperatureC: parseTemperatureC(row.temperatureRaw),
 		status:
 			typeof row.statusRaw === "number"
 				? mapHuaweiStatus(row.statusRaw)
 				: "unknown",
-		distanceM: typeof row.distanceM === "number" ? row.distanceM : null,
+		distanceM: parseDistanceM(row.distanceM),
 		lastDisconnectReason: row.lastDisconnectReason ?? null,
 	}));
 }

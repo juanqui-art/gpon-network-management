@@ -1,3 +1,4 @@
+import { HUAWEI_INVALID_INT } from "./huawei-oids.js";
 import type { RawOntRow, SnmpSession } from "./types.js";
 
 // Genera 16 ONTs sintéticas con telemetría variable.
@@ -74,6 +75,11 @@ export function createMockSession(): SnmpSession {
 					row.txPowerRaw = current.txPower;
 					row.temperatureRaw = current.temperature;
 				} else {
+					// Igual que una OLT Huawei real: centinela 0x7FFFFFFF en DDM
+					// cuando no hay lectura. El parser debe convertirlo a null.
+					row.rxPowerRaw = HUAWEI_INVALID_INT;
+					row.txPowerRaw = HUAWEI_INVALID_INT;
+					row.temperatureRaw = HUAWEI_INVALID_INT;
 					row.lastDisconnectReason = "los";
 				}
 

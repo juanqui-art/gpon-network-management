@@ -33,6 +33,53 @@ export function snmpIntToDbm(value: number): number {
 	return Number((value / 100).toFixed(2));
 }
 
+// Huawei reporta 2147483647 (0x7FFFFFFF) en las columnas DDM/distancia cuando
+// no hay lectura (ONT offline, sin luz, módulo sin DDM). Sin filtrar, 2147483647
+// / 100 = 21474836.47 dBm desborda numeric(5,2) en ont_current_state y Postgres
+// rechaza el UPSERT del lote completo — una sola ONT caída tumba toda la OLT.
+export const HUAWEI_INVALID_INT = 2147483647;
+
+// Rangos físicamente plausibles. Cualquier valor fuera se trata como "sin dato"
+// (null) en lugar de persistir basura. También garantizan que el valor cabe en
+// las columnas: rx/tx numeric(5,2), temperature numeric(4,1), distance integer.
+const OPTICAL_POWER_DBM_RANGE = { min: -50, max: 10 } as const;
+const TEMPERATURE_C_RANGE = { min: -40, max: 125 } as const;
+// GPON admite hasta 60 km de distancia lógica (ITU-T G.984); margen extra.
+const DISTANCE_M_RANGE = { min: 0, max: 100_000 } as const;
+
+function inRange(
+	value: number,
+	range: { readonly min: number; readonly max: number },
+): boolean {
+	return value >= range.min && value <= range.max;
+}
+
+function isUsableRaw(raw: number | undefined): raw is number {
+	return (
+		typeof raw === "number" &&
+		Number.isFinite(raw) &&
+		raw !== HUAWEI_INVALID_INT &&
+		raw !== -HUAWEI_INVALID_INT - 1
+	);
+}
+
+// Potencia óptica (rx/tx) en dBm, o null si el OLT no tiene lectura válida.
+export function parseOpticalPowerDbm(raw: number | undefined): number | null {
+	if (!isUsableRaw(raw)) return null;
+	const dbm = snmpIntToDbm(raw);
+	return inRange(dbm, OPTICAL_POWER_DBM_RANGE) ? dbm : null;
+}
+
+export function parseTemperatureC(raw: number | undefined): number | null {
+	if (!isUsableRaw(raw)) return null;
+	return inRange(raw, TEMPERATURE_C_RANGE) ? raw : null;
+}
+
+export function parseDistanceM(raw: number | undefined): number | null {
+	if (!isUsableRaw(raw)) return null;
+	return Number.isInteger(raw) && inRange(raw, DISTANCE_M_RANGE) ? raw : null;
+}
+
 // Mapea el status SNMP de Huawei a nuestro ENUM de DB
 export function mapHuaweiStatus(
 	rawStatus: number,
