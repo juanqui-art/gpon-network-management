@@ -298,10 +298,15 @@ Pérdida total =
 ```
 Valores conservadores para Ecuador (UV, humedad, reparaciones frecuentes).
 Parámetros activos: longitud_GIS + reservation_m, conector 0.5 dB, empalme 0.1 dB,
-margen de seguridad 4.0 dB (tropical Ecuador: UV, humedad, reparaciones), downstream base 1490 nm.
+margen de seguridad 3.0 dB (`SAFETY_MARGIN_DB`; envejecimiento, reparaciones, suciedad), downstream base 1490 nm.
 La reserva física (bucles, holgura) se modela explícitamente en `fiber_routes.reservation_m`
 y suma a la longitud para calcular la atenuación.
-Semáforo: verde (>3dB margen) / ámbar (1-3dB) / rojo (<1dB) / gris (sin clase óptica del OLT).
+Semáforo sobre el margen restante **después** de descontar el margen de seguridad:
+verde (>3 dB) / ámbar (1-3 dB, inclusive) / rojo (<1 dB) / gris (sin clase óptica del OLT).
+Única fuente de verdad: `classifyMargin()` / `getMarginColor()` en `optical-budget.ts`
+(inspector, diagrama unifilar y paneles la usan; no duplicar umbrales).
+"Fuera de presupuesto" solo si la pérdida física supera el máximo de la clase; si es
+menor al mínimo de la clase se advierte riesgo de saturación del receptor.
 Referencia canónica: `docs/GPON_FTTH_ECUADOR_RESEARCH.md#presupuesto-optico-consolidado`.
 
 ## Códigos operativos (lib/gpon/operative-code.ts)

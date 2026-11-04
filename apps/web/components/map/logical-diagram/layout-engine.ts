@@ -2,6 +2,7 @@ import { hasInternalSplitter } from "@/lib/gpon/nap-config";
 import {
 	ATTENUATION_DB_PER_KM,
 	CONNECTOR_LOSS_DB,
+	classifyMargin,
 	type OpticalStatus,
 	PON_CLASS_BUDGET,
 	PON_CLASS_POWER_PROFILE,
@@ -476,17 +477,12 @@ function buildBudgets(
 
 		if (designPowerMarginDb !== null) {
 			margin = designPowerMarginDb;
-			status =
-				designPowerMarginDb > 3
-					? "green"
-					: designPowerMarginDb >= 1
-						? "yellow"
-						: "red";
+			status = classifyMargin(designPowerMarginDb);
 		} else if (oltClass && isPonClass(oltClass)) {
 			const budget = PON_CLASS_BUDGET[oltClass];
 			if (budget) {
 				margin = round2(budget.max - totalLoss);
-				status = margin > 3 ? "green" : margin >= 1 ? "yellow" : "red";
+				status = classifyMargin(margin);
 			}
 		} else if (powerProfile.txPowerDbm === null) {
 			next.warnings.push(

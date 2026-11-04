@@ -14,6 +14,7 @@ import {
 	type UTCTimestamp,
 } from "lightweight-charts";
 import { useEffect, useMemo, useRef } from "react";
+import { getMarginColor } from "@/lib/gpon/optical-budget";
 import type { BudgetLossEvent, PathBudget } from "./types";
 
 const BASE_TIME = 1_704_067_200 as UTCTimestamp;
@@ -582,14 +583,7 @@ export function OpticalPowerBudgetChart({
 						<p
 							className="font-mono"
 							style={{
-								color:
-									budget.margin === null
-										? "#858585"
-										: budget.margin < 1
-											? "#fb4d6d"
-											: budget.margin < 3
-												? "#f59e0b"
-												: "#34d399",
+								color: getMarginColor(budget.margin),
 							}}
 						>
 							{formatDb(budget.margin)}
@@ -694,14 +688,7 @@ export function OpticalPowerBudgetChart({
 					<p
 						className="font-mono"
 						style={{
-							color:
-								budget.designPowerMarginDb === null
-									? "#858585"
-									: budget.designPowerMarginDb < 1
-										? "#fb4d6d"
-										: budget.designPowerMarginDb < 3
-											? "#f59e0b"
-											: "#34d399",
+							color: getMarginColor(budget.designPowerMarginDb),
 						}}
 					>
 						{formatDb(budget.designPowerMarginDb)}

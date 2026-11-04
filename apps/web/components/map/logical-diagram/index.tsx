@@ -15,6 +15,7 @@ import {
 	useState,
 } from "react";
 import {
+	getMarginColor,
 	OPTICAL_STATUS_COLOR,
 	type OpticalStatus,
 } from "@/lib/gpon/optical-budget";
@@ -360,14 +361,7 @@ function BudgetGraphView({
 	const el = node.tree.element;
 	const budget = node.budget;
 	const accent = TYPE_COLOR[el.type] ?? "#38d8ff";
-	const marginColor =
-		budget.margin === null
-			? "#858585"
-			: budget.margin < 1
-				? "#fb4d6d"
-				: budget.margin < 3
-					? "#f59e0b"
-					: "#34d399";
+	const marginColor = getMarginColor(budget.margin);
 
 	return (
 		<div className="flex h-full min-h-0 flex-col bg-[#111213]/96 p-3">

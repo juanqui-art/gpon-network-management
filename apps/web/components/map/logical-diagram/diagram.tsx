@@ -36,6 +36,7 @@ import { getOltModel } from "@/lib/gpon/olt-catalog";
 import {
 	ATTENUATION_DB_PER_KM,
 	CONNECTOR_LOSS_DB,
+	getMarginColor,
 	OPTICAL_STATUS_COLOR,
 	SPLITTER_LOSS_DB,
 } from "@/lib/gpon/optical-budget";
@@ -828,15 +829,7 @@ function ActivePathPanel({ summary }: { summary: ActiveSummary | null }) {
 						<MetricPill
 							label="Margen"
 							value={summary.margin === null ? "N/D" : `${summary.margin} dB`}
-							color={
-								summary.margin === null
-									? "#858585"
-									: summary.margin < 1
-										? "#fb4d6d"
-										: summary.margin < 3
-											? "#f59e0b"
-											: "#34d399"
-							}
+							color={getMarginColor(summary.margin)}
 						/>
 						<span
 							className="rounded border px-1.5 py-0.5 text-[9px] font-semibold"

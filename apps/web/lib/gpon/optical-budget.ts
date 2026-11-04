@@ -79,6 +79,31 @@ export const PON_CLASS_POWER_PROFILE: Record<
 
 export type OpticalStatus = "green" | "yellow" | "red" | "gray";
 
+// Semáforo técnico (GPON_FTTH_ECUADOR_RESEARCH.md §"Semaforo tecnico propuesto"):
+//   verde    margen restante > 3 dB
+//   amarillo margen entre 1 y 3 dB (ambos inclusive)
+//   rojo     margen < 1 dB
+// El margen restante se mide después de descontar SAFETY_MARGIN_DB. Única
+// fuente de verdad: el inspector, el diagrama unifilar y sus paneles la usan.
+export const OPTICAL_MARGIN_THRESHOLDS = { healthy: 3, minimum: 1 } as const;
+
+export function classifyMargin(
+	marginDb: number,
+): Exclude<OpticalStatus, "gray"> {
+	if (marginDb > OPTICAL_MARGIN_THRESHOLDS.healthy) return "green";
+	if (marginDb >= OPTICAL_MARGIN_THRESHOLDS.minimum) return "yellow";
+	return "red";
+}
+
+// Color de texto para un valor de margen (gris neutro si no se puede calcular).
+export function getMarginColor(marginDb: number | null): string {
+	return marginDb === null
+		? MARGIN_UNKNOWN_COLOR
+		: OPTICAL_STATUS_COLOR[classifyMargin(marginDb)];
+}
+
+const MARGIN_UNKNOWN_COLOR = "#858585";
+
 export interface OpticalBudgetResult {
 	fiberLoss: number; // dB — pérdida por distancia
 	splitterLoss: number; // dB — pérdida del splitter
@@ -156,26 +181,45 @@ export function calculateOpticalBudget(
 	const totalLoss =
 		fiberLoss + splitterLoss + connectorLoss + spliceLoss + safetyMargin;
 
-	// Margen y semáforo
+	// Margen y semáforo. `margin` es el margen restante DESPUÉS de descontar el
+	// margen de seguridad (ya incluido en totalLoss), según
+	// GPON_FTTH_ECUADOR_RESEARCH.md §"Semaforo tecnico propuesto".
 	let margin: number | null = null;
 	let status: OpticalStatus = "gray";
 	let statusLabel = "Datos incompletos";
+	const physicalLoss = totalLoss - safetyMargin;
 
 	if (warnings.length === 0 && input.ponClass) {
 		const budget = PON_CLASS_BUDGET[input.ponClass];
 		margin = budget.max - totalLoss;
+		status = classifyMargin(margin);
 
-		if (margin > 4) {
-			status = "green";
-			statusLabel = "Margen holgado (>4 dB)";
-		} else if (margin >= 2) {
-			status = "yellow";
-			statusLabel = "Margen ajustado (2-4 dB)";
-		} else {
-			status = "red";
+		if (status === "green") {
+			statusLabel = `Margen holgado (>${OPTICAL_MARGIN_THRESHOLDS.healthy} dB)`;
+		} else if (status === "yellow") {
+			statusLabel = `Margen ajustado (${OPTICAL_MARGIN_THRESHOLDS.minimum}-${OPTICAL_MARGIN_THRESHOLDS.healthy} dB)`;
+			warnings.push(
+				`Margen ${margin.toFixed(1)} dB — vulnerable a degradación en clima tropical`,
+			);
+		} else if (physicalLoss > budget.max) {
+			// La pérdida física sola ya supera la clase: no enlaza.
 			statusLabel = "Fuera de presupuesto";
 			warnings.push(
-				`Margen insuficiente (${margin.toFixed(1)} dB) — revisar diseño`,
+				`Pérdida física ${physicalLoss.toFixed(1)} dB supera el máximo de la clase ${input.ponClass} (${budget.max} dB) — revisar diseño`,
+			);
+		} else {
+			// Enlaza, pero consumiendo parte de la reserva de seguridad.
+			statusLabel = `Margen insuficiente (<${OPTICAL_MARGIN_THRESHOLDS.minimum} dB)`;
+			warnings.push(
+				`Margen ${margin.toFixed(1)} dB tras reserva de seguridad — revisar diseño`,
+			);
+		}
+
+		// Sobrecarga: con muy poca pérdida la potencia recibida puede saturar el
+		// receptor. El mínimo de la clase se compara contra la pérdida física.
+		if (physicalLoss < budget.min) {
+			warnings.push(
+				`Pérdida física ${physicalLoss.toFixed(1)} dB menor al mínimo de la clase ${input.ponClass} (${budget.min} dB) — riesgo de saturar el receptor; considerar atenuador`,
 			);
 		}
 	} else if (warnings.length === 0) {
@@ -187,9 +231,6 @@ export function calculateOpticalBudget(
 	// Advertencias adicionales
 	if (input.lengthMeters && input.lengthMeters > 20000) {
 		warnings.push("Distancia mayor a 20 km — verificar ranging del equipo");
-	}
-	if (margin !== null && margin < 4 && margin >= 0) {
-		warnings.push("Margen < 4 dB — vulnerable a degradación en clima tropical");
 	}
 
 	return {
