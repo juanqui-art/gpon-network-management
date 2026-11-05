@@ -1,7 +1,13 @@
 import type { ReactNode } from "react";
 
-type InspectorValue = number | string | null | undefined;
+/**
+ * Single set of building blocks for every map inspector (/map and the
+ * editor). Feature-level blocks built on these live in inspector-sections.tsx.
+ */
 
+export type InspectorValue = ReactNode | number | string | null | undefined;
+
+/** Titled group of rows. Sections after the first get a divider. */
 export function InspectorSection({
 	children,
 	title,
@@ -10,15 +16,16 @@ export function InspectorSection({
 	title: string;
 }) {
 	return (
-		<section className="space-y-2">
-			<h3 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-fg-muted">
+		<section className="space-y-2 border-t border-border-subtle pt-3 first:border-t-0 first:pt-0">
+			<h3 className="text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
 				{title}
 			</h3>
-			<div className="space-y-2">{children}</div>
+			<div className="space-y-1.5">{children}</div>
 		</section>
 	);
 }
 
+/** Label / value pair. Empty values render as an em dash. */
 export function InspectorRow({
 	label,
 	value,
@@ -27,28 +34,29 @@ export function InspectorRow({
 	value: InspectorValue;
 }) {
 	return (
-		<div className="flex items-start justify-between gap-3 rounded-md border border-tint/8 bg-tint/4 px-2.5 py-2 text-xs">
+		<div className="flex items-start justify-between gap-3 text-xs">
 			<span className="shrink-0 text-fg-muted">{label}</span>
-			<span className="min-w-0 truncate text-right font-medium text-fg">
+			<span className="min-w-0 truncate text-right font-medium tabular-nums text-fg-soft">
 				{formatInspectorValue(value)}
 			</span>
 		</div>
 	);
 }
 
-export function DetailSection({
-	title,
-	children,
+/** Free text (notes, references) that must wrap instead of truncating. */
+export function InspectorText({
+	label,
+	value,
 }: {
-	title: string;
-	children: ReactNode;
+	label: string;
+	value: string;
 }) {
 	return (
-		<div className="border-t border-border-subtle pt-3">
-			<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
-				{title}
+		<div className="space-y-1 text-xs">
+			<p className="text-fg-muted">{label}</p>
+			<p className="leading-relaxed whitespace-pre-line text-fg-soft">
+				{value}
 			</p>
-			<div className="space-y-2">{children}</div>
 		</div>
 	);
 }
@@ -72,30 +80,8 @@ export function RouteMetric({
 	);
 }
 
-export function Property({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="flex items-center justify-between gap-3">
-			<span className="text-fg-muted">{label}</span>
-			<span className="truncate text-right font-mono text-fg-soft">
-				{value}
-			</span>
-		</div>
-	);
-}
-
-export function TextBlock({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="border-t border-border-subtle pt-3">
-			<p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
-				{label}
-			</p>
-			<p className="leading-relaxed text-fg-soft">{value}</p>
-		</div>
-	);
-}
-
-function formatInspectorValue(value: InspectorValue) {
-	if (value === null || value === undefined || value === "") return "-";
+function formatInspectorValue(value: InspectorValue): ReactNode {
+	if (value === null || value === undefined || value === "") return "—";
 	if (typeof value === "number")
 		return Number.isInteger(value) ? value : value.toFixed(2);
 	return value;

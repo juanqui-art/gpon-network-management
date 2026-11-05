@@ -20,15 +20,21 @@ import {
 	ContextMenu,
 	type ContextMenuOption,
 } from "@/components/map/context-menu";
+import {
+	LocationSection,
+	NotesSection,
+	PropertiesSection,
+	RoutePointSummary,
+} from "@/components/map/inspector-sections";
 import { LogicalDiagram } from "@/components/map/logical-diagram/diagram";
 import { layoutTree } from "@/components/map/logical-diagram/layout-engine";
 import { OpticalPowerBudgetChart } from "@/components/map/logical-diagram/optical-power-budget-chart";
 import { buildNetworkTree } from "@/components/map/logical-diagram/tree-builder";
 import {
-	DetailSection,
-	Property,
+	InspectorRow,
+	InspectorSection,
+	InspectorText,
 	RouteMetric,
-	TextBlock,
 } from "@/components/map/map-inspector-primitives";
 import {
 	MapPanelContainerContext,
@@ -2159,7 +2165,14 @@ function RightPanel({
 					/>
 				)}
 				{feature.kind === "routePoint" && (
-					<RoutePointDetails point={feature.point} />
+					<RoutePointSummary
+						point={feature.point}
+						routeCode={
+							connections.find(
+								(route) => route.id === feature.point.fiber_route_id,
+							)?.code ?? null
+						}
+					/>
 				)}
 			</div>
 		</AppDrawer>
@@ -2226,39 +2239,35 @@ function ElementDetails({
 	}
 
 	return (
-		<div className="space-y-3 text-xs">
-			<Property label="Código" value={element.code} />
-			{element.name && <Property label="Nombre" value={element.name} />}
-			<Property
-				label="Tipo"
-				value={TYPE_LABEL[element.type] ?? element.type.toUpperCase()}
+		<div className="space-y-3">
+			<InspectorSection title="Identificación">
+				<InspectorRow label="Código" value={element.code} />
+				{element.name && <InspectorRow label="Nombre" value={element.name} />}
+				<InspectorRow label="Tipo" value={labelOf(TYPE_LABEL, element.type)} />
+				<InspectorRow
+					label="Estado"
+					value={labelOf(STATUS_LABEL, element.status)}
+				/>
+			</InspectorSection>
+			{(element.total_ports != null || element.ports_reserved != null) && (
+				<InspectorSection title="Capacidad">
+					<InspectorRow label="Puertos" value={element.total_ports} />
+					<InspectorRow label="Reservados" value={element.ports_reserved} />
+				</InspectorSection>
+			)}
+			<LocationSection
+				quality={element.location_quality}
+				lat={element.lat}
+				lng={element.lng}
+				reference={element.address_reference}
+				extra={
+					element.address ? (
+						<InspectorText label="Dirección" value={element.address} />
+					) : null
+				}
 			/>
-			<Property
-				label="Estado"
-				value={STATUS_LABEL[element.status] ?? element.status}
-			/>
-			<div className="flex items-center justify-between gap-3">
-				<span className="text-fg-muted">Calidad</span>
-				<DataQualityBadge quality={element.location_quality} size="sm" />
-			</div>
-			<Property
-				label="Posición"
-				value={`${element.lat.toFixed(5)}, ${element.lng.toFixed(5)}`}
-			/>
-			{element.total_ports != null && (
-				<Property label="Puertos" value={String(element.total_ports)} />
-			)}
-			{element.ports_reserved != null && (
-				<Property label="Reservados" value={String(element.ports_reserved)} />
-			)}
-			{element.address_reference && (
-				<TextBlock label="Referencia" value={element.address_reference} />
-			)}
-			{element.address && (
-				<TextBlock label="Dirección" value={element.address} />
-			)}
-			<PropertiesBlock properties={element.properties} />
-			{element.notes && <TextBlock label="Notas" value={element.notes} />}
+			<PropertiesSection properties={element.properties} />
+			<NotesSection notes={element.notes} />
 		</div>
 	);
 }
@@ -2322,42 +2331,45 @@ function SplitterDetails({
 					</span>
 				</div>
 				<div className="grid grid-cols-3 gap-2">
-					<RouteMetric label="Ratio" value={element.split_ratio ?? "-"} />
+					<RouteMetric label="Ratio" value={element.split_ratio ?? "—"} />
 					<RouteMetric
 						label="Pérdida"
 						value={formatDb(element.insertion_loss_db)}
 					/>
 					<RouteMetric
 						label="Puertos"
-						value={totalPorts != null ? `${usedPorts}/${totalPorts}` : "-"}
+						value={totalPorts != null ? `${usedPorts}/${totalPorts}` : "—"}
 					/>
 				</div>
 			</div>
 
-			<DetailSection title="Resumen">
-				<Property
+			<InspectorSection title="Resumen">
+				<InspectorRow
 					label="Estado"
 					value={STATUS_LABEL[element.status] ?? element.status}
 				/>
-				<Property label="Relación" value={element.split_ratio ?? "Sin dato"} />
-				<Property
+				<InspectorRow
+					label="Relación"
+					value={element.split_ratio ?? "Sin dato"}
+				/>
+				<InspectorRow
 					label="Pérdida inserción"
 					value={formatDb(element.insertion_loss_db)}
 				/>
-				<Property
+				<InspectorRow
 					label="Puertos salida"
 					value={totalPorts != null ? String(totalPorts) : "Sin dato"}
 				/>
-			</DetailSection>
+			</InspectorSection>
 
-			<DetailSection title="Conectividad">
-				<Property label="Entradas" value={String(incomingRoutes.length)} />
-				<Property label="Salidas" value={String(outgoingRoutes.length)} />
-				<Property
+			<InspectorSection title="Conectividad">
+				<InspectorRow label="Entradas" value={String(incomingRoutes.length)} />
+				<InspectorRow label="Salidas" value={String(outgoingRoutes.length)} />
+				<InspectorRow
 					label="Distribución"
 					value={String(distributionRoutes.length)}
 				/>
-				<Property
+				<InspectorRow
 					label="Fibra asociada"
 					value={
 						measuredRoutes.length > 0
@@ -2366,35 +2378,28 @@ function SplitterDetails({
 					}
 				/>
 				{upstreamElements.length > 0 && (
-					<TextBlock
+					<InspectorText
 						label="Origen"
 						value={upstreamElements.map((item) => item.code).join(", ")}
 					/>
 				)}
 				{downstreamElements.length > 0 && (
-					<TextBlock
+					<InspectorText
 						label="Aguas abajo"
 						value={downstreamElements.map((item) => item.code).join(", ")}
 					/>
 				)}
-			</DetailSection>
+			</InspectorSection>
 
-			<DetailSection title="Ubicación">
-				<div className="flex items-center justify-between gap-3">
-					<span className="text-fg-muted">Calidad</span>
-					<DataQualityBadge quality={element.location_quality} size="sm" />
-				</div>
-				<Property
-					label="Coordenadas"
-					value={`${element.lat.toFixed(5)}, ${element.lng.toFixed(5)}`}
-				/>
-				{element.address_reference && (
-					<TextBlock label="Referencia" value={element.address_reference} />
-				)}
-			</DetailSection>
+			<LocationSection
+				quality={element.location_quality}
+				lat={element.lat}
+				lng={element.lng}
+				reference={element.address_reference}
+			/>
 
-			<PropertiesBlock properties={element.properties} />
-			{element.notes && <TextBlock label="Notas" value={element.notes} />}
+			<PropertiesSection properties={element.properties} />
+			<NotesSection notes={element.notes} />
 		</div>
 	);
 }
@@ -2475,16 +2480,16 @@ function NapDetails({
 						value={
 							element.total_ports != null
 								? `${usedPorts}/${element.total_ports}`
-								: "-"
+								: "—"
 						}
 					/>
 					<RouteMetric
 						label="Libres"
-						value={availablePorts != null ? String(availablePorts) : "-"}
+						value={availablePorts != null ? String(availablePorts) : "—"}
 					/>
 					<RouteMetric
 						label="Ocupación"
-						value={occupancy != null ? `${occupancy}%` : "-"}
+						value={occupancy != null ? `${occupancy}%` : "—"}
 					/>
 				</div>
 			</div>
@@ -2495,24 +2500,24 @@ function NapDetails({
 				</div>
 			)}
 
-			<DetailSection title="Resumen">
-				<Property
+			<InspectorSection title="Resumen">
+				<InspectorRow
 					label="Estado"
 					value={STATUS_LABEL[element.status] ?? element.status}
 				/>
-				<Property label="Tipo NAP" value={NAP_MODE_LABEL[napMode]} />
-				<Property
+				<InspectorRow label="Tipo NAP" value={NAP_MODE_LABEL[napMode]} />
+				<InspectorRow
 					label="Conector"
 					value={napPropertyLabel(element, "connector_type", "SC/APC")}
 				/>
-				<Property
+				<InspectorRow
 					label="Protección"
 					value={napPropertyLabel(element, "protection_rating", "IP65")}
 				/>
-			</DetailSection>
+			</InspectorSection>
 
-			<DetailSection title="Capacidad">
-				<Property
+			<InspectorSection title="Capacidad">
+				<InspectorRow
 					label="Puertos totales"
 					value={
 						element.total_ports != null
@@ -2520,17 +2525,17 @@ function NapDetails({
 							: "Sin dato"
 					}
 				/>
-				<Property label="Usados" value={String(usedPorts)} />
-				<Property label="Reservados" value={String(reservedPorts)} />
-				<Property
+				<InspectorRow label="Usados" value={String(usedPorts)} />
+				<InspectorRow label="Reservados" value={String(reservedPorts)} />
+				<InspectorRow
 					label="Disponibles"
 					value={availablePorts != null ? String(availablePorts) : "Sin dato"}
 				/>
-			</DetailSection>
+			</InspectorSection>
 
 			{hasInternalSplitter && (
-				<DetailSection title="Splitter interno">
-					<Property
+				<InspectorSection title="Splitter interno">
+					<InspectorRow
 						label="Relación"
 						value={
 							splitterRatio
@@ -2540,7 +2545,7 @@ function NapDetails({
 								: "Sin dato"
 						}
 					/>
-					<Property
+					<InspectorRow
 						label="Pérdida inserción"
 						value={
 							element.insertion_loss_db != null
@@ -2550,17 +2555,17 @@ function NapDetails({
 									: "Sin dato"
 						}
 					/>
-				</DetailSection>
+				</InspectorSection>
 			)}
 
-			<DetailSection title="Conectividad">
-				<Property label="Entradas" value={String(incomingRoutes.length)} />
-				<Property
+			<InspectorSection title="Conectividad">
+				<InspectorRow label="Entradas" value={String(incomingRoutes.length)} />
+				<InspectorRow
 					label="Entrada distribución"
 					value={String(distributionRoutes.length)}
 				/>
-				<Property label="Salidas drop" value={String(dropRoutes.length)} />
-				<Property
+				<InspectorRow label="Salidas drop" value={String(dropRoutes.length)} />
+				<InspectorRow
 					label="Fibra asociada"
 					value={
 						measuredRoutes.length > 0
@@ -2569,35 +2574,28 @@ function NapDetails({
 					}
 				/>
 				{upstreamElements.length > 0 && (
-					<TextBlock
+					<InspectorText
 						label="Origen"
 						value={upstreamElements.map((item) => item.code).join(", ")}
 					/>
 				)}
 				{downstreamElements.length > 0 && (
-					<TextBlock
+					<InspectorText
 						label="Clientes/equipos"
 						value={downstreamElements.map((item) => item.code).join(", ")}
 					/>
 				)}
-			</DetailSection>
+			</InspectorSection>
 
-			<DetailSection title="Ubicación">
-				<div className="flex items-center justify-between gap-3">
-					<span className="text-fg-muted">Calidad</span>
-					<DataQualityBadge quality={element.location_quality} size="sm" />
-				</div>
-				<Property
-					label="Coordenadas"
-					value={`${element.lat.toFixed(5)}, ${element.lng.toFixed(5)}`}
-				/>
-				{element.address_reference && (
-					<TextBlock label="Referencia" value={element.address_reference} />
-				)}
-			</DetailSection>
+			<LocationSection
+				quality={element.location_quality}
+				lat={element.lat}
+				lng={element.lng}
+				reference={element.address_reference}
+			/>
 
-			<PropertiesBlock properties={element.properties} />
-			{element.notes && <TextBlock label="Notas" value={element.notes} />}
+			<PropertiesSection properties={element.properties} />
+			<NotesSection notes={element.notes} />
 		</div>
 	);
 }
@@ -2657,28 +2655,28 @@ function OltDetails({
 						value={
 							element.total_pon_ports != null
 								? String(element.total_pon_ports)
-								: "-"
+								: "—"
 						}
 					/>
-					<RouteMetric label="Clase" value={element.optical_class ?? "-"} />
+					<RouteMetric label="Clase" value={element.optical_class ?? "—"} />
 					<RouteMetric label="Feeder" value={String(feederRoutes.length)} />
 				</div>
 			</div>
 
-			<DetailSection title="Resumen">
-				<Property
+			<InspectorSection title="Resumen">
+				<InspectorRow
 					label="Estado"
 					value={STATUS_LABEL[element.status] ?? element.status}
 				/>
-				<Property
+				<InspectorRow
 					label="Modelo"
 					value={propertyString(element.properties, "olt_model", "Sin modelo")}
 				/>
-				<Property
+				<InspectorRow
 					label="Estándar PON"
 					value={element.pon_standard?.toUpperCase() ?? "Sin dato"}
 				/>
-				<Property
+				<InspectorRow
 					label="Puertos PON"
 					value={
 						element.total_pon_ports != null
@@ -2686,109 +2684,109 @@ function OltDetails({
 							: "Sin dato"
 					}
 				/>
-				<Property
+				<InspectorRow
 					label="Clase óptica"
 					value={element.optical_class ?? "Sin definir"}
 				/>
-			</DetailSection>
+			</InspectorSection>
 
-			<DetailSection title="Capacidad OLT">
-				<Property
+			<InspectorSection title="Capacidad OLT">
+				<InspectorRow
 					label="Tarjetas servicio"
-					value={`${propertyNumber(element.properties, "service_cards_installed") ?? "-"} / ${propertyNumber(element.properties, "service_slots_total") ?? "-"}`}
+					value={`${propertyNumber(element.properties, "service_cards_installed") ?? "—"} / ${propertyNumber(element.properties, "service_slots_total") ?? "—"}`}
 				/>
-				<Property
+				<InspectorRow
 					label="PON por tarjeta"
 					value={String(
-						propertyNumber(element.properties, "pon_ports_per_card") ?? "-",
+						propertyNumber(element.properties, "pon_ports_per_card") ?? "—",
 					)}
 				/>
-				<Property
+				<InspectorRow
 					label="Split diseño"
-					value={propertyString(element.properties, "design_split_ratio", "-")}
+					value={propertyString(element.properties, "design_split_ratio", "—")}
 				/>
-				<Property
+				<InspectorRow
 					label="Clientes estimados"
 					value={
 						propertyNumber(
 							element.properties,
 							"estimated_subscribers",
-						)?.toLocaleString("es-EC") ?? "-"
+						)?.toLocaleString("es-EC") ?? "—"
 					}
 				/>
-			</DetailSection>
+			</InspectorSection>
 
-			<DetailSection title="Cabecera óptica">
-				<Property
+			<InspectorSection title="Cabecera óptica">
+				<InspectorRow
 					label="Pérdida cabecera"
-					value={`${propertyNumber(element.properties, "headend_loss_db")?.toFixed(1) ?? "-"} dB`}
+					value={
+						propertyNumber(element.properties, "headend_loss_db") == null
+							? null
+							: `${propertyNumber(element.properties, "headend_loss_db")?.toFixed(1)} dB`
+					}
 				/>
-				<Property
+				<InspectorRow
 					label="Puerto PON"
 					value={propertyString(
 						element.properties,
 						"pon_port_connector_type",
-						"-",
+						"—",
 					)}
 				/>
-				<Property
+				<InspectorRow
 					label="ODF / feeder"
 					value={propertyString(
 						element.properties,
 						"odf_feeder_connector_type",
-						"-",
+						"—",
 					)}
 				/>
-				<Property
+				<InspectorRow
 					label="Patchcord"
 					value={propertyString(
 						element.properties,
 						"headend_patchcord_type",
-						"-",
+						"—",
 					)}
 				/>
-			</DetailSection>
+			</InspectorSection>
 
-			<DetailSection title="Conectividad">
-				<Property
+			<InspectorSection title="Conectividad">
+				<InspectorRow
 					label="Rutas conectadas"
 					value={String(outboundRoutes.length)}
 				/>
-				<Property label="Rutas feeder" value={String(feederRoutes.length)} />
-				<Property
+				<InspectorRow
+					label="Rutas feeder"
+					value={String(feederRoutes.length)}
+				/>
+				<InspectorRow
 					label="Aguas abajo"
 					value={String(downstreamElements.length || downstreamIds.size)}
 				/>
-				<Property
+				<InspectorRow
 					label="Fibra total"
 					value={
 						hasMeasuredLength ? formatMeters(totalLengthMeters) : "Sin medir"
 					}
 				/>
 				{downstreamElements.length > 0 && (
-					<TextBlock
+					<InspectorText
 						label="Elementos conectados"
 						value={downstreamElements.map((item) => item.code).join(", ")}
 					/>
 				)}
-			</DetailSection>
+			</InspectorSection>
 
-			<DetailSection title="Ubicación">
-				<div className="flex items-center justify-between gap-3">
-					<span className="text-fg-muted">Calidad</span>
-					<DataQualityBadge quality={element.location_quality} size="sm" />
-				</div>
-				<Property
-					label="Coordenadas"
-					value={`${element.lat.toFixed(5)}, ${element.lng.toFixed(5)}`}
-				/>
-				{element.address_reference && (
-					<TextBlock label="Referencia" value={element.address_reference} />
-				)}
-			</DetailSection>
+			<LocationSection
+				quality={element.location_quality}
+				lat={element.lat}
+				lng={element.lng}
+				reference={element.address_reference}
+			/>
 
-			<PropertiesBlock properties={element.properties} />
-			{element.notes && <TextBlock label="Notas" value={element.notes} />}
+			<PropertiesSection properties={element.properties} />
+			<NotesSection notes={element.notes} />
 		</div>
 	);
 }
@@ -2892,11 +2890,11 @@ function RouteDetails({
 					/>
 					<RouteMetric
 						label="Hilos"
-						value={route.fiber_count != null ? String(route.fiber_count) : "-"}
+						value={route.fiber_count != null ? String(route.fiber_count) : "—"}
 					/>
 					<RouteMetric
 						label={route.total_loss_db != null ? "Pérdida" : "Estimado"}
-						value={estimatedLoss != null ? formatDb(estimatedLoss) : "-"}
+						value={estimatedLoss != null ? formatDb(estimatedLoss) : "—"}
 					/>
 				</div>
 			</div>
@@ -2915,13 +2913,13 @@ function RouteDetails({
 				</div>
 			)}
 
-			<DetailSection title="Operación">
-				<Property
+			<InspectorSection title="Operación">
+				<InspectorRow
 					label="Estado"
 					value={STATUS_LABEL[route.status] ?? route.status}
 				/>
-				<Property label="Tipo" value={routeTypeLabel} />
-				<Property
+				<InspectorRow label="Tipo" value={routeTypeLabel} />
+				<InspectorRow
 					label="Instalación"
 					value={
 						route.installation_type
@@ -2930,19 +2928,19 @@ function RouteDetails({
 							: "Sin dato"
 					}
 				/>
-				<Property
+				<InspectorRow
 					label="Calidad"
 					value={DATA_QUALITY_LABEL[route.route_quality] ?? route.route_quality}
 				/>
-				<Property
+				<InspectorRow
 					label="Trazado"
 					value={`${route.geojson_coordinates.length} punto${
 						route.geojson_coordinates.length === 1 ? "" : "s"
 					}`}
 				/>
-			</DetailSection>
+			</InspectorSection>
 
-			<DetailSection title="Extremos">
+			<InspectorSection title="Extremos">
 				<div className="space-y-2">
 					<RouteEndpoint
 						label="Desde"
@@ -2955,10 +2953,10 @@ function RouteDetails({
 						fallbackId={route.to_equipment_id}
 					/>
 				</div>
-			</DetailSection>
+			</InspectorSection>
 
-			<DetailSection title="Cable y pérdida">
-				<Property
+			<InspectorSection title="Cable y pérdida">
+				<InspectorRow
 					label="Estándar"
 					value={
 						route.fiber_type
@@ -2966,30 +2964,30 @@ function RouteDetails({
 							: "Sin dato"
 					}
 				/>
-				<Property
+				<InspectorRow
 					label="Hilos"
 					value={
 						route.fiber_count != null ? String(route.fiber_count) : "Sin dato"
 					}
 				/>
-				<Property
+				<InspectorRow
 					label={`Pérdida ${lossLabel}`}
 					value={estimatedLoss != null ? formatDb(estimatedLoss) : "Sin dato"}
 				/>
-				<Property
+				<InspectorRow
 					label="Fibra"
 					value={fiberLoss != null ? formatDb(fiberLoss) : "Sin dato"}
 				/>
-				<Property
+				<InspectorRow
 					label="Atenuación"
 					value={formatDbPerKm(route.attenuation_db_per_km)}
 				/>
-				<Property label="Empalmes" value={formatDb(route.splice_loss_db)} />
-				<Property
+				<InspectorRow label="Empalmes" value={formatDb(route.splice_loss_db)} />
+				<InspectorRow
 					label="Conectores"
 					value={formatDb(route.connector_loss_db)}
 				/>
-			</DetailSection>
+			</InspectorSection>
 
 			<div className="border-t border-border-subtle pt-3">
 				<OpticalBudgetPanel
@@ -2998,8 +2996,8 @@ function RouteDetails({
 					oltPonClass={asPonClass(inferredOltClass)}
 				/>
 			</div>
-			<PropertiesBlock properties={route.properties} />
-			{route.notes && <TextBlock label="Notas" value={route.notes} />}
+			<PropertiesSection properties={route.properties} />
+			<NotesSection notes={route.notes} />
 		</div>
 	);
 }
@@ -3071,69 +3069,6 @@ function buildRouteWarnings(
 		warnings.push("Pérdida óptica sin datos suficientes.");
 	}
 	return warnings;
-}
-
-function RoutePointDetails({ point }: { point: RoutePoint }) {
-	return (
-		<div className="space-y-3 text-xs">
-			<Property label="Tipo" value={routePointLabel(point.type)} />
-			<Property label="Código" value={point.code ?? "Sin código"} />
-			<Property
-				label="Estado"
-				value={labelOf(STATUS_LABEL, point.status, "Sin estado")}
-			/>
-			<Property
-				label="Calidad"
-				value={labelOf(DATA_QUALITY_LABEL, point.location_quality)}
-			/>
-			<Property
-				label="Posición"
-				value={`${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`}
-			/>
-			{point.reserve_length_m != null && (
-				<Property
-					label="Reserva"
-					value={`${point.reserve_length_m.toFixed(0)} m`}
-				/>
-			)}
-			{point.splice_loss_db != null && (
-				<Property label="Pérdida" value={`${point.splice_loss_db} dB`} />
-			)}
-			{point.reference_text && (
-				<TextBlock label="Referencia" value={point.reference_text} />
-			)}
-			<PropertiesBlock properties={point.properties} />
-			{point.notes && <TextBlock label="Notas" value={point.notes} />}
-		</div>
-	);
-}
-
-function PropertiesBlock({
-	properties,
-}: {
-	properties: Record<string, unknown> | null | undefined;
-}) {
-	const entries = Object.entries(properties ?? {}).filter(
-		([, value]) => value !== null && value !== undefined && value !== "",
-	);
-	if (entries.length === 0) return null;
-
-	return (
-		<DetailSection title="Propiedades">
-			{entries.slice(0, 8).map(([key, value]) => (
-				<Property
-					key={key}
-					label={formatPropertyKey(key)}
-					value={formatPropertyValue(value)}
-				/>
-			))}
-			{entries.length > 8 && (
-				<p className="text-right text-[10px] text-fg-muted">
-					+{entries.length - 8} propiedades mas
-				</p>
-			)}
-		</DetailSection>
-	);
 }
 
 function endpointLabel(
@@ -3208,24 +3143,6 @@ function formatDb(value: number | null | undefined) {
 
 function formatDbPerKm(value: number | null | undefined) {
 	return value == null ? "Sin dato" : `${value.toFixed(3)} dB/km`;
-}
-
-function formatPropertyKey(key: string) {
-	return key.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function formatPropertyValue(value: unknown): string {
-	if (typeof value === "boolean") return value ? "Si" : "No";
-	if (typeof value === "number")
-		return Number.isFinite(value) ? String(value) : "-";
-	if (typeof value === "string") return value;
-	if (Array.isArray(value)) {
-		return value.map((item) => formatPropertyValue(item)).join(", ");
-	}
-	if (typeof value === "object" && value !== null) {
-		return JSON.stringify(value);
-	}
-	return String(value);
 }
 
 function routePointLabel(type: string) {

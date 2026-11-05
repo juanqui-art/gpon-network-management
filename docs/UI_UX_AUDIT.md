@@ -25,7 +25,7 @@ Sprint 3 — notas:
 - Contraste: `--text-muted` #777879 → #979899 (≥ 4.5:1 en todas las superficies sólidas), `--text-secondary` #a4a4a4 → #b1b2b4, CTA de acento con texto oscuro (6.8:1).
 - Cian de UI `#38d8ff` unificado con `--gpon-olt` (#38bdf8).
 - `lib/gpon/labels.ts` es la única fuente de etiquetas de ENUM. Corrige `formatDataQuality` del editor (usaba claves inexistentes) y el UUID mostrado como "Ruta".
-- M2 completo (un solo componente de inspector para `/map` y editor) queda pendiente: requiere decidir qué campos muestra cada contexto.
+- M2 resuelto con piezas compartidas: un solo juego de primitivas (`InspectorSection`, `InspectorRow`, `InspectorText`) y bloques comunes en `components/map/inspector-sections.tsx` (`LocationSection`, `PropertiesSection`, `NotesSection`, `RoutePointSummary`). Cada pantalla compone sus secciones específicas (capacidad NAP, cabecera OLT, formularios de edición).
 - `components/topology/topology-picker.tsx` no se usaba en ninguna parte: eliminado. `lib/gpon/topology-templates.ts` quedó sin imports y también se eliminó.
 
 Sprint 4 — notas:

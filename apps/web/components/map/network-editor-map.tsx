@@ -18,6 +18,13 @@ import {
 	setEquipmentLayersFilter,
 } from "@/components/map/equipment-layers";
 import {
+	describeMufaProperties,
+	LocationSection,
+	NotesSection,
+	PropertiesSection,
+	RoutePointSummary,
+} from "@/components/map/inspector-sections";
+import {
 	ALERT_LEVEL_STYLES,
 	buildOpticalBudgetAlerts,
 	type OpticalBudgetAlert,
@@ -56,11 +63,9 @@ import type {
 } from "@/components/map/types";
 import { AppDrawer } from "@/components/ui/app-drawer";
 import {
-	DATA_QUALITY_LABEL,
 	ELEMENT_TYPE_LABEL,
 	FIBER_TYPE_LABEL,
 	labelOf,
-	ROUTE_POINT_TYPE_LABEL,
 	ROUTE_TYPE_LABEL,
 	STATUS_LABEL,
 } from "@/lib/gpon/labels";
@@ -1654,7 +1659,7 @@ function SelectionInspector({
 				/>
 			)}
 			{feature.kind === "routePoint" && (
-				<RoutePointInspectorDetails
+				<RoutePointSummary
 					point={feature.item}
 					routeCode={
 						connections.find(
@@ -1911,25 +1916,19 @@ function ElementInspectorDetails({
 					/>
 				</InspectorSection>
 			)}
-			<InspectorSection title="Ubicación">
-				<InspectorRow
-					label="Calidad"
-					value={formatDataQuality(element.location_quality)}
-				/>
-				<InspectorRow
-					label="Coordenadas"
-					value={`${formatCoordinate(element.lat)}, ${formatCoordinate(element.lng)}`}
-				/>
-				<InspectorRow label="Referencia" value={element.address_reference} />
-			</InspectorSection>
+			<LocationSection
+				quality={element.location_quality}
+				lat={element.lat}
+				lng={element.lng}
+				reference={element.address_reference}
+			/>
 			<InspectorSection title="Capacidad">
 				<InspectorRow label="Puertos totales" value={element.total_ports} />
 				<InspectorRow label="Puertos usados" value={element.ports_used} />
 				<InspectorRow label="Split ratio" value={element.split_ratio} />
 			</InspectorSection>
-			<InspectorSection title="Notas">
-				<InspectorRow label="Notas" value={element.notes} />
-			</InspectorSection>
+			<PropertiesSection properties={element.properties} />
+			<NotesSection notes={element.notes} />
 			{onUpdateElement && (
 				<button
 					type="button"
@@ -2285,81 +2284,6 @@ function RouteInspectorDetails({
 			)}
 		</div>
 	);
-}
-
-function RoutePointInspectorDetails({
-	point,
-	routeCode,
-}: {
-	point: RoutePoint;
-	routeCode: string | null;
-}) {
-	const mufaDescription =
-		point.type === "mufa" ? describeMufaProperties(point.properties) : null;
-
-	return (
-		<div className="space-y-2">
-			<InspectorRow
-				label="Tipo"
-				value={labelOf(ROUTE_POINT_TYPE_LABEL, point.type)}
-			/>
-			{mufaDescription && (
-				<InspectorRow label="Configuración" value={mufaDescription} />
-			)}
-			<InspectorRow
-				label="Estado"
-				value={labelOf(STATUS_LABEL, point.status, "Sin estado")}
-			/>
-			<InspectorRow label="Ruta" value={routeCode ?? "Ruta sin código"} />
-			<InspectorRow
-				label="Calidad ubicación"
-				value={labelOf(DATA_QUALITY_LABEL, point.location_quality)}
-			/>
-			<InspectorRow
-				label="Coordenadas"
-				value={`${formatCoordinate(point.lat)}, ${formatCoordinate(point.lng)}`}
-			/>
-			<InspectorRow
-				label="Posición"
-				value={
-					point.position_on_route_m == null
-						? null
-						: `${point.position_on_route_m.toFixed(1)} m`
-				}
-			/>
-			<InspectorRow label="Reserva" value={point.reserve_length_m} />
-			<InspectorRow label="Riesgo" value={point.risk_level} />
-			<InspectorRow label="Referencia" value={point.reference_text} />
-			{point.type === "mufa" && (
-				<>
-					<InspectorRow
-						label="Sangrado"
-						value={point.properties.has_midspan_access === true ? "Sí" : "No"}
-					/>
-					<InspectorRow
-						label="Empalme"
-						value={point.properties.has_splice === true ? "Sí" : "No"}
-					/>
-					<InspectorRow
-						label="Splitter"
-						value={
-							point.properties.has_splitter === true
-								? `Sí (${String(point.properties.split_ratio ?? "sin ratio")})`
-								: "No"
-						}
-					/>
-				</>
-			)}
-		</div>
-	);
-}
-
-function describeMufaProperties(properties: Record<string, unknown>) {
-	const details = [];
-	if (properties.has_midspan_access === true) details.push("sangrado");
-	if (properties.has_splice === true) details.push("empalme");
-	if (properties.has_splitter === true) details.push("splitter");
-	return details.length > 0 ? `Mufa + ${details.join(" + ")}` : "Mufa simple";
 }
 
 function mufaVariant(properties: Record<string, unknown>) {
@@ -3086,20 +3010,12 @@ function getRoutePointLabel(type: RoutePoint["type"]) {
 	return labels[type] ?? type;
 }
 
-function formatCoordinate(value: number) {
-	return value.toFixed(6);
-}
-
 function formatElementType(type: EquipmentMapItem["type"]) {
 	return labelOf(ELEMENT_TYPE_LABEL, type);
 }
 
 function formatElementStatus(status: EquipmentMapItem["status"]) {
 	return labelOf(STATUS_LABEL, status);
-}
-
-function formatDataQuality(quality: EquipmentMapItem["location_quality"]) {
-	return labelOf(DATA_QUALITY_LABEL, quality);
 }
 
 function emptyToNull(value: string) {

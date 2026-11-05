@@ -64,6 +64,7 @@ apps/web/
 │   │   ├── readonly-map-viewer.tsx       # Viewer read-only para /map
 │   │   ├── map-inspector-shell.tsx       # Marco compartido del inspector derecho
 │   │   ├── map-inspector-primitives.tsx  # Filas/secciones compartidas del inspector
+│   │   ├── inspector-sections.tsx        # Bloques compartidos: ubicación, propiedades, notas, punto de ruta
 │   │   ├── map-overlay-components.tsx    # Stats, leyenda y controles compartidos
 │   │   ├── equipment-layers.ts           # GeoJSON + gestión de capas Mapbox centralizadas
 │   │   ├── mapbox-shared-style.ts        # Constantes de estilo compartidas (colores fibra, labels)
@@ -91,6 +92,7 @@ apps/web/
 │   │   └── network.ts                    # Tipos Network, NetworkSummary, topologías
 │   ├── map/
 │   │   ├── palette.ts                    # Colores (TYPE_COLOR, STATUS_COLOR, DATA_QUALITY_COLOR…)
+│   │   ├── format.ts                     # Formato compartido: coordenadas, metros, dB
 │   │   └── route-geometry-editor.ts      # Dibujo de rutas, snap de vértices, validación geométrica
 │   ├── gpon/
 │   │   ├── optical-budget.ts             # Calculadora presupuesto óptico GPON/XGS-PON
