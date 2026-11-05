@@ -96,7 +96,7 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 			}`}
 			accent={typeColor}
 			size="md"
-			className="bg-[rgba(34,35,36,0.92)] text-[#d7d7d7] backdrop-blur-xl"
+			className="bg-surface-panel/92 text-fg-soft backdrop-blur-xl"
 			contentClassName="space-y-0"
 		>
 			<div className="space-y-0">
@@ -107,7 +107,7 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 							className="inline-block h-2 w-2 rounded-full"
 							style={{ backgroundColor: statusColor }}
 						/>
-						<span className="text-[#d7d7d7] text-xs">
+						<span className="text-fg-soft text-xs">
 							{STATUS_LABELS[eq.status] ?? eq.status}
 						</span>
 					</div>
@@ -121,7 +121,7 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 				{/* Vendor / Model */}
 				{(eq.vendor || eq.model) && (
 					<Row label="Equipo">
-						<span className="text-[#d7d7d7] text-xs">
+						<span className="text-fg-soft text-xs">
 							{[eq.vendor, eq.model].filter(Boolean).join(" · ")}
 						</span>
 					</Row>
@@ -130,7 +130,7 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 				{/* Type-specific metadata */}
 				{eq.type === "olt" && eq.total_pon_ports != null && (
 					<Row label="Puertos PON">
-						<span className="font-mono text-xs text-[#d7d7d7]">
+						<span className="font-mono text-xs text-fg-soft">
 							{eq.total_pon_ports}
 						</span>
 					</Row>
@@ -138,7 +138,7 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 
 				{eq.type === "splitter" && eq.split_ratio && (
 					<Row label="Relación">
-						<span className="font-mono text-xs text-[#d7d7d7]">
+						<span className="font-mono text-xs text-fg-soft">
 							{eq.split_ratio}
 						</span>
 					</Row>
@@ -153,14 +153,12 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 				{/* ── ONT enriched section ────────────────────────────────────── */}
 				{isOnt && (
 					<>
-						<div className="my-2 h-px bg-[rgba(164,164,164,0.12)]" />
+						<div className="my-2 h-px bg-tint/12" />
 
 						{/* Signal strength */}
 						<div className="py-1.5">
 							<div className="mb-1.5 flex items-center justify-between">
-								<span className="text-xs text-[#777879]">
-									Señal óptica (Rx)
-								</span>
+								<span className="text-xs text-fg-muted">Señal óptica (Rx)</span>
 								<div className="flex items-center gap-1.5">
 									<span
 										className="inline-block h-1.5 w-1.5 rounded-full"
@@ -177,7 +175,7 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 
 							{/* dBm bar */}
 							<div className="flex items-center gap-2">
-								<div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-[rgba(164,164,164,0.14)]">
+								<div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-tint/14">
 									<div
 										className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
 										style={{
@@ -189,7 +187,7 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 										}}
 									/>
 								</div>
-								<span className="w-16 text-right font-mono text-[11px] text-[#a4a4a4]">
+								<span className="w-16 text-right font-mono text-[11px] text-fg-secondary">
 									{eq.rx_power_dbm != null
 										? `${eq.rx_power_dbm.toFixed(1)} dBm`
 										: "—"}
@@ -197,7 +195,7 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 							</div>
 
 							{eq.tx_power_dbm != null && (
-								<p className="mt-1 text-right font-mono text-[10px] text-[#777879]">
+								<p className="mt-1 text-right font-mono text-[10px] text-fg-muted">
 									Tx {eq.tx_power_dbm.toFixed(1)} dBm
 								</p>
 							)}
@@ -206,7 +204,7 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 						{/* Service */}
 						{eq.service_status && (
 							<Row label="Servicio">
-								<span className="text-[#d7d7d7] text-xs">
+								<span className="text-fg-soft text-xs">
 									{SERVICE_STATUS_LABELS[eq.service_status] ??
 										eq.service_status}
 								</span>
@@ -217,9 +215,9 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 						{eq.plan_name && (
 							<Row label="Plan">
 								<div className="text-right">
-									<p className="text-xs text-[#d7d7d7]">{eq.plan_name}</p>
+									<p className="text-xs text-fg-soft">{eq.plan_name}</p>
 									{eq.download_mbps != null && eq.upload_mbps != null && (
-										<p className="font-mono text-[10px] text-[#777879]">
+										<p className="font-mono text-[10px] text-fg-muted">
 											↓{eq.download_mbps} / ↑{eq.upload_mbps} Mbps
 										</p>
 									)}
@@ -230,14 +228,14 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 						{/* Customer */}
 						{eq.customer_name && (
 							<>
-								<div className="my-2 h-px bg-[rgba(164,164,164,0.12)]" />
+								<div className="my-2 h-px bg-tint/12" />
 								<div>
-									<p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+									<p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 										Cliente
 									</p>
-									<p className="text-xs text-[#d7d7d7]">{eq.customer_name}</p>
+									<p className="text-xs text-fg-soft">{eq.customer_name}</p>
 									{eq.customer_phone && (
-										<p className="mt-0.5 font-mono text-[11px] text-[#858585]">
+										<p className="mt-0.5 font-mono text-[11px] text-fg-muted">
 											{eq.customer_phone}
 										</p>
 									)}
@@ -250,7 +248,7 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 				{/* ── Active incident ─────────────────────────────────────────── */}
 				{incident && (
 					<>
-						<div className="my-2 h-px bg-[rgba(164,164,164,0.12)]" />
+						<div className="my-2 h-px bg-tint/12" />
 						<div
 							className="rounded-lg p-2.5"
 							style={{
@@ -259,12 +257,12 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 							}}
 						>
 							<div className="mb-1.5 flex items-center justify-between">
-								<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+								<p className="text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 									Incidente activo
 								</p>
 								<div className="flex items-center gap-1">
 									<span
-										className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+										className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
 										style={{
 											background: `${SEVERITY_COLOR[incident.severity] ?? SEVERITY_COLOR.low}33`,
 											color:
@@ -275,10 +273,10 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 									</span>
 								</div>
 							</div>
-							<p className="text-xs leading-snug text-[#d7d7d7]">
+							<p className="text-xs leading-snug text-fg-soft">
 								{incident.title}
 							</p>
-							<p className="mt-1 text-[10px] text-[#777879]">
+							<p className="mt-1 text-[10px] text-fg-muted">
 								{INCIDENT_STATUS_LABEL[incident.status] ?? incident.status}
 							</p>
 						</div>
@@ -288,12 +286,12 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 				{/* Address */}
 				{eq.address && (
 					<>
-						<div className="my-2 h-px bg-[rgba(164,164,164,0.12)]" />
+						<div className="my-2 h-px bg-tint/12" />
 						<div>
-							<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879] mb-1">
+							<p className="text-[10px] font-semibold uppercase tracking-widest text-fg-muted mb-1">
 								Dirección
 							</p>
-							<p className="text-xs text-[#a4a4a4] leading-relaxed">
+							<p className="text-xs text-fg-secondary leading-relaxed">
 								{eq.address}
 							</p>
 						</div>
@@ -307,7 +305,7 @@ export function EquipmentPanel({ equipment: eq, incident, onClose }: Props) {
 function Row({ label, children }: { label: string; children: ReactNode }) {
 	return (
 		<div className="flex items-center justify-between py-1.5">
-			<span className="text-xs text-[#777879]">{label}</span>
+			<span className="text-xs text-fg-muted">{label}</span>
 			{children}
 		</div>
 	);

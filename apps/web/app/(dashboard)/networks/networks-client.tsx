@@ -1,8 +1,24 @@
 "use client";
 
+import {
+	Archive,
+	ArrowRight,
+	Circle,
+	GitFork,
+	Layers3,
+	type LucideIcon,
+	Network as NetworkIcon,
+	Plus,
+} from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AppDrawer } from "@/components/ui/app-drawer";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "@/lib/feedback/toast";
+import { translateDbError } from "@/lib/supabase/errors";
 import type { UserRole } from "@/lib/types/gpon";
 import {
 	type NetworkSummary,
@@ -13,11 +29,11 @@ import {
 
 const TOPOLOGIES: NetworkTopology[] = ["blank", "star", "tree", "cascade"];
 
-const TOPOLOGY_ICON: Record<NetworkTopology, string> = {
-	blank: "○",
-	star: "✦",
-	tree: "⑂",
-	cascade: "≡",
+const TOPOLOGY_ICON: Record<NetworkTopology, LucideIcon> = {
+	blank: Circle,
+	star: NetworkIcon,
+	tree: GitFork,
+	cascade: Layers3,
 };
 
 export function NetworksClient({
@@ -59,7 +75,10 @@ export function NetworksClient({
 			if (rpcError) throw rpcError;
 			router.push(`/networks/${data}/capture`);
 		} catch (err) {
-			setError(err instanceof Error ? err.message : "Error al crear la red");
+			console.error("create_network failed", err);
+			setError(
+				translateDbError(err, "No se pudo crear la red. Inténtalo de nuevo."),
+			);
 			setCreating(false);
 		}
 	}
@@ -79,122 +98,139 @@ export function NetworksClient({
 				p_reason: archiveReason.trim() || null,
 			});
 			if (rpcError) throw rpcError;
-			setArchiveTarget(null);
-			setArchiveConfirmation("");
-			setArchiveReason("");
+			toast({
+				tone: "success",
+				title: "Red archivada",
+				description: archiveTarget.name,
+			});
+			closeArchive();
 			router.refresh();
 		} catch (err) {
-			setError(err instanceof Error ? err.message : "Error al archivar la red");
+			console.error("archive_network failed", err);
+			setError(
+				translateDbError(
+					err,
+					"No se pudo archivar la red. Inténtalo de nuevo.",
+				),
+			);
 		} finally {
 			setArchiving(false);
 		}
 	}
 
+	function closeArchive() {
+		setArchiveTarget(null);
+		setArchiveConfirmation("");
+		setArchiveReason("");
+	}
+
 	return (
 		<div className="h-full overflow-y-auto">
-			<div className="mx-auto max-w-4xl px-6 py-10">
-				{/* Header */}
-				<div className="mb-8 flex items-center justify-between">
+			<div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-10">
+				<div className="mb-8 flex items-center justify-between gap-4">
 					<div>
-						<h1 className="text-balance text-xl font-semibold text-foreground">
+						<h1 className="text-balance text-xl font-semibold text-fg">
 							Redes GPON
 						</h1>
-						<p className="mt-1 text-sm text-[#777879]">
-							{networks.length} {networks.length === 1 ? "red" : "redes"}{" "}
-							configuradas
+						<p className="mt-1 text-sm text-fg-muted">
+							{networks.length === 1
+								? "1 red configurada"
+								: `${networks.length} redes configuradas`}
 						</p>
 					</div>
 					{networks.length > 0 && (
-						<button
-							type="button"
-							onClick={() => setShowNew(true)}
-							className="rounded-lg bg-[var(--accent-brand)] px-4 py-2 text-sm font-medium text-white shadow-[0_1px_6px_rgba(14,165,233,0.35)] transition-all hover:bg-[var(--accent-brand-hover)] hover:shadow-[0_1px_10px_rgba(14,165,233,0.45)]"
-						>
-							+ Nueva red
-						</button>
+						<Button variant="accent" size="lg" onClick={() => setShowNew(true)}>
+							<Plus aria-hidden="true" />
+							Nueva red
+						</Button>
 					)}
 				</div>
+
 				{networks.length === 0 && (
-					<div className="mb-8 rounded-xl border border-dashed border-[rgba(164,164,164,0.16)] px-6 py-16 text-center">
-						<p className="text-sm text-[#777879]">
+					<div className="mb-8 rounded-xl border border-dashed border-border px-6 py-16 text-center">
+						<p className="text-sm text-fg-muted">
 							No hay redes todavía. Crea la primera para empezar.
 						</p>
-						<button
-							type="button"
+						<Button
+							variant="accent"
+							size="lg"
+							className="mt-5"
 							onClick={() => setShowNew(true)}
-							className="mt-5 rounded-lg bg-[var(--accent-brand)] px-4 py-2 text-sm font-medium text-white shadow-[0_1px_6px_rgba(14,165,233,0.35)] transition-all hover:bg-[var(--accent-brand-hover)] hover:shadow-[0_1px_10px_rgba(14,165,233,0.45)]"
 						>
-							+ Crear primera red
-						</button>
+							<Plus aria-hidden="true" />
+							Crear primera red
+						</Button>
 					</div>
 				)}
 
-				{/* Networks list */}
 				{networks.length > 0 && (
-					<div className="space-y-2">
-						{networks.map((net) => (
-							<div
-								key={net.id}
-								className="flex w-full items-center justify-between rounded-xl border border-[rgba(164,164,164,0.12)] bg-[rgba(34,35,36,0.7)] px-5 py-4 text-left transition-colors hover:border-[rgba(164,164,164,0.24)] hover:bg-[rgba(34,35,36,0.9)]"
-							>
-								<button
-									type="button"
-									onClick={() => router.push(`/networks/${net.id}`)}
-									className="flex min-w-0 flex-1 items-center gap-4 text-left"
+					<ul className="space-y-2">
+						{networks.map((net) => {
+							const Icon =
+								TOPOLOGY_ICON[net.topology as NetworkTopology] ?? Circle;
+							return (
+								<li
+									key={net.id}
+									className="group relative flex items-center gap-4 rounded-xl border border-border-subtle bg-surface-panel/70 px-4 py-4 transition-colors hover:border-border hover:bg-surface-panel sm:px-5"
 								>
-									<span className="text-xl text-[#777879]">
-										{TOPOLOGY_ICON[net.topology as NetworkTopology] ?? "○"}
-									</span>
-									<div className="min-w-0">
-										<p className="truncate text-sm font-semibold text-[#e6e6e6]">
+									<Icon
+										className="size-5 shrink-0 text-fg-muted"
+										aria-hidden="true"
+									/>
+									<div className="min-w-0 flex-1">
+										{/* Whole row is the link (stretched ::after), so cmd/ctrl-click
+										    and "open in new tab" work. */}
+										<Link
+											href={`/networks/${net.id}`}
+											className="block truncate text-sm font-semibold text-fg outline-none after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:after:ring-2 focus-visible:after:ring-info/50"
+										>
 											{net.name}
+										</Link>
+										<p className="mt-0.5 truncate text-xs text-fg-muted">
+											{TOPOLOGY_LABELS[net.topology as NetworkTopology] ??
+												"Topología sin definir"}
+											{net.description ? ` · ${net.description}` : ""}
 										</p>
-										{net.description && (
-											<p className="mt-0.5 truncate text-xs text-[#777879]">
-												{net.description}
-											</p>
-										)}
 									</div>
-								</button>
-								<div className="flex items-center gap-6 text-right">
-									<div>
-										<p className="font-mono text-sm text-[#e6e6e6]">
-											{net.element_count}
-										</p>
-										<p className="text-[10px] text-[#777879]">elementos</p>
-									</div>
-									<div>
-										<p className="font-mono text-sm text-[#e6e6e6]">
-											{net.route_count}
-										</p>
-										<p className="text-[10px] text-[#777879]">rutas</p>
-									</div>
+									<dl className="hidden items-center gap-6 text-right sm:flex">
+										<div>
+											<dd className="font-mono text-sm text-fg">
+												{net.element_count}
+											</dd>
+											<dt className="text-[11px] text-fg-muted">elementos</dt>
+										</div>
+										<div>
+											<dd className="font-mono text-sm text-fg">
+												{net.route_count}
+											</dd>
+											<dt className="text-[11px] text-fg-muted">rutas</dt>
+										</div>
+									</dl>
 									{canArchive && (
-										<button
-											type="button"
+										<Button
+											variant="ghost"
+											size="icon"
+											aria-label={`Archivar ${net.name}`}
+											title="Archivar red"
+											className="relative z-10 text-fg-muted"
 											onClick={() => {
 												setArchiveTarget(net);
 												setArchiveConfirmation("");
 												setArchiveReason("");
 												setError(null);
 											}}
-											className="rounded-md border border-[rgba(251,77,109,0.25)] px-2.5 py-1 text-xs font-medium text-[#fb7185] transition-colors hover:bg-[rgba(251,77,109,0.1)]"
 										>
-											Archivar
-										</button>
+											<Archive aria-hidden="true" />
+										</Button>
 									)}
-									<button
-										type="button"
-										onClick={() => router.push(`/networks/${net.id}`)}
-										className="text-[#5c5d5f] transition-colors hover:text-[#a4a4a4]"
-										aria-label={`Abrir ${net.name}`}
-									>
-										→
-									</button>
-								</div>
-							</div>
-						))}
-					</div>
+									<ArrowRight
+										className="size-4 shrink-0 text-fg-muted transition-transform group-hover:translate-x-0.5 group-hover:text-fg-secondary"
+										aria-hidden="true"
+									/>
+								</li>
+							);
+						})}
+					</ul>
 				)}
 
 				<AppDrawer
@@ -212,22 +248,18 @@ export function NetworksClient({
 					description="Define el nombre, una descripción opcional y la plantilla de topología para arrancar la captura."
 					size="lg"
 					footer={
-						<div className="flex items-center justify-end gap-3">
-							<button
-								type="button"
-								onClick={() => setShowNew(false)}
-								className="text-sm text-[#777879] transition-colors hover:text-[#a4a4a4]"
-							>
+						<div className="flex items-center justify-end gap-2">
+							<Button variant="ghost" onClick={() => setShowNew(false)}>
 								Cancelar
-							</button>
-							<button
+							</Button>
+							<Button
 								type="submit"
 								form="create-network-form"
+								variant="accent"
 								disabled={creating || !name.trim()}
-								className="rounded-lg bg-[rgba(56,189,248,0.18)] px-5 py-2 text-sm font-medium text-[#bdeafe] transition-colors hover:bg-[rgba(56,189,248,0.28)] disabled:opacity-50"
 							>
-								{creating ? "Creando..." : "Crear red"}
-							</button>
+								{creating ? "Creando…" : "Crear red"}
+							</Button>
 						</div>
 					}
 				>
@@ -237,124 +269,122 @@ export function NetworksClient({
 						className="space-y-5"
 					>
 						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-							<label className="block">
-								<span className="mb-1.5 block text-xs text-[#777879]">
-									Nombre *
-								</span>
-								<input
-									type="text"
+							<div className="space-y-1.5">
+								<Label htmlFor="network-name" className="text-xs text-fg-muted">
+									Nombre <span aria-hidden="true">*</span>
+								</Label>
+								<Input
+									id="network-name"
 									required
-									placeholder="Ej. Quito Norte — Sector A"
+									placeholder="Ej. Cuenca Centro — Sector El Ejido"
 									value={name}
 									onChange={(e) => setName(e.target.value)}
-									className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(27,28,29,0.8)] px-3 py-2 text-sm text-[#e6e6e6] outline-none transition-colors placeholder:text-[#5c5d5f] focus:border-[rgba(56,189,248,0.45)]"
 								/>
-							</label>
-							<label className="block">
-								<span className="mb-1.5 block text-xs text-[#777879]">
+							</div>
+							<div className="space-y-1.5">
+								<Label
+									htmlFor="network-description"
+									className="text-xs text-fg-muted"
+								>
 									Descripción
-								</span>
-								<input
-									type="text"
-									placeholder="Zona de cobertura, notas..."
+								</Label>
+								<Input
+									id="network-description"
+									placeholder="Zona de cobertura, notas…"
 									value={description}
 									onChange={(e) => setDescription(e.target.value)}
-									className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(27,28,29,0.8)] px-3 py-2 text-sm text-[#e6e6e6] outline-none transition-colors placeholder:text-[#5c5d5f] focus:border-[rgba(56,189,248,0.45)]"
 								/>
-							</label>
-						</div>
-
-						<div>
-							<span className="mb-2 block text-xs text-[#777879]">
-								Plantilla de topología
-							</span>
-							<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-								{TOPOLOGIES.map((t) => (
-									<button
-										key={t}
-										type="button"
-										onClick={() => setTopology(t)}
-										className="rounded-lg border p-3 text-left transition-colors"
-										style={{
-											borderColor:
-												topology === t
-													? "rgba(56,189,248,0.45)"
-													: "rgba(164,164,164,0.14)",
-											background:
-												topology === t
-													? "rgba(56,189,248,0.1)"
-													: "rgba(164,164,164,0.04)",
-										}}
-									>
-										<p className="mb-1 text-base">{TOPOLOGY_ICON[t]}</p>
-										<p
-											className="text-xs font-semibold"
-											style={{
-												color: topology === t ? "#bdeafe" : "#d7d7d7",
-											}}
-										>
-											{TOPOLOGY_LABELS[t]}
-										</p>
-										<p className="mt-0.5 text-[10px] text-[#777879]">
-											{TOPOLOGY_DESCRIPTIONS[t]}
-										</p>
-									</button>
-								))}
 							</div>
 						</div>
 
+						<fieldset>
+							<legend className="mb-2 block text-xs text-fg-muted">
+								Plantilla de topología
+							</legend>
+							<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+								{TOPOLOGIES.map((t) => {
+									const Icon = TOPOLOGY_ICON[t];
+									const selected = topology === t;
+									return (
+										<label
+											key={t}
+											className={`cursor-pointer rounded-lg border p-3 text-left transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-info/50 ${
+												selected
+													? "border-info/45 bg-info/10"
+													: "border-border-subtle bg-tint/4 hover:border-border"
+											}`}
+										>
+											<input
+												type="radio"
+												name="topology"
+												value={t}
+												checked={selected}
+												onChange={() => setTopology(t)}
+												className="sr-only"
+											/>
+											<Icon
+												className={`mb-1.5 size-4 ${selected ? "text-info-fg" : "text-fg-muted"}`}
+												aria-hidden="true"
+											/>
+											<span
+												className={`block text-xs font-semibold ${selected ? "text-info-strong" : "text-fg-soft"}`}
+											>
+												{TOPOLOGY_LABELS[t]}
+											</span>
+											<span className="mt-0.5 block text-[11px] text-fg-muted">
+												{TOPOLOGY_DESCRIPTIONS[t]}
+											</span>
+										</label>
+									);
+								})}
+							</div>
+						</fieldset>
+
 						{error && (
-							<p className="rounded-md border border-[rgba(251,77,109,0.28)] bg-[rgba(251,77,109,0.08)] px-3 py-2 text-xs text-[#fb7185]">
+							<p
+								role="alert"
+								className="rounded-md border border-danger/30 bg-danger/8 px-3 py-2 text-xs text-danger-fg"
+							>
 								{error}
 							</p>
 						)}
 					</form>
 				</AppDrawer>
+
 				<AppDrawer
 					open={Boolean(archiveTarget)}
 					onOpenChange={(open) => {
-						if (open) return;
-						setArchiveTarget(null);
-						setArchiveConfirmation("");
-						setArchiveReason("");
+						if (!open) closeArchive();
 					}}
-					title="Archivar red crítica"
-					description="Esta acción ocultará la red del listado principal y deshabilitará su uso operativo normal. No se borrarán elementos ni rutas."
-					className="border-[rgba(251,77,109,0.28)]"
+					title="Archivar red"
+					description="La red se ocultará del listado principal y dejará de usarse en la operación normal. No se borran elementos ni rutas."
+					className="border-danger/30"
 					footer={
 						archiveTarget && (
-							<div className="flex items-center justify-end gap-3">
-								<button
-									type="button"
-									onClick={() => {
-										setArchiveTarget(null);
-										setArchiveConfirmation("");
-										setArchiveReason("");
-									}}
-									className="text-sm text-[#777879] transition-colors hover:text-[#a4a4a4]"
-								>
+							<div className="flex items-center justify-end gap-2">
+								<Button variant="ghost" onClick={closeArchive}>
 									Cancelar
-								</button>
-								<button
+								</Button>
+								<Button
 									type="submit"
 									form="archive-network-form"
+									variant="destructive"
 									disabled={
 										archiving || archiveConfirmation !== archiveTarget.name
 									}
-									className="rounded-lg border border-[rgba(251,77,109,0.35)] bg-[rgba(251,77,109,0.12)] px-4 py-2 text-sm font-medium text-[#fb7185] transition-colors hover:bg-[rgba(251,77,109,0.2)] disabled:opacity-50"
 								>
-									{archiving ? "Archivando..." : "Archivar red"}
-								</button>
+									{archiving ? "Archivando…" : "Archivar red"}
+								</Button>
 							</div>
 						)
 					}
 				>
 					{archiveTarget && (
 						<>
-							<div className="rounded-lg border border-[rgba(164,164,164,0.12)] bg-[rgba(27,28,29,0.65)] p-3 text-xs text-[#a4a4a4]">
+							<div className="rounded-lg border border-border-subtle bg-surface-sunken p-3 text-xs text-fg-secondary">
 								<p>
-									<span className="text-[#777879]">Red:</span>{" "}
-									<span className="font-semibold text-[#e6e6e6]">
+									<span className="text-fg-muted">Red:</span>{" "}
+									<span className="font-semibold text-fg">
 										{archiveTarget.name}
 									</span>
 								</p>
@@ -368,31 +398,45 @@ export function NetworksClient({
 								onSubmit={handleArchive}
 								className="mt-5 space-y-4"
 							>
-								<label className="block">
-									<span className="mb-1.5 block text-xs text-[#777879]">
+								<div className="space-y-1.5">
+									<Label
+										htmlFor="archive-confirm"
+										className="text-xs text-fg-muted"
+									>
 										Escribe el nombre exacto para confirmar
-									</span>
-									<input
-										type="text"
+									</Label>
+									<Input
+										id="archive-confirm"
+										autoComplete="off"
 										value={archiveConfirmation}
 										onChange={(event) =>
 											setArchiveConfirmation(event.target.value)
 										}
-										className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(27,28,29,0.8)] px-3 py-2 text-sm text-[#e6e6e6] outline-none transition-colors focus:border-[rgba(251,77,109,0.45)]"
+										className="focus-visible:border-danger/45 focus-visible:ring-danger/20"
 									/>
-								</label>
-								<label className="block">
-									<span className="mb-1.5 block text-xs text-[#777879]">
-										Motivo opcional
-									</span>
-									<input
-										type="text"
+								</div>
+								<div className="space-y-1.5">
+									<Label
+										htmlFor="archive-reason"
+										className="text-xs text-fg-muted"
+									>
+										Motivo (opcional)
+									</Label>
+									<Input
+										id="archive-reason"
 										value={archiveReason}
 										onChange={(event) => setArchiveReason(event.target.value)}
-										placeholder="Duplicada, prueba, migración..."
-										className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[rgba(27,28,29,0.8)] px-3 py-2 text-sm text-[#e6e6e6] outline-none transition-colors placeholder:text-[#5c5d5f] focus:border-[rgba(251,77,109,0.45)]"
+										placeholder="Duplicada, prueba, migración…"
 									/>
-								</label>
+								</div>
+								{error && (
+									<p
+										role="alert"
+										className="rounded-md border border-danger/30 bg-danger/8 px-3 py-2 text-xs text-danger-fg"
+									>
+										{error}
+									</p>
+								)}
 							</form>
 						</>
 					)}

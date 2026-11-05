@@ -3,6 +3,7 @@ import Link from "next/link";
 import { HealthSummary } from "@/components/monitoring/health-summary";
 import { MonitoringKpiStrip } from "@/components/monitoring/kpi-strip";
 import { Card } from "@/components/ui/card";
+import { isStale } from "@/lib/monitoring/freshness";
 import { createClient } from "@/lib/supabase/server";
 import {
 	classifySignal,
@@ -105,8 +106,8 @@ export default async function MonitoringIndexPage() {
 					Monitoreo de OLTs
 				</h1>
 				<p className="mt-1 text-sm text-muted-foreground">
-					Salud en tiempo real de cada OLT y sus ONTs. Selecciona una OLT para
-					ver el detalle.
+					Estado de cada OLT y sus ONTs según la última lectura del colector.
+					Abre una OLT para seguirla en tiempo real.
 				</p>
 			</header>
 
@@ -135,6 +136,9 @@ export default async function MonitoringIndexPage() {
 
 function OltCard({ entry }: { entry: OltMonitorEntry }) {
 	const lastUpdate = formatRelative(entry.health.last_update);
+	// Server render: Date.now() is the request time, which is what this
+	// snapshot reflects.
+	const stale = isStale(entry.data_updated_at, Date.now());
 	const networkLabel =
 		entry.network_names.length === 0
 			? "Sin red asociada"
@@ -195,7 +199,7 @@ function OltCard({ entry }: { entry: OltMonitorEntry }) {
 							{activePonLabel} PON activos
 						</span>
 						{entry.attention_pon_ports.length > 0 && (
-							<span className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-700 dark:text-amber-300">
+							<span className="inline-flex items-center gap-1.5 rounded-md border border-warning/30 bg-warning/10 px-2 py-1 text-warning-fg">
 								<AlertTriangle className="size-3.5" aria-hidden />
 								{entry.attention_pon_ports.length} PON con atención
 							</span>
@@ -203,6 +207,15 @@ function OltCard({ entry }: { entry: OltMonitorEntry }) {
 					</div>
 				</div>
 				<div className="flex items-center justify-between gap-3 text-xs text-muted-foreground sm:flex-col sm:items-end sm:justify-start sm:gap-1 sm:text-right">
+					{stale && (
+						<p
+							className="inline-flex items-center gap-1.5 rounded-md border border-warning/30 bg-warning/10 px-2 py-1 font-medium text-warning-fg"
+							title="El colector no escribe datos de esta OLT hace más de 3 ciclos."
+						>
+							<AlertTriangle className="size-3.5" aria-hidden />
+							Sin datos nuevos
+						</p>
+					)}
 					{lastUpdate && <p>Última lectura: {lastUpdate}</p>}
 					<p className="text-primary sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
 						Ver detalle →
@@ -258,6 +271,12 @@ function groupByOlt(
 		) {
 			entry.attention_pon_ports.push(ponPort);
 		}
+		if (
+			row.updated_at &&
+			(!entry.data_updated_at || row.updated_at > entry.data_updated_at)
+		) {
+			entry.data_updated_at = row.updated_at;
+		}
 		const candidate = row.last_seen_at ?? row.updated_at;
 		if (
 			candidate &&
@@ -295,6 +314,7 @@ function createEmpty(
 		active_pon_ports: [],
 		attention_pon_ports: [],
 		health: emptyHealth(),
+		data_updated_at: null,
 	};
 }
 

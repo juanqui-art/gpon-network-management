@@ -1,3 +1,7 @@
+import {
+	DATA_QUALITY_LABEL as CANONICAL_DATA_QUALITY_LABEL,
+	ROUTE_POINT_TYPE_LABEL,
+} from "@/lib/gpon/labels";
 /**
  * GPON map palette — single source of truth for runtime color values.
  *
@@ -78,12 +82,8 @@ export const ROUTE_POINT_COLOR: Record<RoutePointVisualType, string> = {
 	splice: "#fb7185",
 };
 
-export const ROUTE_POINT_LABEL: Record<RoutePointVisualType, string> = {
-	crossing: "Cruce",
-	mufa: "Mufa",
-	reserve: "Reserva",
-	splice: "Empalme",
-};
+export const ROUTE_POINT_LABEL: Record<RoutePointVisualType, string> =
+	ROUTE_POINT_TYPE_LABEL;
 
 // ── Incident severity ───────────────────────────────────────────────────────
 export type IncidentSeverity = "critical" | "high" | "medium" | "low";
@@ -121,13 +121,8 @@ export const DATA_QUALITY_COLOR: Record<DataQualityLevel, string> = {
 	verified: "#34d399", // emerald (most trusted)
 };
 
-export const DATA_QUALITY_LABEL: Record<DataQualityLevel, string> = {
-	unknown: "Sin información",
-	approximate: "Aproximado",
-	drawn: "Dibujado",
-	gps_captured: "Capturado por GPS",
-	verified: "Verificado",
-};
+export const DATA_QUALITY_LABEL: Record<DataQualityLevel, string> =
+	CANONICAL_DATA_QUALITY_LABEL;
 
 // ── Surface (matches globals.css) ───────────────────────────────────────────
 export const SURFACE = {
@@ -135,6 +130,13 @@ export const SURFACE = {
 	panel: "rgba(34,35,36,0.9)",
 	border: "rgba(164,164,164,0.18)",
 	textPrimary: "#e6e6e6",
-	textSecondary: "#a4a4a4",
-	textMuted: "#777879",
+	textSecondary: "#b1b2b4",
+	textMuted: "#979899",
+} as const;
+
+// ── Distance ruler (editor "Medir") ─────────────────────────────────────────
+// High-contrast neutral so it never reads as a fiber type or a status.
+export const MEASURE_COLOR = {
+	line: "#f8fafc",
+	vertexStroke: "#111213",
 } as const;

@@ -427,6 +427,8 @@ Planes 1 Gbps       Planes 5-10 Gbps
 
 ## Ejemplo: Generar Star (1:16) en Quito
 
+> **Nota:** el generador cliente `lib/gpon/topology-templates.ts` se eliminó por no tener uso. El ejemplo describe el comportamiento que tenía; la plantilla elegida al crear una red se guarda vía RPC `create_network`.
+
 ```typescript
 import { generateTopology } from "@/lib/gpon/topology-templates";
 

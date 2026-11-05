@@ -52,21 +52,88 @@ export function generateOperativeCode(ctx: CodeContext): string {
 	return `${prov}-${city}-${zone}-${type}-${seq}`;
 }
 
+export interface CodePrefix {
+	province: string;
+	city: string;
+}
+
+export const DEFAULT_CODE_PREFIX: CodePrefix = {
+	province: DEFAULT_PROV,
+	city: DEFAULT_CITY,
+};
+
 /**
  * Código propuesto para un draft.
- * Debe ser operativo desde el inicio porque puede guardarse sin edicion manual.
- * La zona puede ser especificada por el usuario; si no, usa Z05 como default.
+ * Debe ser operativo desde el inicio porque puede guardarse sin edición manual.
+ * La zona viene de las zonas de la red (`network_zones`); provincia y ciudad
+ * se infieren de los códigos existentes (ver `inferCodePrefix`).
  */
 export function generateDraftCode(
 	type: string,
 	sequence: number,
-	zone?: string,
+	ctx: { zone: string; prefix?: CodePrefix },
 ): string {
+	const prefix = ctx.prefix ?? DEFAULT_CODE_PREFIX;
 	return generateOperativeCode({
-		zone: zone ?? "Z05",
+		province: prefix.province,
+		city: prefix.city,
+		zone: ctx.zone,
 		type,
 		sequence,
 	});
+}
+
+/** Zone segment: 2–6 letters/digits, no "-" (it separates code parts). */
+export const ZONE_CODE_PATTERN = /^[A-Z0-9]{2,6}$/;
+
+export function normalizeZoneCode(raw: string): string | null {
+	const code = raw.trim().toUpperCase();
+	return ZONE_CODE_PATTERN.test(code) ? code : null;
+}
+
+function mostFrequent(values: string[]): string | null {
+	const counts = new Map<string, number>();
+	let best: string | null = null;
+	let bestCount = 0;
+	for (const value of values) {
+		const count = (counts.get(value) ?? 0) + 1;
+		counts.set(value, count);
+		if (count > bestCount) {
+			best = value;
+			bestCount = count;
+		}
+	}
+	return best;
+}
+
+/**
+ * Provincia-ciudad dominante entre los códigos existentes de la red, para que
+ * una red de Cuenca siga generando AZU-CUE-… en vez del default de Quito.
+ */
+export function inferCodePrefix(
+	codes: Array<string | null | undefined>,
+): CodePrefix {
+	const prefixes = codes
+		.map(parseOperativeCode)
+		.filter((parsed): parsed is ParsedOperativeCode => parsed !== null)
+		.map((parsed) => `${parsed.province}-${parsed.city}`);
+	const best = mostFrequent(prefixes);
+	if (!best) return DEFAULT_CODE_PREFIX;
+	const [province, city] = best.split("-");
+	return { province, city };
+}
+
+/** Zona más usada en los códigos existentes (excluye drafts "DRF"). */
+export function inferZoneCode(
+	codes: Array<string | null | undefined>,
+): string | null {
+	return mostFrequent(
+		codes
+			.map(parseOperativeCode)
+			.filter((parsed): parsed is ParsedOperativeCode => parsed !== null)
+			.map((parsed) => parsed.zone)
+			.filter((zone) => zone !== "DRF" && zone !== "ZXX"),
+	);
 }
 
 /**

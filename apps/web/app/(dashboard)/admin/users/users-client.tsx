@@ -64,10 +64,10 @@ function isSuspended(user: AdminUserView): boolean {
 
 function feedbackToneClass(status: UserActionState["status"]): string {
 	if (status === "success") {
-		return "text-[var(--status-online)]";
+		return "text-success";
 	}
 	if (status === "error") {
-		return "text-[#ffb3c1]";
+		return "text-danger-soft";
 	}
 	return "text-muted-foreground";
 }
@@ -158,7 +158,7 @@ function InvitationBadges({ user }: { user: AdminUserView }) {
 		return (
 			<Badge
 				variant="outline"
-				className="border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[11px] text-[#ffb3c1]"
+				className="border-danger/35 bg-danger/10 text-[11px] text-danger-soft"
 				title={
 					user.invitationSentAtLabel
 						? `Última invitación enviada el ${user.invitationSentAtLabel}`
@@ -222,8 +222,8 @@ function UserRow({
 					variant="outline"
 					className={
 						isSuspended(user)
-							? "border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1]"
-							: "border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]"
+							? "border-danger/35 bg-danger/10 text-danger-soft"
+							: "border-success/35 bg-success/10 text-success"
 					}
 				>
 					{isSuspended(user) ? "Suspendido" : "Activo"}
@@ -271,8 +271,8 @@ function UserCard({
 					variant="outline"
 					className={
 						isSuspended(user)
-							? "shrink-0 border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1]"
-							: "shrink-0 border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]"
+							? "shrink-0 border-danger/35 bg-danger/10 text-danger-soft"
+							: "shrink-0 border-success/35 bg-success/10 text-success"
 					}
 				>
 					{isSuspended(user) ? "Suspendido" : "Activo"}
@@ -360,8 +360,8 @@ function UserActionsDrawerContent({
 					variant="outline"
 					className={
 						suspended
-							? "border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1]"
-							: "border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]"
+							? "border-danger/35 bg-danger/10 text-danger-soft"
+							: "border-success/35 bg-success/10 text-success"
 					}
 				>
 					{suspended ? "Suspendido" : "Activo"}
@@ -497,7 +497,7 @@ function UserActionsDrawerContent({
 								type="submit"
 								variant="outline"
 								disabled={deletePending}
-								className="h-10 w-full border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1] hover:bg-[var(--status-alarm)]/20"
+								className="h-10 w-full border-danger/35 bg-danger/10 text-danger-soft hover:bg-danger/20"
 							>
 								<Trash2 className="size-4" />
 								{deletePending ? "Borrando..." : "Confirmar borrado"}
@@ -585,7 +585,7 @@ export function UsersClient({
 						<CardHeader>
 							<CardDescription>Usuarios activos</CardDescription>
 							<CardTitle className="flex items-center gap-2 text-2xl">
-								<CheckCircle2 className="size-5 text-[var(--status-online)]" />
+								<CheckCircle2 className="size-5 text-success" />
 								{activeUsers}
 							</CardTitle>
 						</CardHeader>
@@ -594,7 +594,7 @@ export function UsersClient({
 						<CardHeader>
 							<CardDescription>Administradores</CardDescription>
 							<CardTitle className="flex items-center gap-2 text-2xl">
-								<UserCog className="size-5 text-[var(--gpon-olt)]" />
+								<UserCog className="size-5 text-info" />
 								{adminUsers}
 							</CardTitle>
 						</CardHeader>
@@ -603,7 +603,7 @@ export function UsersClient({
 						<CardHeader>
 							<CardDescription>Cuentas suspendidas</CardDescription>
 							<CardTitle className="flex items-center gap-2 text-2xl">
-								<UserRoundX className="size-5 text-[var(--status-alarm)]" />
+								<UserRoundX className="size-5 text-danger" />
 								{suspendedUsers}
 							</CardTitle>
 						</CardHeader>
@@ -632,8 +632,8 @@ export function UsersClient({
 								<div
 									className={`rounded-lg border px-3 py-2 text-sm ${
 										inviteState.status === "success"
-											? "border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]"
-											: "border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1]"
+											? "border-success/35 bg-success/10 text-success"
+											: "border-danger/35 bg-danger/10 text-danger-soft"
 									}`}
 									role="status"
 								>
@@ -680,7 +680,7 @@ export function UsersClient({
 							<button
 								type="button"
 								onClick={() => setShowInvite(false)}
-								className="text-sm text-[#777879] transition-colors hover:text-[#a4a4a4]"
+								className="text-sm text-fg-muted transition-colors hover:text-fg-secondary"
 							>
 								Cancelar
 							</button>
@@ -731,8 +731,8 @@ export function UsersClient({
 							<div
 								className={`rounded-lg border px-3 py-2 text-sm ${
 									inviteState.status === "success"
-										? "border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]"
-										: "border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1]"
+										? "border-success/35 bg-success/10 text-success"
+										: "border-danger/35 bg-danger/10 text-danger-soft"
 								}`}
 								role="status"
 							>

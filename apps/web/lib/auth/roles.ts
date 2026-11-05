@@ -24,6 +24,14 @@ export const USER_ROLES: UserRole[] = [
 	"support",
 ];
 
+/**
+ * Landing page after sign-in (and for "/"). Outside plant works from the
+ * network list in the field; everyone else starts on the role-aware summary.
+ */
+export function homePathForRole(role: UserRole): string {
+	return role === "outside_plant" ? "/networks" : "/dashboard";
+}
+
 export function getUserRoleFromMetadata(
 	appMetadata: Record<string, unknown> | null | undefined,
 ): UserRole {

@@ -21,9 +21,10 @@ import {
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AppDrawer } from "@/components/ui/app-drawer";
+import { requestNavigation } from "@/lib/navigation/leave-guard";
 
 const NAV_COMMANDS = [
-	{ label: "Dashboard", href: "/dashboard", icon: BarChart3, group: "Navegar" },
+	{ label: "Inicio", href: "/dashboard", icon: BarChart3, group: "Navegar" },
 	{ label: "Redes GPON", href: "/networks", icon: Network, group: "Navegar" },
 	{ label: "Mapa de red", href: "/map", icon: MapPin, group: "Navegar" },
 	{
@@ -40,7 +41,7 @@ const ADMIN_COMMANDS = [
 	{ label: "Configuración", href: "/admin/settings", icon: Settings },
 ] as const;
 
-export function CommandPalette() {
+export function CommandPalette({ isAdmin }: { isAdmin: boolean }) {
 	const [open, setOpen] = useState(false);
 	const router = useRouter();
 
@@ -65,8 +66,8 @@ export function CommandPalette() {
 	}, [toggle, close]);
 
 	function run(href: string) {
-		router.push(href);
 		close();
+		void requestNavigation(href, () => router.push(href));
 	}
 
 	return (
@@ -77,7 +78,7 @@ export function CommandPalette() {
 			description="Busca rutas, módulos administrativos y accesos rápidos."
 			size="lg"
 			accent="#8bdff4"
-			className="bg-[rgba(28,29,30,0.88)] text-[#d7d7d7] backdrop-blur-xl"
+			className="bg-[rgba(28,29,30,0.88)] text-fg-soft backdrop-blur-xl"
 			contentClassName="space-y-0 px-0 py-0"
 			footer={
 				<div className="flex items-center gap-4 text-[10px] text-muted-foreground">
@@ -129,24 +130,28 @@ export function CommandPalette() {
 						))}
 					</CommandGroup>
 
-					<CommandSeparator className="my-1 h-px bg-white/[0.06]" />
+					{isAdmin && (
+						<CommandSeparator className="my-1 h-px bg-white/[0.06]" />
+					)}
 
-					<CommandGroup
-						heading="Admin"
-						className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted-foreground"
-					>
-						{ADMIN_COMMANDS.map(({ label, href, icon: Icon }) => (
-							<CommandItem
-								key={href}
-								value={label}
-								onSelect={() => run(href)}
-								className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground outline-none data-[selected=true]:bg-white/[0.07] data-[selected=true]:text-foreground"
-							>
-								<Icon className="size-4 shrink-0 text-muted-foreground" />
-								{label}
-							</CommandItem>
-						))}
-					</CommandGroup>
+					{isAdmin && (
+						<CommandGroup
+							heading="Administración"
+							className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted-foreground"
+						>
+							{ADMIN_COMMANDS.map(({ label, href, icon: Icon }) => (
+								<CommandItem
+									key={href}
+									value={label}
+									onSelect={() => run(href)}
+									className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground outline-none data-[selected=true]:bg-white/[0.07] data-[selected=true]:text-foreground"
+								>
+									<Icon className="size-4 shrink-0 text-muted-foreground" />
+									{label}
+								</CommandItem>
+							))}
+						</CommandGroup>
+					)}
 				</CommandList>
 			</Command>
 		</AppDrawer>

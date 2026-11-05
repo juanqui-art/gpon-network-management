@@ -1,19 +1,35 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { MapPinned, NetworkIcon, Plus } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	ArrowLeft,
+	Eye,
+	NetworkIcon,
+	Pencil,
+	Plus,
+	Redo2,
+	Undo2,
+} from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { DiagramPanel } from "@/components/map/logical-diagram";
 import { NetworkEditorMap } from "@/components/map/network-editor-map";
+import { NetworkLoadState } from "@/components/map/network-load-state";
+import { Button } from "@/components/ui/button";
+import { confirmAction } from "@/lib/feedback/confirm";
+import { toast } from "@/lib/feedback/toast";
 import { useEditorShortcuts } from "@/lib/hooks/use-editor-shortcuts";
 import { useNetworkEditorHistoryShortcuts } from "@/lib/hooks/use-network-editor-history-shortcuts";
+import { useUnsavedChangesGuard } from "@/lib/hooks/use-unsaved-changes-guard";
 import { MAPBOX_TOKEN } from "@/lib/mapbox/config";
 import {
 	fetchNetworkEditorData,
 	networkEditorKeys,
 } from "@/lib/queries/network-editor";
-import { useNetworkEditorStore } from "@/lib/store/network-editor";
+import {
+	type EditorMode,
+	useNetworkEditorStore,
+} from "@/lib/store/network-editor";
 import type { UserRole } from "@/lib/types/gpon";
 import { canWriteInfrastructure } from "@/lib/types/gpon";
 import type { Network } from "@/lib/types/network";
@@ -48,15 +64,65 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 		hydrateNetwork,
 		save,
 		discard,
+		resetEditor,
 		getElementsArray,
 		getRoutesArray,
 		getRoutePointsArray,
 	} = useNetworkEditorStore();
 
 	const canEdit = canWriteInfrastructure(userRole);
+	const queryClient = useQueryClient();
 	const networkQuery = useQuery({
 		queryKey: networkEditorKeys.detail(networkId),
 		queryFn: () => fetchNetworkEditorData(networkId),
+	});
+
+	/** Save, refresh the cached snapshot and report the outcome. */
+	const saveChanges = useCallback(async (): Promise<boolean> => {
+		const ok = await save();
+		const message = useNetworkEditorStore.getState().statusMessage;
+		if (ok) {
+			void queryClient.invalidateQueries({
+				queryKey: networkEditorKeys.detail(networkId),
+			});
+			toast({ tone: "success", title: "Cambios guardados" });
+		} else {
+			toast({
+				tone: "error",
+				title: "No se pudieron guardar los cambios",
+				description: message,
+			});
+		}
+		return ok;
+	}, [networkId, queryClient, save]);
+
+	const handleDiscard = async () => {
+		const confirmed = await confirmAction({
+			title: "¿Descartar los cambios?",
+			description:
+				"Se perderán todas las modificaciones locales desde el último guardado. Esta acción no se puede deshacer.",
+			confirmLabel: "Descartar cambios",
+			cancelLabel: "Conservar",
+			tone: "danger",
+		});
+		if (!confirmed) return;
+		discard();
+		toast({ tone: "info", title: "Cambios descartados" });
+	};
+
+	const changeMode = (next: EditorMode) => {
+		setMode(next);
+		setActiveTool("select");
+		deselect();
+	};
+
+	useUnsavedChangesGuard({
+		enabled: isDirty,
+		allowPathPrefix: `/networks/${networkId}`,
+		message:
+			"Hay cambios en elementos, rutas o puntos de esta red que aún no se guardaron en la base de datos.",
+		onSave: saveChanges,
+		onLeave: resetEditor,
 	});
 
 	useEditorShortcuts({ canEdit });
@@ -72,105 +138,190 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 		}
 	}, [networkId, networkQuery.data, hydrateNetwork]);
 
+	// Always open in read mode: editing (dragging elements / vertices) is an
+	// explicit choice, so a consultation never mutates geometry by accident.
 	useEffect(() => {
-		setMode(canEdit ? "edit" : "view");
+		setMode("view");
 		setActiveTool("select");
-	}, [canEdit, setActiveTool, setMode]);
+	}, [setActiveTool, setMode]);
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
 			{/* Editor topbar */}
-			<div className="flex h-11 shrink-0 items-center justify-between border-b border-[rgba(164,164,164,0.14)] bg-[#1e1f20] px-4 gap-4">
+			<div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-surface-panel px-3 sm:gap-4 sm:px-4">
 				{/* Left: breadcrumb + workspace identity */}
-				<div className="flex items-center gap-4">
+				<div className="flex min-w-0 items-center gap-2 sm:gap-4">
 					<Link
 						href="/networks"
-						className="text-xs text-[#777879] transition-colors hover:text-[#a4a4a4]"
+						aria-label="Volver a Redes"
+						className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs text-fg-secondary transition-colors hover:text-fg"
 					>
-						← Redes
+						<ArrowLeft className="size-4" aria-hidden="true" />
+						<span className="hidden sm:inline">Redes</span>
 					</Link>
-					<span className="text-[rgba(164,164,164,0.3)]">/</span>
-					<span className="max-w-48 truncate text-xs font-medium text-[#e6e6e6]">
+					<span
+						className="hidden text-[rgba(164,164,164,0.3)] md:inline"
+						aria-hidden="true"
+					>
+						/
+					</span>
+					<span className="hidden max-w-48 truncate text-xs font-medium text-fg md:inline">
 						{network.name}
 					</span>
-					<div className="inline-flex items-center gap-1.5 rounded-md border border-[rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.08)] px-2.5 py-1 text-[11px] font-medium text-[#fbbf24]">
-						<MapPinned className="size-3.5" aria-hidden="true" />
-						{canEdit ? "Edición de inventario" : "Consulta"}
-					</div>
+					{canEdit ? (
+						<fieldset className="inline-flex items-center rounded-md border border-border bg-tint/4 p-0.5">
+							<legend className="sr-only">Modo del editor</legend>
+							{(
+								[
+									{ value: "view", label: "Consulta", icon: Eye, key: "V" },
+									{ value: "edit", label: "Edición", icon: Pencil, key: "E" },
+								] as const
+							).map((option) => {
+								const active =
+									option.value === "view" ? mode !== "edit" : mode === "edit";
+								const Icon = option.icon;
+								return (
+									<button
+										key={option.value}
+										type="button"
+										aria-pressed={active}
+										aria-label={option.label}
+										title={`${option.label} (atajo: ${option.key})`}
+										onClick={() => changeMode(option.value)}
+										className={`inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-xs font-medium transition-colors ${
+											active
+												? option.value === "edit"
+													? "bg-info/16 text-info-strong"
+													: "bg-tint/14 text-fg"
+												: "text-fg-secondary hover:text-fg"
+										}`}
+									>
+										<Icon className="size-3.5" aria-hidden="true" />
+										<span className="hidden sm:inline">{option.label}</span>
+									</button>
+								);
+							})}
+						</fieldset>
+					) : (
+						<div className="inline-flex items-center gap-1.5 rounded-md border border-border bg-tint/6 px-2.5 py-1 text-[11px] font-medium text-fg-secondary">
+							<Eye className="size-3.5" aria-hidden="true" />
+							Solo lectura
+						</div>
+					)}
 				</div>
 
 				{/* Right: diagram toggle + dirty indicator + save */}
-				<div className="flex items-center gap-3">
+				<div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
 					{canEdit && (
 						<Link
 							href={`/networks/${networkId}/capture`}
-							className="inline-flex items-center gap-1.5 rounded-md border border-[rgba(52,211,153,0.3)] bg-[rgba(52,211,153,0.1)] px-2.5 py-1 text-xs font-medium text-[#34d399] transition-colors hover:bg-[rgba(52,211,153,0.16)]"
+							aria-label="Captura rápida"
+							title="Captura rápida"
+							className="inline-flex h-8 items-center gap-1.5 rounded-md border border-success/30 bg-success/10 px-2.5 text-xs font-medium text-success transition-colors hover:bg-success/16"
 						>
 							<Plus className="size-3.5" aria-hidden="true" />
-							Captura rápida
+							<span className="hidden lg:inline">Captura rápida</span>
 						</Link>
 					)}
 					{validationErrors.length > 0 && (
 						<span
-							className="max-w-52 truncate rounded-md border border-[rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.08)] px-2 py-1 text-xs text-[#f59e0b]"
+							className="hidden max-w-52 truncate rounded-md border border-warning/22 md:inline-block bg-warning/8 px-2 py-1 text-xs text-warning"
 							title={statusMessage}
 						>
 							{validationErrors.length} advertencia
 							{validationErrors.length > 1 ? "s" : ""}
 						</span>
 					)}
-					<button
-						type="button"
+					<Button
+						variant="info"
 						onClick={() => setDiagramOpen(!diagramOpen)}
-						className="inline-flex items-center gap-1.5 rounded-md border border-[rgba(56,216,255,0.18)] bg-[rgba(56,216,255,0.06)] px-2.5 py-1 text-xs font-medium text-[#8bdff4] transition-colors hover:border-[rgba(56,216,255,0.32)] hover:bg-[rgba(56,216,255,0.1)]"
+						aria-label={diagramOpen ? "Ocultar unifilar" : "Abrir unifilar"}
+						aria-expanded={diagramOpen}
+						className="text-xs"
 					>
 						<NetworkIcon className="size-3.5" aria-hidden="true" />
-						{diagramOpen ? "Ocultar" : "Abrir"} unifilar
-					</button>
+						<span className="hidden lg:inline">
+							{diagramOpen ? "Ocultar" : "Abrir"} unifilar
+						</span>
+					</Button>
+					{canEdit && (canUndo || canRedo) && (
+						<div className="inline-flex items-center gap-0.5">
+							<button
+								type="button"
+								onClick={() => {
+									useNetworkEditorStore.temporal.getState().undo();
+									deselect();
+								}}
+								disabled={!canUndo}
+								aria-label="Deshacer último cambio"
+								title="Deshacer último cambio (Ctrl+Z)"
+								className="inline-flex size-8 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-tint/10 hover:text-fg disabled:opacity-40"
+							>
+								<Undo2 className="size-3.5" aria-hidden="true" />
+							</button>
+							<button
+								type="button"
+								onClick={() => {
+									useNetworkEditorStore.temporal.getState().redo();
+									deselect();
+								}}
+								disabled={!canRedo}
+								aria-label="Rehacer"
+								title="Rehacer (Ctrl+Shift+Z o Ctrl+Y)"
+								className="hidden size-8 sm:inline-flex items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-tint/10 hover:text-fg disabled:opacity-40"
+							>
+								<Redo2 className="size-3.5" aria-hidden="true" />
+							</button>
+						</div>
+					)}
 					{isDirty && (
 						<>
-							<span className="text-xs text-[#777879]">
-								Cambios sin guardar · Ctrl+Z revierte
-							</span>
 							<span
-								className="rounded-md border border-[rgba(164,164,164,0.14)] bg-[rgba(164,164,164,0.05)] px-2 py-1 text-[11px] text-[#8f969e]"
-								title={
-									canUndo
-										? "Ctrl+Z para deshacer. Ctrl+Shift+Z o Ctrl+Y para rehacer."
-										: "No hay cambios reversibles todavía."
-								}
+								role="status"
+								className="inline-flex items-center gap-1.5 text-xs text-warning-fg"
 							>
-								{canUndo ? "Deshacer disponible" : "Sin historial"}
-								{canRedo ? " · Rehacer" : ""}
+								<span
+									className="size-1.5 rounded-full bg-warning-fg"
+									aria-hidden="true"
+								/>
+								<span className="sr-only xl:not-sr-only">
+									Cambios sin guardar
+								</span>
 							</span>
-							<button
-								type="button"
-								onClick={discard}
-								className="text-xs text-[#777879] transition-colors hover:text-[#a4a4a4]"
+							<Button
+								variant="ghost"
+								onClick={handleDiscard}
+								disabled={isSaving}
+								className="text-xs text-fg-secondary hover:bg-danger/10 hover:text-danger-fg"
 							>
 								Descartar
-							</button>
-							<button
-								type="button"
-								onClick={save}
+							</Button>
+							<Button
+								variant="success"
+								onClick={() => void saveChanges()}
 								disabled={isSaving}
-								className="rounded-md border border-[rgba(52,211,153,0.35)] bg-[rgba(52,211,153,0.12)] px-3 py-1 text-xs font-medium text-[#34d399] transition-colors hover:bg-[rgba(52,211,153,0.2)] disabled:opacity-50"
+								className="text-xs"
 							>
 								{isSaving ? "Guardando…" : "Guardar"}
-							</button>
+							</Button>
 						</>
 					)}
-					{!isDirty && <span className="text-xs text-[#5c5d5f]">Guardado</span>}
+					{!isDirty && networkQuery.isSuccess && (
+						<span className="hidden text-xs text-fg-secondary sm:inline">
+							Todo guardado
+						</span>
+					)}
 				</div>
 			</div>
 
 			{/* Map editor — full remaining height with min-h-0 */}
 			<div className="relative min-h-0 flex-1 overflow-hidden">
-				{networkQuery.isError && (
-					<div className="absolute left-1/2 top-16 z-30 -translate-x-1/2 rounded-md border border-[rgba(251,77,109,0.35)] bg-[rgba(34,35,36,0.94)] px-3 py-2 text-xs text-[#fb7185] shadow-xl">
-						No se pudo cargar la red.
-					</div>
-				)}
+				<NetworkLoadState
+					isPending={networkQuery.isPending}
+					isError={networkQuery.isError}
+					isRefetching={networkQuery.isFetching}
+					onRetry={() => void networkQuery.refetch()}
+				/>
 				<NetworkEditorMap
 					token={MAPBOX_TOKEN}
 					equipment={getElementsArray()}
@@ -190,6 +341,7 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 					onInsertRouteVertex={canEdit ? insertRouteVertex : undefined}
 					onMoveRouteVertex={canEdit ? moveRouteVertex : undefined}
 					onMoveElement={canEdit ? moveElement : undefined}
+					onActiveToolChange={setActiveTool}
 				/>
 			</div>
 

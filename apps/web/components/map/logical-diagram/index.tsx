@@ -128,7 +128,7 @@ function HeaderStatPill({
 }) {
 	return (
 		<div className="flex items-center gap-1.5 rounded border border-white/10 bg-white/[0.035] px-2 py-1">
-			<span className="text-[8px] font-semibold uppercase tracking-[0.08em] text-[#777879]">
+			<span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
 				{label}
 			</span>
 			<span className="font-mono text-[10px] font-bold" style={{ color }}>
@@ -211,7 +211,7 @@ function BudgetRow({
 }) {
 	return (
 		<div className="flex items-center justify-between gap-3 rounded border border-white/10 bg-white/[0.035] px-2 py-1.5 text-[10px]">
-			<span className="text-[#858585]">{label}</span>
+			<span className="text-fg-muted">{label}</span>
 			<span className="font-mono font-semibold" style={{ color }}>
 				{value}
 			</span>
@@ -275,14 +275,14 @@ function OpticalBudgetAlerts({
 	const tightCount = alerts.length - deficientCount;
 
 	return (
-		<div className="flex shrink-0 items-stretch gap-2 overflow-hidden rounded-md border border-white/10 bg-[#111213] p-2">
+		<div className="flex shrink-0 items-stretch gap-2 overflow-hidden rounded-md border border-white/10 bg-surface-sunken p-2">
 			<div className="flex min-w-32 shrink-0 items-center gap-2 border-r border-white/10 pr-2">
-				<AlertTriangle className="size-4 text-[#f59e0b]" aria-hidden="true" />
+				<AlertTriangle className="size-4 text-warning" aria-hidden="true" />
 				<div className="min-w-0">
-					<p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#d7d7d7]">
+					<p className="text-[10px] font-bold uppercase tracking-[0.12em] text-fg-soft">
 						Alertas ópticas
 					</p>
-					<p className="text-[10px] text-[#858585]">
+					<p className="text-[10px] text-fg-muted">
 						{deficientCount} deficientes · {tightCount} ajustadas
 					</p>
 				</div>
@@ -303,15 +303,15 @@ function OpticalBudgetAlerts({
 							title={alert.reason}
 						>
 							<span
-								className="text-[9px] font-bold uppercase tracking-[0.12em]"
+								className="text-[10px] font-bold uppercase tracking-[0.12em]"
 								style={{ color: style.color }}
 							>
 								{style.label}
 							</span>
-							<span className="mt-0.5 block truncate text-[10px] font-semibold text-[#e6e6e6]">
+							<span className="mt-0.5 block truncate text-[10px] font-semibold text-fg">
 								{alert.code} · {alert.type}
 							</span>
-							<span className="mt-0.5 block font-mono text-[10px] text-[#a4a4a4]">
+							<span className="mt-0.5 block font-mono text-[10px] text-fg-secondary">
 								Margen {alert.margin?.toFixed(1)} dB
 							</span>
 						</button>
@@ -334,8 +334,8 @@ function BudgetGraphView({
 			<div className="flex h-full min-h-0 items-center justify-center p-4">
 				<div className="max-w-md rounded-lg border border-dashed border-white/12 bg-white/[0.025] px-5 py-4 text-center text-xs">
 					<div className="min-w-0">
-						<p className="font-semibold text-[#d7d7d7]">Presupuesto óptico</p>
-						<p className="mt-1 text-[#858585]">
+						<p className="font-semibold text-fg-soft">Presupuesto óptico</p>
+						<p className="mt-1 text-fg-muted">
 							Selecciona una OLT, splitter o NAP en el diagrama o en el mapa
 							para ver la curva completa.
 						</p>
@@ -370,16 +370,16 @@ function BudgetGraphView({
 					: "#34d399";
 
 	return (
-		<div className="flex h-full min-h-0 flex-col bg-[#111213]/96 p-3">
+		<div className="flex h-full min-h-0 flex-col bg-surface-sunken/96 p-3">
 			<div className="mb-3 flex shrink-0 items-center justify-between gap-3">
 				<div className="min-w-0">
 					<p
-						className="text-[9px] font-bold uppercase tracking-[0.16em]"
+						className="text-[10px] font-bold uppercase tracking-[0.16em]"
 						style={{ color: accent }}
 					>
 						Presupuesto óptico seleccionado
 					</p>
-					<p className="truncate text-[11px] font-semibold text-[#e6e6e6]">
+					<p className="truncate text-[11px] font-semibold text-fg">
 						{el.code ?? el.name} · {EQUIPMENT_TYPE_LABEL[el.type] ?? el.type}
 					</p>
 				</div>
@@ -580,7 +580,7 @@ export function DiagramPanel({ isOpen, onToggle }: DiagramPanelProps) {
 
 	return (
 		<div
-			className={`relative flex shrink-0 flex-col overflow-hidden border-t border-[rgba(164,164,164,0.18)] bg-[#111213] shadow-[0_-18px_40px_rgba(0,0,0,0.32)] ${
+			className={`relative flex shrink-0 flex-col overflow-hidden border-t border-border bg-surface-sunken shadow-[0_-18px_40px_rgba(0,0,0,0.32)] ${
 				isResizing ? "" : "transition-[height] duration-200"
 			}`}
 			style={{ height: isOpen ? `${panelHeight}px` : `${COLLAPSED_HEIGHT}px` }}
@@ -599,34 +599,34 @@ export function DiagramPanel({ isOpen, onToggle }: DiagramPanelProps) {
 					aria-valuenow={panelHeight}
 					tabIndex={0}
 				>
-					<div className="flex h-2.5 w-24 items-center justify-center rounded-full border border-white/10 bg-[#1b1c1d] shadow-lg transition-colors group-hover:border-[#38d8ff]/40">
-						<div className="h-0.5 w-12 rounded-full bg-[rgba(164,164,164,0.34)] transition-colors group-hover:bg-[#38d8ff]" />
+					<div className="flex h-2.5 w-24 items-center justify-center rounded-full border border-white/10 bg-surface shadow-lg transition-colors group-hover:border-info/40">
+						<div className="h-0.5 w-12 rounded-full bg-tint/34 transition-colors group-hover:bg-info" />
 					</div>
 				</div>
 			)}
 
 			{/* ── Header ── */}
-			<header className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-[rgba(164,164,164,0.12)] bg-[#111213]/96 px-4">
+			<header className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-border-subtle bg-surface-sunken/96 px-4">
 				<div className="flex min-w-0 items-center gap-3">
-					<div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-[#38d8ff]/20 bg-[#38d8ff]/10 text-[#38d8ff]">
+					<div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-info/20 bg-info/10 text-info">
 						<Network className="size-4" aria-hidden="true" />
 					</div>
 					<div className="min-w-0">
 						<div className="flex min-w-0 items-center gap-2">
-							<span className="truncate text-sm font-semibold text-[#e6e6e6]">
+							<span className="truncate text-sm font-semibold text-fg">
 								Diagrama unifilar
 							</span>
-							<span className="hidden rounded-full border border-[rgba(56,216,255,0.22)] bg-[rgba(56,216,255,0.08)] px-2 py-0.5 text-[10px] font-medium text-[#8bdff4] sm:inline-flex">
+							<span className="hidden rounded-full border border-info/22 bg-info/8 px-2 py-0.5 text-[10px] font-medium text-info-fg sm:inline-flex">
 								Editor óptico
 							</span>
 						</div>
-						<p className="mt-0.5 truncate text-[11px] text-[#777879]">
+						<p className="mt-0.5 truncate text-[11px] text-fg-muted">
 							Topología, cascada de splitters y presupuesto acumulado
 						</p>
 					</div>
 					{statusLabel && (
 						<span
-							className="hidden items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold md:flex"
+							className="hidden items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold md:flex"
 							style={{
 								backgroundColor: `${globalColor}1a`,
 								color: globalColor,
@@ -651,7 +651,7 @@ export function DiagramPanel({ isOpen, onToggle }: DiagramPanelProps) {
 							<button
 								type="button"
 								onClick={collapseAll}
-								className="rounded-md border border-white/10 bg-white/[0.035] px-2 py-1 text-[10px] text-[#858585] transition-colors hover:bg-white/10 hover:text-[#e6e6e6]"
+								className="rounded-md border border-white/10 bg-white/[0.035] px-2 py-1 text-[10px] text-fg-muted transition-colors hover:bg-white/10 hover:text-fg"
 								title="Colapsar todo"
 							>
 								⊖
@@ -659,7 +659,7 @@ export function DiagramPanel({ isOpen, onToggle }: DiagramPanelProps) {
 							<button
 								type="button"
 								onClick={expandAll}
-								className="rounded-md border border-white/10 bg-white/[0.035] px-2 py-1 text-[10px] text-[#858585] transition-colors hover:bg-white/10 hover:text-[#e6e6e6]"
+								className="rounded-md border border-white/10 bg-white/[0.035] px-2 py-1 text-[10px] text-fg-muted transition-colors hover:bg-white/10 hover:text-fg"
 								title="Expandir todo"
 							>
 								⊕
@@ -669,7 +669,7 @@ export function DiagramPanel({ isOpen, onToggle }: DiagramPanelProps) {
 					<button
 						type="button"
 						onClick={onToggle}
-						className="grid size-8 place-items-center rounded-md border border-white/10 bg-white/[0.035] text-[#858585] transition-colors hover:bg-white/10 hover:text-[#e6e6e6]"
+						className="grid size-8 place-items-center rounded-md border border-white/10 bg-white/[0.035] text-fg-muted transition-colors hover:bg-white/10 hover:text-fg"
 						aria-label={isOpen ? "Ocultar unifilar" : "Abrir unifilar"}
 					>
 						{isOpen ? (
@@ -689,7 +689,7 @@ export function DiagramPanel({ isOpen, onToggle }: DiagramPanelProps) {
 				(roots.length === 0 ? (
 					<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2">
 						<span className="text-2xl opacity-20">⬡</span>
-						<span className="text-xs text-[#6b7280]">
+						<span className="text-xs text-fg-muted">
 							Sin elementos en la red
 						</span>
 						<span className="text-[10px] text-[#4b4d4f]">
@@ -697,13 +697,13 @@ export function DiagramPanel({ isOpen, onToggle }: DiagramPanelProps) {
 						</span>
 					</div>
 				) : (
-					<div className="flex min-h-0 flex-1 flex-col gap-2.5 bg-[#151617] p-2.5">
+					<div className="flex min-h-0 flex-1 flex-col gap-2.5 bg-surface-sunken p-2.5">
 						<OpticalBudgetAlerts
 							alerts={opticalAlerts}
 							onSelect={onSelectElement}
 						/>
 						{/* Diagram scroll area */}
-						<div className="min-h-0 flex-1 overflow-hidden rounded-lg bg-[#1b1c1d] ring-1 ring-white/8">
+						<div className="min-h-0 flex-1 overflow-hidden rounded-lg bg-surface ring-1 ring-white/8">
 							{diagramView === "budget" ? (
 								<BudgetGraphView node={selectedDiagramNode} stats={stats} />
 							) : (

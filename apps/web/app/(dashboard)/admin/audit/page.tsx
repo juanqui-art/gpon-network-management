@@ -39,14 +39,11 @@ const actionLabels: Record<string, string> = {
 };
 
 const actionTones: Record<string, string> = {
-	"user.invited":
-		"border-[var(--gpon-olt)]/35 bg-[var(--gpon-olt)]/10 text-[var(--gpon-olt)]",
+	"user.invited": "border-info/35 bg-info/10 text-info",
 	"user.role_updated":
 		"border-[var(--gpon-splitter)]/35 bg-[var(--gpon-splitter)]/10 text-[var(--gpon-splitter)]",
-	"user.suspended":
-		"border-[var(--status-alarm)]/35 bg-[var(--status-alarm)]/10 text-[#ffb3c1]",
-	"user.reactivated":
-		"border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]",
+	"user.suspended": "border-danger/35 bg-danger/10 text-danger-soft",
+	"user.reactivated": "border-success/35 bg-success/10 text-success",
 };
 
 function formatDate(value: string): string {
@@ -135,7 +132,7 @@ export default async function AuditPage({
 						<CardHeader>
 							<CardDescription>Eventos visibles</CardDescription>
 							<CardTitle className="flex items-center gap-2 text-2xl">
-								<Activity className="size-5 text-[var(--gpon-olt)]" />
+								<Activity className="size-5 text-info" />
 								{rows.length}
 							</CardTitle>
 						</CardHeader>
@@ -153,7 +150,7 @@ export default async function AuditPage({
 						<CardHeader>
 							<CardDescription>Eventos de usuarios</CardDescription>
 							<CardTitle className="flex items-center gap-2 text-2xl">
-								<BadgeCheck className="size-5 text-[var(--status-online)]" />
+								<BadgeCheck className="size-5 text-success" />
 								{userEvents}
 							</CardTitle>
 						</CardHeader>

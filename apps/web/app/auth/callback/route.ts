@@ -2,17 +2,19 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { getUserRoleFromMetadata, homePathForRole } from "@/lib/auth/roles";
 import { env } from "@/lib/env";
 
 const RECOVERY_TARGET = "/reset-password";
 const RECOVERY_COOKIE = "pw-recovery";
 
 // Only accept relative paths starting with a single "/"; reject "//" and "/\"
-// to avoid open-redirect attacks via the `next` query param.
-function safeNext(raw: string | null): string {
-	if (!raw) return "/dashboard";
+// to avoid open-redirect attacks via the `next` query param. Null means "use
+// the user's role home", resolved once the session exists.
+function safeNext(raw: string | null): string | null {
+	if (!raw) return null;
 	if (!raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) {
-		return "/dashboard";
+		return null;
 	}
 	return raw;
 }
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest) {
 		},
 	);
 
-	const { error } = await supabase.auth.exchangeCodeForSession(code);
+	const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 	if (error) {
 		return NextResponse.redirect(`${origin}/login?error=link_invalid`);
 	}
@@ -65,5 +67,7 @@ export async function GET(request: NextRequest) {
 		});
 	}
 
-	return NextResponse.redirect(`${origin}${next}`);
+	const destination =
+		next ?? homePathForRole(getUserRoleFromMetadata(data.user?.app_metadata));
+	return NextResponse.redirect(`${origin}${destination}`);
 }

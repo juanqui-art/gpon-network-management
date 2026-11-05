@@ -1,18 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isEditableTarget } from "@/lib/dom/is-editable-target";
 import { useNetworkEditorStore } from "@/lib/store/network-editor";
-
-function isEditableTarget(target: EventTarget | null) {
-	if (!(target instanceof HTMLElement)) return false;
-	const tagName = target.tagName.toLowerCase();
-	return (
-		target.isContentEditable ||
-		tagName === "input" ||
-		tagName === "textarea" ||
-		tagName === "select"
-	);
-}
 
 export function useNetworkEditorHistoryShortcuts({
 	enabled,

@@ -1,24 +1,17 @@
 "use client";
 
 import { useEffect } from "react";
+import { isEditableTarget } from "@/lib/dom/is-editable-target";
+import { isNavigationChordPending } from "@/lib/hooks/use-navigation-shortcuts";
 import type { EditorMode } from "@/lib/store/network-editor";
 import { useNetworkEditorStore } from "@/lib/store/network-editor";
-
-function isEditableTarget(target: EventTarget | null): boolean {
-	if (!(target instanceof HTMLElement)) return false;
-	const tag = target.tagName.toLowerCase();
-	return (
-		target.isContentEditable ||
-		tag === "input" ||
-		tag === "textarea" ||
-		tag === "select"
-	);
-}
 
 /**
  * Single-key mode shortcuts for the network editor:
  *   v → view  |  d → design  |  e → edit (only if canEdit)
- * Skips when focus is inside an editable element or a modifier key is held.
+ *   m → toggle the distance ruler (any mode)
+ * Skips when focus is inside an editable element, a modifier key is held, or
+ * the key completes a global `g → x` navigation chord.
  */
 export function useEditorShortcuts({
 	canEdit,
@@ -31,9 +24,17 @@ export function useEditorShortcuts({
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (event.ctrlKey || event.metaKey || event.altKey) return;
 			if (isEditableTarget(event.target)) return;
+			if (isNavigationChordPending()) return;
 
 			const { setMode, setActiveTool, deselect } =
 				useNetworkEditorStore.getState();
+
+			if (event.key === "m") {
+				event.preventDefault();
+				const { activeTool } = useNetworkEditorStore.getState();
+				setActiveTool(activeTool === "measure" ? "select" : "measure");
+				return;
+			}
 
 			let next: EditorMode | null = null;
 			if (event.key === "v") next = "view";

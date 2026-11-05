@@ -49,7 +49,7 @@ function eventShape(kind: BudgetLossEvent["kind"]) {
 function sectionTitle(section: string): string {
 	if (section === "Cabecera") return "OLT / cabecera";
 	if (section === "Mufa / splitter primario") return "Splitter primario";
-	if (section === "Distribucion hacia NAP") return "Distribucion";
+	if (section === "Distribución hacia NAP") return "Distribución";
 	if (section === "Empalme puntual") return "Empalme";
 	if (section === "NAP interna") return "NAP interna";
 	if (section === "Puerto NAP") return "Puerto drop";
@@ -58,18 +58,18 @@ function sectionTitle(section: string): string {
 
 function sectionDescription(section: string): string {
 	if (section === "Cabecera") return "PON, pigtail, ODF";
-	if (section === "Mufa / splitter primario") return "Fusion sin conectores";
-	if (section === "Distribucion hacia NAP") return "Fibra hasta NAP";
+	if (section === "Mufa / splitter primario") return "Fusión sin conectores";
+	if (section === "Distribución hacia NAP") return "Fibra hasta NAP";
 	if (section === "Empalme puntual") return "Evento en ruta";
-	if (section === "NAP interna") return "Fusion + splitter";
+	if (section === "NAP interna") return "Fusión + splitter";
 	if (section === "Puerto NAP") return "Salida al drop";
-	return "Tramo optico";
+	return "Tramo óptico";
 }
 
 function sectionColor(section: string): string {
 	if (section === "Cabecera") return "#38d8ff";
 	if (section === "Mufa / splitter primario") return "#a78bfa";
-	if (section === "Distribucion hacia NAP") return "#8bdff4";
+	if (section === "Distribución hacia NAP") return "#8bdff4";
 	if (section === "Empalme puntual") return "#fb7185";
 	if (section === "NAP interna") return "#f59e0b";
 	if (section === "Puerto NAP") return "#f6c768";
@@ -98,13 +98,13 @@ function buildLossEvents(budget: PathBudget): BudgetLossEvent[] {
 			label: "Fusiones",
 			loss: budget.spliceLoss,
 			section: "Empalmes",
-			shortLabel: "Fusion",
+			shortLabel: "Fusión",
 		},
 		{
 			kind: "splitter",
 			label: "Splitters",
 			loss: budget.splitterLoss,
-			section: "Division optica",
+			section: "División óptica",
 			shortLabel: "Split",
 		},
 		{
@@ -501,7 +501,7 @@ export function OpticalPowerBudgetChart({
 	if (!budget || budget.txPowerDbm === null) {
 		return (
 			<div
-				className={`flex items-center justify-center rounded-lg border border-dashed border-white/12 bg-white/[0.025] px-4 text-center text-xs text-[#858585] ${className}`}
+				className={`flex items-center justify-center rounded-lg border border-dashed border-white/12 bg-white/[0.025] px-4 text-center text-xs text-fg-muted ${className}`}
 				style={{ minHeight: height }}
 			>
 				Define la potencia Tx de la OLT para graficar el presupuesto óptico.
@@ -557,28 +557,28 @@ export function OpticalPowerBudgetChart({
 		>
 			<div className="flex items-start justify-between gap-3 border-b border-white/10 px-3 py-2.5">
 				<div>
-					<p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#8bdff4]">
+					<p className="text-[10px] font-bold uppercase tracking-[0.16em] text-info-fg">
 						Curva de potencia
 					</p>
-					<p className="mt-0.5 text-[10px] text-[#777879]">
+					<p className="mt-0.5 text-[10px] text-fg-muted">
 						Tx - atenuaciones físicas hasta Rx estimado
 					</p>
 				</div>
 				<div className="grid grid-cols-3 gap-1.5 text-right text-[10px]">
 					<div className="rounded border border-white/10 bg-white/[0.035] px-2 py-1">
-						<p className="text-[#777879]">Tx</p>
-						<p className="font-mono text-[#38d8ff]">
+						<p className="text-fg-muted">Tx</p>
+						<p className="font-mono text-info">
 							{formatDbm(budget.txPowerDbm)}
 						</p>
 					</div>
 					<div className="rounded border border-white/10 bg-white/[0.035] px-2 py-1">
-						<p className="text-[#777879]">Rx</p>
-						<p className="font-mono text-[#34d399]">
+						<p className="text-fg-muted">Rx</p>
+						<p className="font-mono text-success">
 							{formatDbm(budget.rxPowerDbm)}
 						</p>
 					</div>
 					<div className="rounded border border-white/10 bg-white/[0.035] px-2 py-1">
-						<p className="text-[#777879]">Margen</p>
+						<p className="text-fg-muted">Margen</p>
 						<p
 							className="font-mono"
 							style={{
@@ -599,8 +599,8 @@ export function OpticalPowerBudgetChart({
 			</div>
 			<div className="border-b border-white/10 bg-white/[0.018] px-3 py-3">
 				<div className="flex items-center gap-2 overflow-x-auto pb-1">
-					<div className="flex min-w-20 shrink-0 flex-col rounded-md border border-[#38d8ff]/25 bg-[#38d8ff]/8 px-2 py-2">
-						<span className="text-[9px] font-bold uppercase tracking-[0.14em] text-[#38d8ff]">
+					<div className="flex min-w-20 shrink-0 flex-col rounded-md border border-info/25 bg-info/8 px-2 py-2">
+						<span className="text-[9px] font-bold uppercase tracking-[0.14em] text-info">
 							Transmisor
 						</span>
 						<span className="mt-1 font-mono text-sm text-white">
@@ -624,7 +624,7 @@ export function OpticalPowerBudgetChart({
 									>
 										{section.title}
 									</p>
-									<p className="mt-0.5 truncate text-[9px] text-[#858585]">
+									<p className="mt-0.5 truncate text-[9px] text-fg-muted">
 										{section.description}
 									</p>
 								</div>
@@ -649,7 +649,7 @@ export function OpticalPowerBudgetChart({
 										<span className="max-w-16 truncate">
 											{event.shortLabel}
 										</span>
-										<span className="font-mono text-[#858585]">
+										<span className="font-mono text-fg-muted">
 											{event.loss.toFixed(1)}
 										</span>
 									</span>
@@ -657,8 +657,8 @@ export function OpticalPowerBudgetChart({
 							</div>
 						</div>
 					))}
-					<div className="flex min-w-20 shrink-0 flex-col rounded-md border border-[#34d399]/25 bg-[#34d399]/8 px-2 py-2">
-						<span className="text-[9px] font-bold uppercase tracking-[0.14em] text-[#34d399]">
+					<div className="flex min-w-20 shrink-0 flex-col rounded-md border border-success/25 bg-success/8 px-2 py-2">
+						<span className="text-[9px] font-bold uppercase tracking-[0.14em] text-success">
 							Receptor
 						</span>
 						<span className="mt-1 font-mono text-sm text-white">
@@ -672,25 +672,25 @@ export function OpticalPowerBudgetChart({
 			</div>
 			<div className="grid grid-cols-2 gap-1.5 border-t border-white/10 p-2 text-[10px] sm:grid-cols-4">
 				<div className="rounded border border-white/10 bg-white/[0.035] px-2 py-1.5">
-					<p className="text-[#777879]">Perdida fisica</p>
+					<p className="text-fg-muted">Pérdida física</p>
 					<p className="font-mono text-white">
 						{formatDb(budget.physicalLoss)}
 					</p>
 				</div>
 				<div className="rounded border border-white/10 bg-white/[0.035] px-2 py-1.5">
-					<p className="text-[#777879]">Reserva diseno</p>
+					<p className="text-fg-muted">Reserva diseño</p>
 					<p className="font-mono text-white">
 						{formatDb(budget.safetyMargin)}
 					</p>
 				</div>
 				<div className="rounded border border-white/10 bg-white/[0.035] px-2 py-1.5">
-					<p className="text-[#777879]">Sensibilidad Rx</p>
+					<p className="text-fg-muted">Sensibilidad Rx</p>
 					<p className="font-mono text-[#f472b6]">
 						{formatDbm(budget.rxSensitivityDbm)}
 					</p>
 				</div>
 				<div className="rounded border border-white/10 bg-white/[0.035] px-2 py-1.5">
-					<p className="text-[#777879]">Margen diseno</p>
+					<p className="text-fg-muted">Margen diseño</p>
 					<p
 						className="font-mono"
 						style={{

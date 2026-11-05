@@ -10,8 +10,14 @@ const buttonVariants = cva(
 		variants: {
 			variant: {
 				default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
+				// Primary CTA. Dark text: white on the brand blue is only 2.8:1.
 				accent:
-					"bg-[var(--accent-brand)] text-white hover:bg-[var(--accent-brand-hover)] shadow-[0_1px_6px_rgba(14,165,233,0.35)] hover:shadow-[0_1px_10px_rgba(14,165,233,0.45)]",
+					"bg-accent-brand text-accent-brand-foreground hover:bg-accent-brand-hover shadow-[0_1px_6px_rgba(14,165,233,0.35)] hover:shadow-[0_1px_10px_rgba(14,165,233,0.45)]",
+				// Confirming / persisting actions (Guardar).
+				success:
+					"border-success/35 bg-success/12 text-success hover:bg-success/20",
+				// Secondary tinted actions over the map (Unifilar, Preparar herramienta).
+				info: "border-info/30 bg-info/10 text-info-fg hover:bg-info/16",
 				outline:
 					"border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
 				secondary:

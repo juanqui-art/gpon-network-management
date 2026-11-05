@@ -5,6 +5,10 @@ import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/lib/utils";
 
+/** Shared by vaul drawers and AppDrawer's non-modal docked panels. */
+export const DRAWER_CONTENT_BASE_CLASS =
+	"fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-border bg-surface-panel shadow-2xl outline-none";
+
 function Drawer({
 	...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) {
@@ -46,10 +50,7 @@ function DrawerContent({
 			{showOverlay && <DrawerOverlay />}
 			<DrawerPrimitive.Content
 				data-slot="drawer-content"
-				className={cn(
-					"fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-[rgba(164,164,164,0.16)] bg-[#222324] shadow-2xl outline-none",
-					className,
-				)}
+				className={cn(DRAWER_CONTENT_BASE_CLASS, className)}
 				{...props}
 			>
 				{children}

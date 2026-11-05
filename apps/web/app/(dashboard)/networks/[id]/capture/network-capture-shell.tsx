@@ -1,19 +1,26 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	AlertTriangle,
 	ArrowLeft,
+	Cable,
 	CheckCircle2,
+	ChevronDown,
+	ChevronUp,
 	LocateFixed,
 	Plus,
 	Save,
 	SlidersHorizontal,
+	Undo2,
+	X,
 	Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { ZoneField } from "@/components/capture/zone-field";
 import { NetworkEditorMap } from "@/components/map/network-editor-map";
+import { NetworkLoadState } from "@/components/map/network-load-state";
 import type {
 	ConnectionMapItem,
 	EquipmentMapItem,
@@ -21,8 +28,17 @@ import type {
 	InfrastructureElement,
 	RoutePoint,
 } from "@/components/map/types";
-import { generateDraftCode, nextSequence } from "@/lib/gpon/operative-code";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/lib/feedback/toast";
+import {
+	generateDraftCode,
+	inferCodePrefix,
+	inferZoneCode,
+	nextSequence,
+} from "@/lib/gpon/operative-code";
+import { useIsCoarsePointer } from "@/lib/hooks/use-media-query";
 import { useNetworkEditorHistoryShortcuts } from "@/lib/hooks/use-network-editor-history-shortcuts";
+import { useUnsavedChangesGuard } from "@/lib/hooks/use-unsaved-changes-guard";
 import { calculateRouteLengthMeters } from "@/lib/map/route-geometry-editor";
 import { MAPBOX_TOKEN } from "@/lib/mapbox/config";
 import {
@@ -54,6 +70,9 @@ const CAPTURE_ELEMENT_TYPES: Array<Extract<CaptureType, "olt" | "nap">> = [
 	"olt",
 	"nap",
 ];
+
+/** Types placeable from the panel (desktop) and the dock (mobile). */
+const PLACEABLE_TYPES: CaptureType[] = ["olt", "nap", "closure"];
 
 const TYPE_LABELS: Record<CaptureType, string> = {
 	olt: "OLT",
@@ -188,11 +207,19 @@ const DEFAULTS_BY_TYPE: Record<
 
 interface Props {
 	canCapture: boolean;
+	/** admin / network_engineer can create zones (RLS on network_zones). */
+	canManageZones: boolean;
 	network: Network;
 	networkId: string;
 }
 
-export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
+export function NetworkCaptureShell({
+	canCapture,
+	canManageZones,
+	network,
+	networkId,
+}: Props) {
+	const queryClient = useQueryClient();
 	const networkQuery = useQuery({
 		queryKey: networkEditorKeys.detail(networkId),
 		queryFn: () => fetchNetworkEditorData(networkId),
@@ -219,17 +246,20 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 		updateRoutePoint,
 		isDirty,
 		isSaving,
+		resetEditor,
 	} = useNetworkEditorStore();
 
 	const [type, setType] = useState<CaptureType>("nap");
-	const [zone, setZone] = useState("Z05");
+	const [zone, setZone] = useState<string | null>(null);
 	const [lastCreatedCode, setLastCreatedCode] = useState<string | null>(null);
+	const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+	const isCoarsePointer = useIsCoarsePointer();
 	const [pendingClosureProperties, setPendingClosureProperties] =
 		useState<Record<string, unknown> | null>(null);
 	const [pendingClosureLabel, setPendingClosureLabel] = useState("Mufa");
 	const [routeSourceId, setRouteSourceId] = useState<string | null>(null);
 	const [statusMessage, setStatusMessage] = useState(
-		"Click derecho para elegir OLT, NAP o mufa; luego click izquierdo para colocar.",
+		"Elige OLT, NAP o mufa y colócalo en el mapa.",
 	);
 
 	const { canRedo, canUndo } = useNetworkEditorHistoryShortcuts({
@@ -248,6 +278,12 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 		}
 	}, [hydrateNetwork, networkId, networkQuery.data]);
 
+	const cancelRoute = () => {
+		setRouteSourceId(null);
+		setActiveTool("select");
+		setStatusMessage("Creación de fibra cancelada.");
+	};
+
 	useEffect(() => {
 		if (!routeSourceId) return;
 		const onKeyDown = (event: KeyboardEvent) => {
@@ -263,12 +299,34 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 	const elements = getElementsArray();
 	const routes = getRoutesArray();
 	const routePoints = getRoutePointsArray();
-	const suggestedCode = useMemo(() => {
-		const existingCodes = elements
-			.filter((element) => element.type === type)
-			.map((element) => element.code);
-		return generateDraftCode(type, nextSequence(existingCodes), zone);
-	}, [elements, type, zone]);
+	// Province-city and default zone follow the network's existing codes, so a
+	// Cuenca network keeps generating AZU-CUE-… instead of the Quito default.
+	const networkCodes = useMemo(
+		() => [
+			...elements.map((element) => element.code),
+			...routes.map((route) => route.code),
+		],
+		[elements, routes],
+	);
+	const codePrefix = useMemo(
+		() => inferCodePrefix(networkCodes),
+		[networkCodes],
+	);
+	const preferredZone = useMemo(
+		() => inferZoneCode(networkCodes),
+		[networkCodes],
+	);
+	// "ZXX" only while no zone is chosen (shown as a warning in the panel).
+	const codeContext = { zone: zone ?? "ZXX", prefix: codePrefix };
+	const suggestedCode = generateDraftCode(
+		type,
+		nextSequence(
+			elements
+				.filter((element) => element.type === type)
+				.map((element) => element.code),
+		),
+		codeContext,
+	);
 	const routeSource = routeSourceId
 		? elements.find((element) => element.id === routeSourceId)
 		: null;
@@ -336,7 +394,11 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 		const existingCodes = elements
 			.filter((element) => element.type === elementType)
 			.map((element) => element.code);
-		return generateDraftCode(elementType, nextSequence(existingCodes), zone);
+		return generateDraftCode(
+			elementType,
+			nextSequence(existingCodes),
+			codeContext,
+		);
 	};
 
 	const inferRouteType = (
@@ -350,7 +412,11 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 			.filter((route) => route.type === routeType)
 			.map((route) => route.code)
 			.filter((routeCode): routeCode is string => routeCode !== null);
-		return generateDraftCode(routeType, nextSequence(existingCodes), zone);
+		return generateDraftCode(
+			routeType,
+			nextSequence(existingCodes),
+			codeContext,
+		);
 	};
 
 	const codeForRoutePoint = (pointType: RoutePointType) => {
@@ -358,7 +424,11 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 			.filter((point) => point.type === pointType)
 			.map((point) => point.code)
 			.filter((pointCode): pointCode is string => pointCode !== null);
-		return generateDraftCode(pointType, nextSequence(existingCodes), zone);
+		return generateDraftCode(
+			pointType,
+			nextSequence(existingCodes),
+			codeContext,
+		);
 	};
 
 	const handleTypeChange = (nextType: CaptureType) => {
@@ -374,7 +444,7 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 		handleTypeChange(elementType);
 		setActiveTool(elementType);
 		setStatusMessage(
-			`${TYPE_LABELS[elementType]} listo: haz click izquierdo en el mapa para colocarlo.`,
+			`${TYPE_LABELS[elementType]} listo: toca o haz click en el mapa para colocarlo.`,
 		);
 	};
 
@@ -388,7 +458,7 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 		setPendingClosureLabel(label);
 		setActiveTool("closure");
 		setStatusMessage(
-			`${label} lista: haz click izquierdo en el mapa para colocarla como nodo conectable.`,
+			`${label} lista: toca o haz click en el mapa para colocarla como nodo conectable.`,
 		);
 	};
 
@@ -642,248 +712,338 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 		setStatusMessage("Datos mínimos del punto físico actualizados localmente.");
 	};
 
-	const persistCapture = async () => {
+	const persistCapture = async (): Promise<boolean> => {
 		setStatusMessage("Guardando captura en la base de datos...");
-		await save();
-		setStatusMessage(useNetworkEditorStore.getState().statusMessage);
+		const ok = await save();
+		const message = useNetworkEditorStore.getState().statusMessage;
+		setStatusMessage(message);
+		if (ok) {
+			void queryClient.invalidateQueries({
+				queryKey: networkEditorKeys.detail(networkId),
+			});
+			toast({ tone: "success", title: "Captura guardada" });
+		} else {
+			toast({
+				tone: "error",
+				title: "No se pudo guardar la captura",
+				description: message,
+			});
+		}
+		return ok;
 	};
 
+	// Touch has no right-click, so "Conectar" needs a visible entry point.
+	const connectableSelection =
+		selectedElement &&
+		!routeSourceId &&
+		(selectedElement.type === "olt" ||
+			selectedElement.type === "splitter" ||
+			selectedElement.type === "nap" ||
+			selectedElement.type === "closure")
+			? (equipment.find((item) => item.id === selectedElement.id) ?? null)
+			: null;
+
+	const pickPlacementTool = (tool: CaptureType) => {
+		if (tool === "closure") selectClosureTool({}, "Mufa");
+		else selectCreateTool(tool);
+	};
+
+	const undoLast = () => {
+		useNetworkEditorStore.temporal.getState().undo();
+		deselect();
+		setActiveTool("select");
+		setStatusMessage("Último cambio deshecho.");
+	};
+
+	useUnsavedChangesGuard({
+		enabled: isDirty,
+		allowPathPrefix: `/networks/${networkId}`,
+		message:
+			"Hay elementos, fibras o puntos capturados que aún no se guardaron en la base de datos.",
+		onSave: persistCapture,
+		onLeave: resetEditor,
+	});
+
 	return (
-		<div className="flex h-full min-h-0 flex-col bg-[#151617]">
-			<header className="flex h-12 shrink-0 items-center justify-between border-b border-[rgba(164,164,164,0.14)] bg-[#1e1f20] px-4">
-				<div className="flex min-w-0 items-center gap-3">
+		<div className="flex h-full min-h-0 flex-col bg-surface-sunken">
+			<header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-surface-panel px-3 sm:px-4">
+				<div className="flex min-w-0 items-center gap-2 sm:gap-3">
 					<Link
 						href={`/networks/${networkId}`}
-						className="inline-flex items-center gap-1.5 text-xs text-[#777879] transition-colors hover:text-[#d7d7d7]"
+						aria-label="Volver al inventario"
+						className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs text-fg-secondary transition-colors hover:text-fg"
 					>
-						<ArrowLeft className="size-3.5" aria-hidden="true" />
-						Inventario
+						<ArrowLeft className="size-4" aria-hidden="true" />
+						<span className="hidden sm:inline">Inventario</span>
 					</Link>
-					<span className="text-[rgba(164,164,164,0.3)]">/</span>
+					<span
+						className="hidden text-[rgba(164,164,164,0.3)] sm:inline"
+						aria-hidden="true"
+					>
+						/
+					</span>
 					<div className="min-w-0">
-						<p className="truncate text-xs font-medium text-[#e6e6e6]">
+						<p className="truncate text-xs font-medium text-fg">
 							{network.name}
 						</p>
-						<p className="text-[10px] uppercase tracking-[0.14em] text-[#777879]">
+						<p className="text-[11px] uppercase tracking-[0.14em] text-fg-secondary">
 							Captura rápida
 						</p>
 					</div>
 				</div>
-				<div className="flex items-center gap-2">
+				<div className="flex shrink-0 items-center gap-2">
 					<Link
 						href={`/networks/${networkId}`}
-						className="rounded-md border border-[rgba(164,164,164,0.14)] bg-[rgba(164,164,164,0.06)] px-3 py-1.5 text-xs text-[#d7d7d7] transition-colors hover:bg-[rgba(164,164,164,0.1)]"
+						className="hidden h-9 items-center whitespace-nowrap rounded-md border border-border-subtle bg-tint/6 px-3 text-xs sm:inline-flex text-fg-soft transition-colors hover:bg-tint/10"
 					>
 						Ver mapa
 					</Link>
-					<button
-						type="button"
+					<Button
+						variant="success"
+						size="lg"
 						disabled={!canCapture || !isDirty || isSaving}
-						onClick={persistCapture}
-						className="inline-flex items-center gap-1.5 rounded-md border border-[rgba(52,211,153,0.28)] bg-[rgba(52,211,153,0.1)] px-3 py-1.5 text-xs font-semibold text-[#86efac] transition-colors hover:bg-[rgba(52,211,153,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
+						onClick={() => void persistCapture()}
+						className="text-xs font-semibold"
 					>
-						<Save className="size-3.5" aria-hidden="true" />
-						{isSaving ? "Guardando..." : "Guardar"}
-					</button>
+						<Save aria-hidden="true" />
+						{isSaving ? "Guardando…" : "Guardar"}
+					</Button>
 				</div>
 			</header>
 
-			<main className="grid min-h-0 flex-1 grid-cols-[minmax(360px,420px)_1fr] overflow-hidden">
-				<section className="min-h-0 overflow-y-auto border-r border-[rgba(164,164,164,0.14)] bg-[radial-gradient(circle_at_20%_0%,rgba(56,216,255,0.1),transparent_34%),#1b1c1d] p-4">
-					<div className="mb-3 overflow-hidden rounded-xl border border-[rgba(56,216,255,0.2)] bg-[linear-gradient(135deg,rgba(56,216,255,0.12),rgba(164,164,164,0.035)_55%,rgba(17,18,19,0.7))] p-3 shadow-[0_18px_45px_rgba(0,0,0,0.22)]">
-						<div className="flex items-start justify-between gap-3">
-							<div>
-								<p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7ddfff]">
-									Captura de campo
-								</p>
-								<p className="mt-1 text-sm font-semibold text-[#e6e6e6]">
+			{/* Mobile: map fills the screen, form docks at the bottom.
+			    md+: form column beside the map. */}
+			<main className="flex min-h-0 flex-1 flex-col overflow-hidden md:grid md:grid-cols-[minmax(340px,400px)_1fr]">
+				<section className="order-last flex min-h-0 shrink-0 flex-col border-t border-border-subtle bg-[radial-gradient(circle_at_20%_0%,rgba(56,216,255,0.1),transparent_34%),#1b1c1d] md:order-none md:border-t-0 md:border-r">
+					<CaptureMobileDock
+						activeTool={activeTool}
+						canCapture={canCapture}
+						canUndo={canUndo}
+						connectable={connectableSelection}
+						errorCount={captureErrorCount}
+						warningCount={captureWarningCount}
+						panelOpen={mobilePanelOpen}
+						routeSourceCode={routeSource?.code ?? null}
+						statusMessage={statusMessage}
+						onCancelRoute={cancelRoute}
+						onConnect={startRouteFromElement}
+						onPickTool={pickPlacementTool}
+						onTogglePanel={() => setMobilePanelOpen((open) => !open)}
+						onUndo={undoLast}
+					/>
+					<div
+						id="capture-panel"
+						className={`${mobilePanelOpen ? "block" : "hidden"} max-h-[55dvh] min-h-0 overflow-y-auto p-4 md:block md:max-h-none md:flex-1`}
+					>
+						<div className="mb-3 overflow-hidden rounded-xl border border-info/20 bg-[linear-gradient(135deg,rgba(56,216,255,0.12),rgba(164,164,164,0.035)_55%,rgba(17,18,19,0.7))] p-3 shadow-[0_18px_45px_rgba(0,0,0,0.22)]">
+							<div className="flex items-start justify-between gap-3">
+								<div>
+									<p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7ddfff]">
+										Captura de campo
+									</p>
+									<p className="mt-1 text-sm font-semibold text-fg">
+										Alta rápida de infraestructura
+									</p>
+								</div>
+								<div className="rounded-lg border border-info/24 bg-info/10 p-2">
+									<Zap className="size-4 text-info" aria-hidden="true" />
+								</div>
+							</div>
+							<p className="mt-2 text-xs leading-5 text-fg-secondary">
+								Dibuja primero; completa datos mínimos solo cuando el mapa ya
+								tenga sentido.
+							</p>
+						</div>
+
+						<CaptureFlowSteps
+							hasRouteSource={Boolean(routeSourceId)}
+							hasSelection={Boolean(selection)}
+						/>
+
+						<div className="mt-3 rounded-xl border border-border-subtle bg-surface-sunken/55 p-3">
+							<div className="mb-3 flex items-center gap-2">
+								<span className="flex size-6 items-center justify-center rounded-md bg-info/10 text-[11px] font-bold text-info-fg">
+									01
+								</span>
+								<p className="text-sm font-semibold text-fg">
 									Alta rápida de infraestructura
 								</p>
 							</div>
-							<div className="rounded-lg border border-[rgba(56,216,255,0.24)] bg-[rgba(56,216,255,0.1)] p-2">
-								<Zap className="size-4 text-[#38d8ff]" aria-hidden="true" />
-							</div>
-						</div>
-						<p className="mt-2 text-xs leading-5 text-[#9fa6ad]">
-							Dibuja primero; completa datos mínimos solo cuando el mapa ya
-							tenga sentido.
-						</p>
-					</div>
 
-					<CaptureFlowSteps
-						hasRouteSource={Boolean(routeSourceId)}
-						hasSelection={Boolean(selection)}
-					/>
-
-					<div className="mt-3 rounded-xl border border-[rgba(164,164,164,0.12)] bg-[rgba(17,18,19,0.55)] p-3">
-						<div className="mb-3 flex items-center gap-2">
-							<span className="flex size-6 items-center justify-center rounded-md bg-[rgba(56,216,255,0.1)] text-[10px] font-bold text-[#8bdff4]">
-								01
-							</span>
-							<p className="text-sm font-semibold text-[#e6e6e6]">
-								Alta rápida de infraestructura
-							</p>
-						</div>
-
-						{!canCapture && (
-							<div className="mb-4 rounded-md border border-[rgba(251,77,109,0.28)] bg-[rgba(251,77,109,0.08)] p-3 text-xs text-[#fb7185]">
-								Tu rol puede consultar esta red, pero no crear infraestructura.
-							</div>
-						)}
-
-						<form
-							className="space-y-4"
-							onSubmit={(event) => {
-								event.preventDefault();
-								selectCreateTool(type);
-							}}
-						>
-							<div>
-								<span className="mb-2 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-									Tipo
-								</span>
-								<div className="grid grid-cols-2 gap-1.5">
-									{CAPTURE_ELEMENT_TYPES.map((item) => (
-										<button
-											key={item}
-											type="button"
-											onClick={() => handleTypeChange(item)}
-											className="rounded-lg border px-3 py-2.5 text-xs font-semibold transition-all hover:-translate-y-0.5"
-											style={{
-												backgroundColor:
-													type === item
-														? "rgba(56,216,255,0.16)"
-														: "rgba(164,164,164,0.04)",
-												borderColor:
-													type === item
-														? "rgba(56,216,255,0.35)"
-														: "rgba(164,164,164,0.12)",
-												color: type === item ? "#8bdff4" : "#a4a4a4",
-											}}
-										>
-											{TYPE_LABELS[item]}
-										</button>
-									))}
+							{!canCapture && (
+								<div className="mb-4 rounded-md border border-danger/28 bg-danger/8 p-3 text-xs text-danger-fg">
+									Tu rol puede consultar esta red, pero no crear
+									infraestructura.
 								</div>
-							</div>
-
-							<div className="grid grid-cols-[1fr_96px] gap-3">
-								<div className="rounded-md border border-[rgba(164,164,164,0.12)] bg-[#111213] px-3 py-2">
-									<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-										Próximo código
-									</p>
-									<p className="mt-1 font-mono text-sm font-semibold text-[#e6e6e6]">
-										{suggestedCode}
-									</p>
-								</div>
-								<label className="block">
-									<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
-										Zona
-									</span>
-									<input
-										value={zone}
-										onChange={(event) => setZone(event.target.value)}
-										className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#111213] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none focus:border-[#38d8ff]/40"
-									/>
-								</label>
-							</div>
-
-							{lastCreatedCode && (
-								<p className="flex items-center gap-2 rounded-md border border-[rgba(52,211,153,0.22)] bg-[rgba(52,211,153,0.08)] px-3 py-2 text-xs text-[#86efac]">
-									<CheckCircle2 className="size-3.5" aria-hidden="true" />
-									{lastCreatedCode} creado localmente
-								</p>
 							)}
 
-							<div className="grid gap-2">
-								<button
-									type="button"
-									disabled={!canCapture}
-									onClick={() => selectCreateTool(type)}
-									className="flex items-center justify-center gap-2 rounded-md border border-[rgba(56,216,255,0.3)] bg-[rgba(56,216,255,0.1)] px-3 py-2.5 text-xs font-semibold text-[#8bdff4] transition-colors hover:bg-[rgba(56,216,255,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
-								>
-									<Plus className="size-4" aria-hidden="true" />
-									Preparar herramienta
-								</button>
-								<p className="text-[11px] leading-5 text-[#777879]">
-									Las capturas se visualizan al instante y viven en Zustand por
-									ahora. Usa Ctrl+Z fuera del formulario para revertir el último
-									cambio.
-								</p>
-							</div>
-						</form>
-					</div>
+							<form
+								className="space-y-4"
+								onSubmit={(event) => {
+									event.preventDefault();
+									pickPlacementTool(type);
+								}}
+							>
+								<fieldset>
+									<legend className="mb-2 block text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
+										Tipo
+									</legend>
+									<div className="grid grid-cols-3 gap-1.5">
+										{PLACEABLE_TYPES.map((item) => (
+											<button
+												key={item}
+												type="button"
+												aria-pressed={type === item}
+												onClick={() => handleTypeChange(item)}
+												className={`rounded-lg border px-3 py-2.5 text-xs font-semibold transition-all hover:-translate-y-0.5 ${
+													type === item
+														? "border-info/35 bg-info/16 text-info-fg"
+														: "border-border-subtle bg-tint/4 text-fg-secondary"
+												}`}
+											>
+												{TYPE_LABELS[item]}
+											</button>
+										))}
+									</div>
+								</fieldset>
 
-					<CaptureSelectionEditor
-						element={selectedElement}
-						route={selectedRoute}
-						routePoint={selectedRoutePoint}
-						onUpdateElement={updateSelectedElement}
-						onUpdateRoute={updateSelectedRoute}
-						onUpdateRoutePoint={updateSelectedRoutePoint}
-					/>
+								<div className="space-y-3">
+									<ZoneField
+										networkId={networkId}
+										value={zone}
+										onChange={setZone}
+										canManage={canManageZones}
+										preferredZone={preferredZone}
+									/>
+									<div className="rounded-md border border-border-subtle bg-surface-sunken px-3 py-2">
+										<p className="text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
+											Próximo código
+										</p>
+										<p className="mt-1 font-mono text-sm font-semibold text-fg">
+											{suggestedCode}
+										</p>
+										{!zone && (
+											<p className="mt-1 text-[11px] text-warning-fg">
+												Elige una zona: el código usa «ZXX» mientras tanto.
+											</p>
+										)}
+									</div>
+								</div>
 
-					<div
-						className={`mt-4 rounded-xl border p-3 ${
-							captureIssues.length === 0
-								? "border-[rgba(52,211,153,0.2)] bg-[rgba(52,211,153,0.07)]"
-								: captureErrorCount > 0
-									? "border-[rgba(251,77,109,0.24)] bg-[rgba(251,77,109,0.08)]"
-									: "border-[rgba(245,158,11,0.24)] bg-[rgba(245,158,11,0.08)]"
-						}`}
-					>
-						<div className="flex items-center justify-between gap-3">
-							<div className="flex items-center gap-2">
-								<span className="flex size-6 items-center justify-center rounded-md bg-[rgba(245,158,11,0.1)] text-[10px] font-bold text-[#fbbf24]">
-									03
-								</span>
-								<AlertTriangle
-									className={`size-4 ${
-										captureIssues.length === 0
-											? "text-[#86efac]"
-											: captureErrorCount > 0
-												? "text-[#fb7185]"
-												: "text-[#fbbf24]"
-									}`}
-									aria-hidden="true"
-								/>
-								<p className="text-xs font-semibold text-[#e6e6e6]">
-									Revisión rápida
-								</p>
-							</div>
-							<span className="font-mono text-[10px] text-[#8f969e]">
-								{captureErrorCount} errores · {captureWarningCount} avisos
-							</span>
-						</div>
-						{captureIssues.length === 0 ? (
-							<p className="mt-2 text-[11px] leading-5 text-[#86efac]">
-								Sin alertas locales por ahora. Buen trazo, seguimos ligeros.
-							</p>
-						) : (
-							<div className="mt-2 space-y-1.5">
-								{captureIssues.slice(0, 4).map((issue) => (
-									<p
-										key={issue.id}
-										className={`rounded border px-2 py-1.5 text-[11px] leading-4 ${
-											issue.level === "error"
-												? "border-[rgba(251,77,109,0.18)] bg-[rgba(251,77,109,0.06)] text-[#fda4af]"
-												: "border-[rgba(245,158,11,0.18)] bg-[rgba(245,158,11,0.06)] text-[#fcd58d]"
-										}`}
-									>
-										{issue.message}
-									</p>
-								))}
-								{captureIssues.length > 4 && (
-									<p className="text-[11px] text-[#777879]">
-										+{captureIssues.length - 4} pendientes más.
+								{lastCreatedCode && (
+									<p className="flex items-center gap-2 rounded-md border border-success/22 bg-success/8 px-3 py-2 text-xs text-success-fg">
+										<CheckCircle2 className="size-3.5" aria-hidden="true" />
+										{lastCreatedCode} creado localmente
 									</p>
 								)}
-							</div>
+
+								<div className="grid gap-2">
+									<button
+										type="button"
+										disabled={!canCapture}
+										onClick={() => pickPlacementTool(type)}
+										className="flex items-center justify-center gap-2 rounded-md border border-info/30 bg-info/10 px-3 py-2.5 text-xs font-semibold text-info-fg transition-colors hover:bg-info/16 disabled:cursor-not-allowed disabled:opacity-50"
+									>
+										<Plus className="size-4" aria-hidden="true" />
+										Preparar herramienta
+									</button>
+									<p className="text-[11px] leading-5 text-fg-muted">
+										Las capturas se ven al instante y quedan pendientes hasta
+										que pulses Guardar. Ctrl+Z (o el botón deshacer) revierte el
+										último cambio.
+									</p>
+								</div>
+							</form>
+						</div>
+
+						{connectableSelection && canCapture && (
+							<button
+								type="button"
+								onClick={() => startRouteFromElement(connectableSelection)}
+								className="mt-4 flex w-full items-center justify-center gap-2 rounded-md border border-info/30 bg-info/10 px-3 py-2.5 text-xs font-semibold text-info-fg transition-colors hover:bg-info/16"
+							>
+								<Cable className="size-4" aria-hidden="true" />
+								Conectar fibra desde {connectableSelection.code}
+							</button>
 						)}
+
+						<CaptureSelectionEditor
+							element={selectedElement}
+							route={selectedRoute}
+							routePoint={selectedRoutePoint}
+							onUpdateElement={updateSelectedElement}
+							onUpdateRoute={updateSelectedRoute}
+							onUpdateRoutePoint={updateSelectedRoutePoint}
+						/>
+
+						<div
+							className={`mt-4 rounded-xl border p-3 ${
+								captureIssues.length === 0
+									? "border-success/20 bg-success/7"
+									: captureErrorCount > 0
+										? "border-danger/24 bg-danger/8"
+										: "border-warning/24 bg-warning/8"
+							}`}
+						>
+							<div className="flex items-center justify-between gap-3">
+								<div className="flex items-center gap-2">
+									<span className="flex size-6 items-center justify-center rounded-md bg-warning/10 text-[11px] font-bold text-warning-fg">
+										03
+									</span>
+									<AlertTriangle
+										className={`size-4 ${
+											captureIssues.length === 0
+												? "text-success-fg"
+												: captureErrorCount > 0
+													? "text-danger-fg"
+													: "text-warning-fg"
+										}`}
+										aria-hidden="true"
+									/>
+									<p className="text-xs font-semibold text-fg">
+										Revisión rápida
+									</p>
+								</div>
+								<span className="font-mono text-[11px] text-fg-muted">
+									{captureErrorCount} errores · {captureWarningCount} avisos
+								</span>
+							</div>
+							{captureIssues.length === 0 ? (
+								<p className="mt-2 text-[11px] leading-5 text-success-fg">
+									Sin alertas locales por ahora. Buen trazo, seguimos ligeros.
+								</p>
+							) : (
+								<div className="mt-2 space-y-1.5">
+									{captureIssues.slice(0, 4).map((issue) => (
+										<p
+											key={issue.id}
+											className={`rounded border px-2 py-1.5 text-[11px] leading-4 ${
+												issue.level === "error"
+													? "border-danger/18 bg-danger/6 text-[#fda4af]"
+													: "border-warning/18 bg-warning/6 text-[#fcd58d]"
+											}`}
+										>
+											{issue.message}
+										</p>
+									))}
+									{captureIssues.length > 4 && (
+										<p className="text-[11px] text-fg-muted">
+											+{captureIssues.length - 4} pendientes más.
+										</p>
+									)}
+								</div>
+							)}
+						</div>
 					</div>
 				</section>
 
-				<section className="relative min-h-0 overflow-hidden">
+				<section className="relative min-h-[40dvh] flex-1 overflow-hidden md:min-h-0">
+					<NetworkLoadState
+						isPending={networkQuery.isPending}
+						isError={networkQuery.isError}
+						isRefetching={networkQuery.isFetching}
+						onRetry={() => void networkQuery.refetch()}
+					/>
 					<NetworkEditorMap
 						token={MAPBOX_TOKEN}
 						equipment={equipment}
@@ -918,20 +1078,33 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 						onStatusMessageChange={setStatusMessage}
 					/>
 					{routeSource && (
-						<div className="absolute left-1/2 top-16 z-30 -translate-x-1/2 rounded-lg border border-[rgba(56,216,255,0.28)] bg-[rgba(17,18,19,0.92)] px-3 py-2 text-xs text-[#8bdff4] shadow-2xl backdrop-blur-md">
-							<span className="font-semibold">{routeSource.code}</span>: click
-							en el elemento destino para crear fibra · Esc cancela
+						<div className="absolute top-16 left-1/2 z-30 hidden -translate-x-1/2 items-center gap-3 rounded-lg border border-info/28 bg-surface-sunken/92 py-1.5 pr-1.5 pl-3 text-xs text-info-fg shadow-2xl backdrop-blur-md md:flex">
+							<span>
+								<span className="font-semibold">{routeSource.code}</span>:{" "}
+								{isCoarsePointer ? "toca" : "haz click en"} el elemento destino
+								para crear la fibra
+							</span>
+							<button
+								type="button"
+								onClick={cancelRoute}
+								className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-fg-soft transition-colors hover:bg-tint/12"
+							>
+								<X className="size-3.5" aria-hidden="true" />
+								Cancelar
+							</button>
 						</div>
 					)}
 					<div className="pointer-events-none absolute inset-x-4 top-4 z-30 flex items-start justify-between gap-3">
-						<div className="pointer-events-auto max-w-xl rounded-lg border border-[rgba(56,216,255,0.22)] bg-[rgba(17,18,19,0.9)] px-3 py-2 text-xs text-[#bdeafe] shadow-2xl backdrop-blur-md">
+						<div className="pointer-events-auto hidden max-w-xl rounded-lg border border-info/22 bg-surface-sunken/90 px-3 py-2 text-xs text-info-strong shadow-2xl backdrop-blur-md md:block">
 							<p className="font-semibold">
-								Click derecho elige herramienta · click izquierdo coloca
+								{isCoarsePointer
+									? "Elige el tipo en el panel y toca el mapa para colocarlo"
+									: "Click derecho elige herramienta · click izquierdo coloca"}
 							</p>
-							<p className="mt-0.5 text-[#8f969e]">{statusMessage}</p>
+							<p className="mt-0.5 text-fg-muted">{statusMessage}</p>
 						</div>
-						<div className="pointer-events-auto flex items-center gap-2 rounded-lg border border-[rgba(164,164,164,0.14)] bg-[rgba(17,18,19,0.88)] px-2.5 py-1.5 text-xs text-[#8f969e] shadow-2xl backdrop-blur-md">
-							<span className="inline-flex items-center gap-1.5 text-[#8bdff4]">
+						<div className="pointer-events-auto ml-auto hidden items-center gap-2 rounded-lg md:flex border border-border-subtle bg-surface-sunken/88 px-2.5 py-1.5 text-xs text-fg-muted shadow-2xl backdrop-blur-md">
+							<span className="inline-flex items-center gap-1.5 text-info-fg">
 								<LocateFixed className="size-3.5" aria-hidden="true" />
 								{equipment.length}
 							</span>
@@ -966,12 +1139,12 @@ function CaptureSelectionEditor({
 	const selected = element ?? route ?? routePoint;
 	if (!selected) {
 		return (
-			<div className="mt-4 rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.04)] p-3 text-xs text-[#8f969e]">
-				<div className="flex items-center gap-2 text-[#d7d7d7]">
-					<span className="flex size-6 items-center justify-center rounded-md bg-[rgba(164,164,164,0.08)] text-[10px] font-bold text-[#777879]">
+			<div className="mt-4 rounded-md border border-border-subtle bg-tint/4 p-3 text-xs text-fg-muted">
+				<div className="flex items-center gap-2 text-fg-soft">
+					<span className="flex size-6 items-center justify-center rounded-md bg-tint/8 text-[11px] font-bold text-fg-muted">
 						02
 					</span>
-					<SlidersHorizontal className="size-4 text-[#8bdff4]" />
+					<SlidersHorizontal className="size-4 text-info-fg" />
 					<span className="font-semibold">Editar selección</span>
 				</div>
 				<p className="mt-2 leading-5">
@@ -982,18 +1155,16 @@ function CaptureSelectionEditor({
 	}
 
 	return (
-		<div className="mt-4 rounded-xl border border-[rgba(56,216,255,0.16)] bg-[linear-gradient(180deg,rgba(56,216,255,0.06),rgba(17,18,19,0.86))] p-3">
+		<div className="mt-4 rounded-xl border border-info/16 bg-[linear-gradient(180deg,rgba(56,216,255,0.06),rgba(17,18,19,0.86))] p-3">
 			<div className="mb-3 flex items-center justify-between gap-3">
 				<div className="flex items-center gap-2">
-					<span className="flex size-6 items-center justify-center rounded-md bg-[rgba(56,216,255,0.1)] text-[10px] font-bold text-[#8bdff4]">
+					<span className="flex size-6 items-center justify-center rounded-md bg-info/10 text-[11px] font-bold text-info-fg">
 						02
 					</span>
-					<SlidersHorizontal className="size-4 text-[#8bdff4]" />
-					<p className="text-xs font-semibold text-[#e6e6e6]">
-						Editar selección
-					</p>
+					<SlidersHorizontal className="size-4 text-info-fg" />
+					<p className="text-xs font-semibold text-fg">Editar selección</p>
 				</div>
-				<span className="font-mono text-[10px] text-[#777879]">
+				<span className="font-mono text-[11px] text-fg-muted">
 					{selected.code ?? "Sin código"}
 				</span>
 			</div>
@@ -1023,7 +1194,7 @@ function CaptureFlowSteps({
 		{
 			active: !hasRouteSource && !hasSelection,
 			label: "Crear",
-			text: "Click derecho y coloca OLT, mufa o NAP.",
+			text: "Elige el tipo y colócalo en el mapa.",
 		},
 		{
 			active: hasRouteSource,
@@ -1044,27 +1215,27 @@ function CaptureFlowSteps({
 					key={step.label}
 					className={`rounded-lg border px-2.5 py-2 transition-colors ${
 						step.active
-							? "border-[rgba(56,216,255,0.34)] bg-[rgba(56,216,255,0.1)]"
-							: "border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.035)]"
+							? "border-info/34 bg-info/10"
+							: "border-border-subtle bg-tint/[0.035]"
 					}`}
 				>
 					<div className="flex items-center gap-1.5">
 						<span
-							className={`font-mono text-[10px] ${
-								step.active ? "text-[#8bdff4]" : "text-[#777879]"
+							className={`font-mono text-[11px] ${
+								step.active ? "text-info-fg" : "text-fg-muted"
 							}`}
 						>
 							0{index + 1}
 						</span>
 						<p
 							className={`text-[11px] font-semibold ${
-								step.active ? "text-[#dff8ff]" : "text-[#a4a4a4]"
+								step.active ? "text-[#dff8ff]" : "text-fg-secondary"
 							}`}
 						>
 							{step.label}
 						</p>
 					</div>
-					<p className="mt-1 line-clamp-2 text-[10px] leading-4 text-[#777879]">
+					<p className="mt-1 line-clamp-2 text-[11px] leading-4 text-fg-muted">
 						{step.text}
 					</p>
 				</div>
@@ -1106,8 +1277,8 @@ function ElementMiniEditor({
 			</div>
 
 			{element.type === "closure" && (
-				<div className="rounded-md border border-[rgba(56,216,255,0.14)] bg-[rgba(56,216,255,0.05)] p-2">
-					<p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#8bdff4]">
+				<div className="rounded-md border border-info/14 bg-info/5 p-2">
+					<p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-info-fg">
 						Mufa
 					</p>
 					<div className="grid grid-cols-2 gap-2">
@@ -1336,13 +1507,13 @@ function CaptureTextField({
 }) {
 	return (
 		<label className="block">
-			<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+			<span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
 				{label}
 			</span>
 			<input
 				value={value}
 				onChange={(event) => onChange(event.target.value)}
-				className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#111213] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none focus:border-[#38d8ff]/40"
+				className="w-full rounded-md border border-border bg-surface-sunken px-2.5 py-2 text-xs text-fg outline-none focus:border-info/40"
 			/>
 		</label>
 	);
@@ -1359,7 +1530,7 @@ function CaptureNumberField({
 }) {
 	return (
 		<label className="block">
-			<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+			<span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
 				{label}
 			</span>
 			<input
@@ -1371,7 +1542,7 @@ function CaptureNumberField({
 						event.target.value === "" ? null : Number(event.target.value),
 					)
 				}
-				className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#111213] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none focus:border-[#38d8ff]/40"
+				className="w-full rounded-md border border-border bg-surface-sunken px-2.5 py-2 text-xs text-fg outline-none focus:border-info/40"
 			/>
 		</label>
 	);
@@ -1390,13 +1561,13 @@ function CaptureSelectField({
 }) {
 	return (
 		<label className="block">
-			<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+			<span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
 				{label}
 			</span>
 			<select
 				value={value}
 				onChange={(event) => onChange(event.target.value)}
-				className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#111213] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none focus:border-[#38d8ff]/40"
+				className="w-full rounded-md border border-border bg-surface-sunken px-2.5 py-2 text-xs text-fg outline-none focus:border-info/40"
 			>
 				{options.map(([optionValue, optionLabel]) => (
 					<option key={optionValue} value={optionValue}>
@@ -1418,7 +1589,7 @@ function CaptureCheckboxField({
 	onChange: (checked: boolean) => void;
 }) {
 	return (
-		<label className="flex items-center gap-2 rounded-md border border-[rgba(164,164,164,0.12)] bg-[#111213] px-2.5 py-2 text-xs text-[#d7d7d7]">
+		<label className="flex items-center gap-2 rounded-md border border-border-subtle bg-surface-sunken px-2.5 py-2 text-xs text-fg-soft">
 			<input
 				type="checkbox"
 				checked={checked}
@@ -1427,5 +1598,141 @@ function CaptureCheckboxField({
 			/>
 			{label}
 		</label>
+	);
+}
+
+const DOCK_TOOLS = PLACEABLE_TYPES;
+
+/**
+ * Phone-only control strip under the map: the whole capture loop (pick type →
+ * tap map → connect → undo) without right-click or keyboard.
+ */
+function CaptureMobileDock({
+	activeTool,
+	canCapture,
+	canUndo,
+	connectable,
+	errorCount,
+	warningCount,
+	panelOpen,
+	routeSourceCode,
+	statusMessage,
+	onCancelRoute,
+	onConnect,
+	onPickTool,
+	onTogglePanel,
+	onUndo,
+}: {
+	activeTool: string;
+	canCapture: boolean;
+	canUndo: boolean;
+	connectable: EquipmentMapItem | null;
+	errorCount: number;
+	warningCount: number;
+	panelOpen: boolean;
+	routeSourceCode: string | null;
+	statusMessage: string;
+	onCancelRoute: () => void;
+	onConnect: (element: EquipmentMapItem) => void;
+	onPickTool: (tool: CaptureType) => void;
+	onTogglePanel: () => void;
+	onUndo: () => void;
+}) {
+	const issueCount = errorCount + warningCount;
+
+	return (
+		<div className="space-y-2 border-b border-border-subtle px-3 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] md:hidden">
+			{routeSourceCode ? (
+				<div className="flex items-center gap-2 rounded-lg border border-info/28 bg-info/8 py-1.5 pr-1.5 pl-3 text-sm text-info-strong">
+					<Cable className="size-4 shrink-0" aria-hidden="true" />
+					<span className="min-w-0 flex-1 truncate">
+						Toca el destino de{" "}
+						<span className="font-semibold">{routeSourceCode}</span>
+					</span>
+					<button
+						type="button"
+						onClick={onCancelRoute}
+						className="inline-flex h-9 items-center gap-1 rounded-md px-2.5 text-sm text-fg transition-colors hover:bg-tint/12"
+					>
+						<X className="size-4" aria-hidden="true" />
+						Cancelar
+					</button>
+				</div>
+			) : connectable && canCapture ? (
+				<button
+					type="button"
+					onClick={() => onConnect(connectable)}
+					className="flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-info/30 bg-info/10 px-3 text-sm font-semibold text-info-fg"
+				>
+					<Cable className="size-4" aria-hidden="true" />
+					<span className="truncate">
+						Conectar fibra desde {connectable.code}
+					</span>
+				</button>
+			) : (
+				<p className="truncate text-xs text-fg-secondary" aria-live="polite">
+					{statusMessage}
+				</p>
+			)}
+
+			<div className="flex items-center gap-2">
+				<fieldset
+					disabled={!canCapture}
+					className="grid flex-1 grid-cols-3 gap-1.5 disabled:opacity-50"
+				>
+					<legend className="sr-only">Tipo a colocar en el mapa</legend>
+					{DOCK_TOOLS.map((tool) => {
+						const active = activeTool === tool;
+						return (
+							<button
+								key={tool}
+								type="button"
+								aria-pressed={active}
+								onClick={() => onPickTool(tool)}
+								className={`h-11 rounded-lg border text-sm font-semibold transition-colors ${
+									active
+										? "border-info/45 bg-info/16 text-info-strong"
+										: "border-border bg-tint/5 text-fg-soft"
+								}`}
+							>
+								{TYPE_LABELS[tool]}
+							</button>
+						);
+					})}
+				</fieldset>
+				<button
+					type="button"
+					onClick={onUndo}
+					disabled={!canUndo}
+					aria-label="Deshacer último cambio"
+					className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg border border-border text-fg-soft transition-colors disabled:opacity-40"
+				>
+					<Undo2 className="size-4" aria-hidden="true" />
+				</button>
+				<button
+					type="button"
+					onClick={onTogglePanel}
+					aria-expanded={panelOpen}
+					aria-controls="capture-panel"
+					aria-label={panelOpen ? "Ocultar detalles" : "Mostrar detalles"}
+					className="relative inline-flex size-11 shrink-0 items-center justify-center rounded-lg border border-border text-fg-soft"
+				>
+					{panelOpen ? (
+						<ChevronDown className="size-4" aria-hidden="true" />
+					) : (
+						<ChevronUp className="size-4" aria-hidden="true" />
+					)}
+					{issueCount > 0 && (
+						<span
+							className={`absolute -top-1.5 -right-1.5 min-w-5 rounded-full px-1 text-center font-mono text-[11px] leading-5 text-[#151617] ${
+								errorCount > 0 ? "bg-[#fb7185]" : "bg-warning-fg"
+							}`}
+						>
+							{issueCount}
+						</span>
+					)}
+				</button>
+			</div>
+		</div>
 	);
 }

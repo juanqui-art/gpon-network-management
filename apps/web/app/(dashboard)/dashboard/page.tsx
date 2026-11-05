@@ -50,7 +50,7 @@ import {
 } from "@/lib/types/gpon";
 import type { NetworkSummary } from "@/lib/types/network";
 
-export const metadata = { title: "Dashboard administrador" };
+export const metadata = { title: "Inicio" };
 
 const roleScopeLabels: Record<UserRole, string> = {
 	admin: "Acceso completo",
@@ -149,7 +149,7 @@ function ProgressLine({
 	const width = percent(value, total);
 	const color =
 		tone === "good"
-			? "bg-[var(--status-online)]"
+			? "bg-success"
 			: tone === "warn"
 				? "bg-[var(--severity-high)]"
 				: "bg-primary";
@@ -217,7 +217,7 @@ function PermissionPill({
 				variant="outline"
 				className={
 					enabled
-						? "border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]"
+						? "border-success/35 bg-success/10 text-success"
 						: "border-border bg-muted/40 text-muted-foreground"
 				}
 			>
@@ -248,7 +248,7 @@ function SettingStatus({
 				variant="outline"
 				className={
 					enabled
-						? "border-[var(--status-online)]/35 bg-[var(--status-online)]/10 text-[var(--status-online)]"
+						? "border-success/35 bg-success/10 text-success"
 						: "border-[var(--severity-high)]/35 bg-[var(--severity-high)]/10 text-[var(--severity-high)]"
 				}
 			>
@@ -352,12 +352,11 @@ export default async function AdminDashboardPage() {
 								<ShieldCheck className="mr-1 size-3" aria-hidden="true" />
 								{ROLE_LABELS[role]}
 							</Badge>
-							<Badge className="bg-[var(--status-online)]/16 text-[var(--status-online)]">
-								NOC en línea
-							</Badge>
 						</div>
 						<h1 className="text-balance text-2xl font-semibold text-foreground">
-							Dashboard administrador
+							{role === "admin"
+								? "Panel de administración"
+								: "Resumen de la red"}
 						</h1>
 						<p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
 							Vista ejecutiva para controlar cobertura, capacidad, calidad de
@@ -491,14 +490,14 @@ export default async function AdminDashboardPage() {
 						value={formatNumber(networkRows.length)}
 						description={`${formatNumber(elementRows.length)} elementos registrados`}
 						icon={RadioTower}
-						tone="border-[var(--gpon-olt)]/30 bg-[var(--gpon-olt)]/10 text-[var(--gpon-olt)]"
+						tone="border-info/30 bg-info/10 text-info"
 					/>
 					<MetricCard
 						title="Salud operacional"
 						value={`${activePercent}%`}
 						description={`${formatNumber(operationalElements)} elementos activos o planificados`}
 						icon={CheckCircle2}
-						tone="border-[var(--status-online)]/30 bg-[var(--status-online)]/10 text-[var(--status-online)]"
+						tone="border-success/30 bg-success/10 text-success"
 					/>
 					<MetricCard
 						title="Fibra trazada"
@@ -562,7 +561,7 @@ export default async function AdminDashboardPage() {
 
 							<div className="space-y-4">
 								<div className="flex items-center gap-2 text-sm font-medium">
-									<Activity className="size-4 text-[var(--status-online)]" />
+									<Activity className="size-4 text-success" />
 									Estado de red
 								</div>
 								<div className="space-y-3">
@@ -665,7 +664,7 @@ export default async function AdminDashboardPage() {
 								className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-3 text-sm transition-colors hover:bg-muted/55"
 							>
 								<span className="flex items-center gap-2">
-									<Network className="size-4 text-[var(--gpon-olt)]" />
+									<Network className="size-4 text-info" />
 									Crear o editar redes
 								</span>
 								<ArrowRight className="size-4 text-muted-foreground" />

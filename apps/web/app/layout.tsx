@@ -1,6 +1,9 @@
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import type { Metadata, Viewport } from "next";
+import { ConfirmHost } from "@/components/feedback/confirm-host";
+import { Toaster } from "@/components/feedback/toaster";
+import { MotionProvider } from "@/lib/providers/motion-provider";
 import { QueryProvider } from "@/lib/providers/query-provider";
 import "./globals.css";
 
@@ -27,7 +30,13 @@ export default function RootLayout({
 			className={`h-full antialiased ${GeistSans.variable} ${GeistMono.variable}`}
 		>
 			<body className="h-full" suppressHydrationWarning>
-				<QueryProvider>{children}</QueryProvider>
+				<MotionProvider>
+					<QueryProvider>
+						{children}
+						<ConfirmHost />
+						<Toaster />
+					</QueryProvider>
+				</MotionProvider>
 			</body>
 		</html>
 	);

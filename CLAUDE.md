@@ -30,7 +30,7 @@ pnpm build        # build de producción
 
 ## Rutas de la aplicación
 ```
-/                   → redirige a /networks
+/                   → inicio según rol: /networks (outside_plant) o /dashboard (resto)
 /login              → auth
 /register           → auth
 /networks           → lista de redes + crear nueva
@@ -44,7 +44,7 @@ apps/web/
 ├── app/
 │   ├── globals.css
 │   ├── layout.tsx
-│   ├── page.tsx                          # Redirige a /networks
+│   ├── page.tsx                          # Redirige al inicio del rol (homePathForRole)
 │   ├── (auth)/
 │   │   ├── login/page.tsx
 │   │   └── register/page.tsx
@@ -64,6 +64,7 @@ apps/web/
 │   │   ├── readonly-map-viewer.tsx       # Viewer read-only para /map
 │   │   ├── map-inspector-shell.tsx       # Marco compartido del inspector derecho
 │   │   ├── map-inspector-primitives.tsx  # Filas/secciones compartidas del inspector
+│   │   ├── inspector-sections.tsx        # Bloques compartidos: ubicación, propiedades, notas, punto de ruta
 │   │   ├── map-overlay-components.tsx    # Stats, leyenda y controles compartidos
 │   │   ├── equipment-layers.ts           # GeoJSON + gestión de capas Mapbox centralizadas
 │   │   ├── mapbox-shared-style.ts        # Constantes de estilo compartidas (colores fibra, labels)
@@ -84,8 +85,8 @@ apps/web/
 │   │       ├── tree-builder.ts           # Construcción del árbol jerárquico
 │   │       ├── path-utils.ts             # Utilidades de rutas SVG
 │   │       └── types.ts                  # Tipos del diagrama
-│   └── topology/
-│       └── topology-picker.tsx           # Selector de topología (Star/Tree/Cascade)
+│   └── capture/
+│       └── zone-field.tsx                # Selector/creación de zona operativa (network_zones)
 ├── lib/
 │   ├── env.ts
 │   ├── types/
@@ -93,11 +94,12 @@ apps/web/
 │   │   └── network.ts                    # Tipos Network, NetworkSummary, topologías
 │   ├── map/
 │   │   ├── palette.ts                    # Colores (TYPE_COLOR, STATUS_COLOR, DATA_QUALITY_COLOR…)
+│   │   ├── format.ts                     # Formato compartido: coordenadas, metros, dB
+│   │   ├── measure.ts                    # Regla del editor: resumen, formato de distancia, GeoJSON
 │   │   └── route-geometry-editor.ts      # Dibujo de rutas, snap de vértices, validación geométrica
 │   ├── gpon/
 │   │   ├── optical-budget.ts             # Calculadora presupuesto óptico GPON/XGS-PON
-│   │   ├── operative-code.ts             # Generador códigos operativos (PIC-UIO-Z05-NAP-128)
-│   │   └── topology-templates.ts         # Generador topologías pre-configuradas
+│   │   └── operative-code.ts             # Generador códigos operativos (PIC-UIO-Z05-NAP-128)
 │   ├── store/
 │   │   └── network-editor.ts             # Zustand store con undo/redo para el editor
 │   ├── providers/
@@ -211,10 +213,10 @@ docs/
 - ✅ Calculadora óptica: semáforo por ruta/unifilar basado en fibra + splitters + conectores + empalmes + cabecera
 - ✅ Códigos operativos: patrón PIC-UIO-DRF-{TIPO}-{SEQ} para drafts
 - ✅ Undo/redo: Zundo con 50 steps para elementos/rutas/puntos
-- ✅ Templates de topología: Star (1:16), Tree (1:32), Cascade (1:64), Blank
+- ⚠️ Templates de topología: el formulario de nueva red guarda `topology` (Star 1:16, Tree 1:32, Cascade 1:64, Blank) vía RPC `create_network`, que no está versionada en `database/migrations`. El generador cliente `lib/gpon/topology-templates.ts` se eliminó por no tener uso.
 
 ### Pendiente en el editor
-- ❌ **Herramienta `measure`**: medir distancia sobre el mapa (Turf.js ya instalado)
+- ✅ **Herramienta `measure`**: regla en el mapa (botón en controles o `M`); clic agrega puntos, Retroceso quita el último, Esc sale. Misma fórmula haversine que la longitud de rutas (`lib/map/measure.ts`)
 - ⚠️ **Creación de elementos/rutas en NetworkEditorMap**: continuar consolidando flujo de diseño
 
 ## Pendiente de construir (priorizado)
@@ -227,11 +229,11 @@ docs/
 
 ### 🟡 Fase 2c (Editor)
 5. **Completar flujo de creación en `NetworkEditorMap`**
-6. **Herramienta `measure`** — Turf.js `@turf/length` ya instalado
+6. ~~**Herramienta `measure`**~~ ✅
 7. **Consolidar formularios compartidos del inspector**
 
 ### 🟢 Media prioridad
-8. Zona operativa configurable en código (Z05 hardcoded → seleccionable)
+8. ~~Zona operativa configurable en código~~ ✅ selector de `network_zones` en la captura (+ prefijo provincia-ciudad inferido)
 9. Historial de cambios (quién modificó qué y cuándo)
 10. Splitters desbalanceados (ratios 10/90, 20/80, etc.)
 11. Vista árbol lógico más completa (con longitudes y pérdidas por tramo)
@@ -310,4 +312,6 @@ Patrón: {PROV}-{CIUDAD}-{ZONA}-{TIPO}-{SEQ}
 Draft:  PIC-UIO-DRF-NAP-001
 Campo:  PIC-UIO-Z05-NAP-128
 ```
+- **Zona:** se elige en la captura entre las zonas de la red (`network_zones`, RPC `network_zones_for_network`); admin y network_engineer pueden crear zonas ahí mismo (`create_network_zone`). Código de zona: 2–6 letras/números, sin `-`. Se recuerda la última zona por red (localStorage).
+- **Provincia-ciudad:** `inferCodePrefix()` toma la más frecuente entre los códigos existentes de la red (una red de Cuenca sigue con `AZU-CUE-…`); sin códigos, `PIC-UIO`.
 Documentado en GPON_FTTH_ECUADOR_RESEARCH.md §9.

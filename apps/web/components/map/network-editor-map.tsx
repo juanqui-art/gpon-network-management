@@ -1,6 +1,15 @@
 "use client";
 
-import { AlertTriangle, Layers, ListChecks, LocateFixed } from "lucide-react";
+import {
+	AlertTriangle,
+	Layers,
+	ListChecks,
+	LocateFixed,
+	Ruler,
+	SlidersHorizontal,
+	Undo2,
+	X,
+} from "lucide-react";
 import mapboxgl from "mapbox-gl";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -11,6 +20,13 @@ import {
 	readonlyEquipmentZoomFilters,
 	setEquipmentLayersFilter,
 } from "@/components/map/equipment-layers";
+import {
+	describeMufaProperties,
+	LocationSection,
+	NotesSection,
+	PropertiesSection,
+	RoutePointSummary,
+} from "@/components/map/inspector-sections";
 import {
 	ALERT_LEVEL_STYLES,
 	buildOpticalBudgetAlerts,
@@ -30,6 +46,11 @@ import {
 	MapStatChip,
 } from "@/components/map/map-overlay-components";
 import {
+	MapPanelContainerContext,
+	MapPanelHost,
+	useMapPanelContainer,
+} from "@/components/map/map-panel-container";
+import {
 	FIBER_RENDER_COLOR,
 	hideNoisyMapLabels,
 } from "@/components/map/mapbox-shared-style";
@@ -45,12 +66,32 @@ import type {
 } from "@/components/map/types";
 import { AppDrawer } from "@/components/ui/app-drawer";
 import {
+	ELEMENT_TYPE_LABEL,
+	FIBER_TYPE_LABEL,
+	labelOf,
+	ROUTE_TYPE_LABEL,
+	STATUS_LABEL,
+} from "@/lib/gpon/labels";
+import {
 	buildOltModelProperties,
 	propertyNumber,
 	propertyString,
 	withDefaultOltProperties,
 } from "@/lib/gpon/olt-properties";
-import { CABLE_LABEL, ROUTE_POINT_COLOR, TYPE_COLOR } from "@/lib/map/palette";
+import { useIsDesktop } from "@/lib/hooks/use-media-query";
+import {
+	appendMeasurePoint,
+	buildMeasureGeoJson,
+	formatDistance,
+	type MeasurePoint,
+	summarizeMeasure,
+} from "@/lib/map/measure";
+import {
+	CABLE_LABEL,
+	MEASURE_COLOR,
+	ROUTE_POINT_COLOR,
+	TYPE_COLOR,
+} from "@/lib/map/palette";
 import {
 	getRouteMidpoints,
 	getRouteVertices,
@@ -118,6 +159,8 @@ interface NetworkEditorMapProps {
 		coordinate: RouteCoordinate,
 	) => void;
 	onMoveElement?: (id: string, lng: number, lat: number) => void;
+	/** Enables the ruler (Medir) control; the editor shell passes setActiveTool. */
+	onActiveToolChange?: (tool: EditorTool) => void;
 }
 
 type LeftPanelTab = "tools" | "layers" | "alerts";
@@ -171,6 +214,7 @@ const TOOL_LABELS: Record<EditorTool, string> = {
 };
 
 const ZOOM_ROUTE_POINTS = 15;
+const MEASURE_SOURCE = "editor-measure";
 const EMPTY_INCIDENTS: IncidentMapItem[] = [];
 const EDITOR_PANEL_TABS = [
 	{ value: "tools" as const, label: "Resumen", icon: ListChecks },
@@ -228,8 +272,10 @@ export function NetworkEditorMap({
 	onCreateRoutePoint,
 	onMoveRouteVertex,
 	onMoveElement,
+	onActiveToolChange,
 }: NetworkEditorMapProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
+	const [panelHost, setPanelHost] = useState<HTMLDivElement | null>(null);
 	const mapRef = useRef<mapboxgl.Map | null>(null);
 	const equipmentRef = useRef(equipment);
 	const connectionsRef = useRef(connections);
@@ -257,6 +303,8 @@ export function NetworkEditorMap({
 	const [contextMenu, setContextMenu] = useState<ElementContextMenu | null>(
 		null,
 	);
+	const [measurePoints, setMeasurePoints] = useState<MeasurePoint[]>([]);
+	const isMeasuring = activeTool === "measure";
 	const [movingElement, setMovingElement] = useState<EquipmentMapItem | null>(
 		null,
 	);
@@ -574,6 +622,14 @@ export function NetworkEditorMap({
 				return;
 			}
 
+			// Ruler: clicks add points; nothing gets selected or edited.
+			if (activeToolRef.current === "measure") {
+				setMeasurePoints((points) =>
+					appendMeasurePoint(points, [event.lngLat.lng, event.lngLat.lat]),
+				);
+				return;
+			}
+
 			if (
 				onMapPlacementRef.current &&
 				(activeToolRef.current === "olt" ||
@@ -613,7 +669,7 @@ export function NetworkEditorMap({
 			onStatusMessageChangeRef.current?.(
 				next
 					? `${selectionLabel(next.kind)} seleccionado.`
-					: "Seleccion cancelada.",
+					: "Selección cancelada.",
 			);
 		};
 		const onContextMenu = (event: mapboxgl.MapMouseEvent) => {
@@ -820,15 +876,97 @@ export function NetworkEditorMap({
 
 	useEffect(() => {
 		if (!mapRef.current) return;
-		mapRef.current.getCanvas().style.cursor = movingElement
-			? "crosshair"
-			: isPlacementTool
-				? "copy"
-				: "";
+		mapRef.current.getCanvas().style.cursor =
+			movingElement || isMeasuring
+				? "crosshair"
+				: isPlacementTool
+					? "copy"
+					: "";
 		return () => {
 			if (mapRef.current) mapRef.current.getCanvas().style.cursor = "";
 		};
-	}, [isPlacementTool, movingElement]);
+	}, [isMeasuring, isPlacementTool, movingElement]);
+
+	// Ruler layers live on top of everything; created once the style is ready.
+	useEffect(() => {
+		const map = mapRef.current;
+		if (!isReady || !map || map.getSource(MEASURE_SOURCE)) return;
+		map.addSource(MEASURE_SOURCE, {
+			type: "geojson",
+			data: buildMeasureGeoJson([]),
+		});
+		map.addLayer({
+			id: `${MEASURE_SOURCE}-line`,
+			type: "line",
+			source: MEASURE_SOURCE,
+			filter: ["==", ["get", "kind"], "line"],
+			layout: { "line-cap": "round", "line-join": "round" },
+			paint: {
+				"line-color": MEASURE_COLOR.line,
+				"line-width": 2.5,
+				"line-dasharray": [2, 1.5],
+				"line-emissive-strength": 1,
+			},
+		});
+		map.addLayer({
+			id: `${MEASURE_SOURCE}-vertex`,
+			type: "circle",
+			source: MEASURE_SOURCE,
+			filter: ["==", ["get", "kind"], "vertex"],
+			paint: {
+				"circle-radius": 4.5,
+				"circle-color": MEASURE_COLOR.line,
+				"circle-stroke-color": MEASURE_COLOR.vertexStroke,
+				"circle-stroke-width": 2,
+				"circle-emissive-strength": 1,
+			},
+		});
+	}, [isReady]);
+
+	useEffect(() => {
+		if (!isReady || !mapRef.current) return;
+		const source = mapRef.current.getSource(MEASURE_SOURCE) as
+			| mapboxgl.GeoJSONSource
+			| undefined;
+		source?.setData(buildMeasureGeoJson(measurePoints));
+	}, [isReady, measurePoints]);
+
+	// Entering/leaving the ruler: double click adds points instead of zooming;
+	// leaving clears the measurement.
+	useEffect(() => {
+		const map = mapRef.current;
+		if (!isMeasuring) {
+			setMeasurePoints([]);
+			map?.doubleClickZoom.enable();
+			return;
+		}
+		map?.doubleClickZoom.disable();
+		const onKeyDown = (event: KeyboardEvent) => {
+			const target = event.target;
+			if (
+				target instanceof HTMLElement &&
+				(target.isContentEditable ||
+					["input", "textarea", "select"].includes(
+						target.tagName.toLowerCase(),
+					))
+			) {
+				return;
+			}
+			if (event.key === "Backspace") {
+				event.preventDefault();
+				setMeasurePoints((points) => points.slice(0, -1));
+			} else if (event.key === "Escape") {
+				onActiveToolChange?.("select");
+			}
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => {
+			window.removeEventListener("keydown", onKeyDown);
+			map?.doubleClickZoom.enable();
+		};
+	}, [isMeasuring, onActiveToolChange]);
+
+	const measureSummary = summarizeMeasure(measurePoints);
 
 	useEffect(() => {
 		if (!movingElement) return;
@@ -867,341 +1005,404 @@ export function NetworkEditorMap({
 	};
 
 	return (
-		<div
-			className={`relative h-full min-h-0 overflow-hidden bg-[#1b1c1d] ${movingElement ? "cursor-crosshair" : ""} ${isPlacementTool ? "cursor-copy" : ""}`}
-		>
-			<div ref={containerRef} className="absolute inset-0 h-full w-full" />
-			<div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-gradient-to-b from-[#1b1c1d]/70 to-transparent" />
-			{isPlacementTool && !movingElement && (
-				<div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-lg border border-[rgba(52,211,153,0.3)] bg-[rgba(34,35,36,0.94)] px-3 py-2 text-xs text-[#86efac] shadow-2xl backdrop-blur-md">
-					<span className="font-medium">
-						Colocando {TOOL_LABELS[activeTool]}
-					</span>
-					: click izquierdo en el mapa para crear
-				</div>
-			)}
-			{movingElement && (
-				<div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-lg border border-[rgba(245,158,11,0.3)] bg-[rgba(34,35,36,0.94)] px-3 py-2 text-xs text-[#fbbf24] shadow-2xl backdrop-blur-md">
-					<span className="font-medium">{movingElement.code}</span>: click en el
-					mapa para reubicar · Esc para cancelar ·{" "}
-					<button
-						type="button"
-						onClick={cancelMovingElement}
-						className="text-[#d7d7d7] underline-offset-2 hover:underline"
+		<MapPanelContainerContext.Provider value={panelHost}>
+			<div
+				className={`relative h-full min-h-0 overflow-hidden bg-surface ${movingElement ? "cursor-crosshair" : ""} ${isPlacementTool ? "cursor-copy" : ""}`}
+			>
+				<div ref={containerRef} className="absolute inset-0 h-full w-full" />
+				<MapPanelHost onHost={setPanelHost} />
+				<div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-gradient-to-b from-[#1b1c1d]/70 to-transparent" />
+				{isMeasuring && (
+					<div
+						role="status"
+						aria-live="polite"
+						className="absolute top-4 left-1/2 z-30 flex max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-border bg-surface-panel/95 py-1.5 pr-1.5 pl-3 text-xs text-fg-soft shadow-2xl backdrop-blur-md"
 					>
-						Cancelar
-					</button>
-				</div>
-			)}
-			{contextMenu && (
-				<div
-					className="absolute z-40 min-w-44 overflow-hidden rounded-lg border border-[rgba(164,164,164,0.16)] bg-[rgba(34,35,36,0.96)] p-1 text-xs text-[#d7d7d7] shadow-2xl backdrop-blur-md"
-					style={{ left: contextMenu.x, top: contextMenu.y }}
-				>
-					{contextMenu.kind === "element" ? (
-						<>
-							<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
-								{contextMenu.element.code}
-							</div>
-							<div className="border-[rgba(164,164,164,0.1)] border-b px-3 pb-2 text-[11px] text-[#a4a4a4]">
-								{contextMenu.connectedRoutes === 0
-									? "Sin fibras conectadas."
-									: `${contextMenu.connectedRoutes} fibra${
-											contextMenu.connectedRoutes === 1 ? "" : "s"
-										} conectada${
-											contextMenu.connectedRoutes === 1 ? "" : "s"
-										} se actualizará${
-											contextMenu.connectedRoutes === 1 ? "" : "n"
-										}.`}
-							</div>
+						<span className="inline-flex items-center gap-1.5 font-medium text-fg">
+							<Ruler className="size-3.5" aria-hidden="true" />
+							{measureSummary.segments > 0
+								? formatDistance(measureSummary.totalMeters)
+								: "Medir distancia"}
+						</span>
+						<span className="text-fg-muted">
+							{measurePoints.length === 0
+								? "Haz clic en el mapa para empezar"
+								: measureSummary.segments === 0
+									? "Agrega el siguiente punto"
+									: `${measureSummary.segments} ${measureSummary.segments === 1 ? "tramo" : "tramos"} · último ${formatDistance(measureSummary.lastSegmentMeters ?? 0)}`}
+						</span>
+						<span className="flex items-center gap-1">
 							<button
 								type="button"
-								onClick={() => startMovingElement(contextMenu.element)}
-								className="block w-full rounded-md px-3 py-2 text-left text-[#fbbf24] transition-colors hover:bg-[rgba(245,158,11,0.12)]"
+								disabled={measurePoints.length === 0}
+								onClick={() =>
+									setMeasurePoints((points) => points.slice(0, -1))
+								}
+								title="Quitar último punto (Retroceso)"
+								className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-fg-secondary transition-colors hover:bg-tint/10 hover:text-fg disabled:opacity-40"
 							>
-								Mover elemento
-							</button>
-							{onStartRouteFromElementRef.current && (
-								<button
-									type="button"
-									onClick={() => {
-										onStartRouteFromElementRef.current?.(contextMenu.element);
-										setContextMenu(null);
-									}}
-									className="block w-full rounded-md px-3 py-2 text-left text-[#8bdff4] transition-colors hover:bg-[rgba(56,216,255,0.12)]"
-								>
-									Crear fibra desde aquí
-								</button>
-							)}
-						</>
-					) : contextMenu.kind === "route" ? (
-						<>
-							<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
-								{contextMenu.route.code ?? "Ruta de fibra"}
-							</div>
-							<button
-								type="button"
-								onClick={() => {
-									onCreateRoutePointRef.current?.({
-										route: contextMenu.route,
-										type: "mufa",
-										position: { lng: contextMenu.lng, lat: contextMenu.lat },
-										properties: { closure_type: "mufa" },
-									});
-									setContextMenu(null);
-								}}
-								className="block w-full rounded-md px-3 py-2 text-left text-[#8bdff4] transition-colors hover:bg-[rgba(56,216,255,0.12)]"
-							>
-								Agregar mufa
+								<Undo2 className="size-3.5" aria-hidden="true" />
+								Punto
 							</button>
 							<button
 								type="button"
-								onClick={() => {
-									onCreateRoutePointRef.current?.({
-										route: contextMenu.route,
-										type: "mufa",
-										position: { lng: contextMenu.lng, lat: contextMenu.lat },
-										properties: {
-											closure_type: "mufa",
-											has_midspan_access: true,
-										},
-									});
-									setContextMenu(null);
-								}}
-								className="block w-full rounded-md px-3 py-2 text-left text-[#f6c768] transition-colors hover:bg-[rgba(246,199,104,0.12)]"
+								disabled={measurePoints.length === 0}
+								onClick={() => setMeasurePoints([])}
+								className="inline-flex h-7 items-center rounded-md px-2 text-fg-secondary transition-colors hover:bg-tint/10 hover:text-fg disabled:opacity-40"
 							>
-								Agregar mufa + sangrado
+								Limpiar
 							</button>
 							<button
 								type="button"
-								onClick={() => {
-									onCreateRoutePointRef.current?.({
-										route: contextMenu.route,
-										type: "mufa",
-										position: { lng: contextMenu.lng, lat: contextMenu.lat },
-										properties: {
-											closure_type: "mufa",
-											has_splice: true,
-										},
-									});
-									setContextMenu(null);
-								}}
-								className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
+								onClick={() => onActiveToolChange?.("select")}
+								title="Terminar (Esc)"
+								className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-fg-secondary transition-colors hover:bg-tint/10 hover:text-fg"
 							>
-								Agregar mufa + empalme
+								<X className="size-3.5" aria-hidden="true" />
+								Terminar
 							</button>
-							<button
-								type="button"
-								onClick={() => {
-									onCreateRoutePointRef.current?.({
-										route: contextMenu.route,
-										type: "mufa",
-										position: { lng: contextMenu.lng, lat: contextMenu.lat },
-										properties: {
-											closure_type: "mufa",
-											has_splitter: true,
-											split_ratio: "1:4",
-										},
-									});
-									setContextMenu(null);
-								}}
-								className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
-							>
-								Agregar mufa + splitter
-							</button>
-							<button
-								type="button"
-								onClick={() => {
-									onCreateRoutePointRef.current?.({
-										route: contextMenu.route,
-										type: "mufa",
-										position: { lng: contextMenu.lng, lat: contextMenu.lat },
-										properties: {
-											closure_type: "mufa",
-											has_midspan_access: true,
-											has_splitter: true,
-											split_ratio: "1:4",
-										},
-									});
-									setContextMenu(null);
-								}}
-								className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
-							>
-								Agregar mufa + sangrado + splitter
-							</button>
-						</>
-					) : (
-						<>
-							<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-[#777879]">
-								Crear elemento
-							</div>
-							{createElementTypes.map((elementType) => (
-								<button
-									key={elementType}
-									type="button"
-									onClick={() => {
-										if (onMapToolSelectRef.current) {
-											onMapToolSelectRef.current(elementType);
-										} else {
-											onMapElementCreateRef.current?.(elementType, {
-												lng: contextMenu.lng,
-												lat: contextMenu.lat,
-											});
-										}
-										setContextMenu(null);
-									}}
-									className="block w-full rounded-md px-3 py-2 text-left text-[#d7d7d7] transition-colors hover:bg-[rgba(52,211,153,0.1)] hover:text-[#34d399]"
-								>
-									Crear {TOOL_LABELS[elementType]}
-								</button>
-							))}
-							{onMapClosureToolSelectRef.current && (
-								<>
-									<div className="my-1 border-t border-white/10" />
-									<button
-										type="button"
-										onClick={() => {
-											onMapClosureToolSelectRef.current?.(
-												{ closure_type: "mufa" },
-												"Mufa",
-											);
-											setContextMenu(null);
-										}}
-										className="block w-full rounded-md px-3 py-2 text-left text-[#8bdff4] transition-colors hover:bg-[rgba(56,216,255,0.12)]"
-									>
-										Crear mufa
-									</button>
-									<button
-										type="button"
-										onClick={() => {
-											onMapClosureToolSelectRef.current?.(
-												{ closure_type: "mufa", has_midspan_access: true },
-												"Mufa + sangrado",
-											);
-											setContextMenu(null);
-										}}
-										className="block w-full rounded-md px-3 py-2 text-left text-[#f6c768] transition-colors hover:bg-[rgba(246,199,104,0.12)]"
-									>
-										Crear mufa + sangrado
-									</button>
-									<button
-										type="button"
-										onClick={() => {
-											onMapClosureToolSelectRef.current?.(
-												{ closure_type: "mufa", has_splice: true },
-												"Mufa + empalme",
-											);
-											setContextMenu(null);
-										}}
-										className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
-									>
-										Crear mufa + empalme
-									</button>
-									<button
-										type="button"
-										onClick={() => {
-											onMapClosureToolSelectRef.current?.(
-												{
-													closure_type: "mufa",
-													has_splitter: true,
-													split_ratio: "1:4",
-												},
-												"Mufa + splitter",
-											);
-											setContextMenu(null);
-										}}
-										className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
-									>
-										Crear mufa + splitter
-									</button>
-									<button
-										type="button"
-										onClick={() => {
-											onMapClosureToolSelectRef.current?.(
-												{
-													closure_type: "mufa",
-													has_midspan_access: true,
-													has_splitter: true,
-													split_ratio: "1:4",
-												},
-												"Mufa + sangrado + splitter",
-											);
-											setContextMenu(null);
-										}}
-										className="block w-full rounded-md px-3 py-2 text-left text-[#a7f3d0] transition-colors hover:bg-[rgba(52,211,153,0.12)]"
-									>
-										Crear mufa + sangrado + splitter
-									</button>
-								</>
-							)}
-						</>
-					)}
-					<button
-						type="button"
-						onClick={() => setContextMenu(null)}
-						className="block w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-[rgba(164,164,164,0.08)]"
-					>
-						Cancelar
-					</button>
-				</div>
-			)}
-			{showEditorChrome && (
-				<>
-					<div className="absolute left-4 top-4 z-20">
-						<EditorLeftPanel
-							activeTool={activeTool}
-							alerts={opticalAlerts}
-							counts={counts}
-							filterOptical={filterOptical}
-							filterStatus={filterStatus}
-							filterType={filterType}
-							mode={mode}
-							onAlertSelect={selectOpticalAlert}
-							onFit={() =>
-								fitToEquipment(mapRef.current, visibleEquipment, true)
-							}
-							onOpticalChange={setFilterOptical}
-							onStatusChange={setFilterStatus}
-							onTabChange={setLeftTab}
-							onTypeChange={setFilterType}
-							tab={leftTab}
-						/>
+						</span>
 					</div>
-					<div className="absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2">
-						<EditorMapStatus activeTool={activeTool} mode={mode} />
-						<MapLegend />
-						<MapControls
-							onFit={() =>
-								fitToEquipment(mapRef.current, visibleEquipment, true)
-							}
-							onResetNorth={() => mapRef.current?.resetNorth()}
-							onZoomIn={() => mapRef.current?.zoomIn()}
-							onZoomOut={() => mapRef.current?.zoomOut()}
-						/>
-					</div>
-				</>
-			)}
-			<AnimatePresence mode="wait">
-				{showEditorChrome && selectedFeature && (
-					<SelectionInspector
-						key={`${selectedFeature.kind}:${selectedFeature.item.id}`}
-						feature={selectedFeature}
-						equipment={equipment}
-						opticalAlert={
-							selectedFeature.kind === "element"
-								? (opticalAlerts.find(
-										(alert) => alert.id === selectedFeature.item.id,
-									) ?? null)
-								: null
-						}
-						onClose={() => onSelectionChange(null)}
-						onFocus={focusSelectedFeature}
-						onUpdateElement={onUpdateElement}
-						onUpdateRoute={onUpdateRoute}
-					/>
 				)}
-			</AnimatePresence>
-		</div>
+				{isPlacementTool && !movingElement && (
+					<div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-lg border border-success/30 bg-surface-panel/94 px-3 py-2 text-xs text-success-fg shadow-2xl backdrop-blur-md">
+						<span className="font-medium">
+							Colocando {TOOL_LABELS[activeTool]}
+						</span>
+						: click izquierdo en el mapa para crear
+					</div>
+				)}
+				{movingElement && (
+					<div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-lg border border-warning/30 bg-surface-panel/94 px-3 py-2 text-xs text-warning-fg shadow-2xl backdrop-blur-md">
+						<span className="font-medium">{movingElement.code}</span>: click en
+						el mapa para reubicar · Esc para cancelar ·{" "}
+						<button
+							type="button"
+							onClick={cancelMovingElement}
+							className="text-fg-soft underline-offset-2 hover:underline"
+						>
+							Cancelar
+						</button>
+					</div>
+				)}
+				{contextMenu && (
+					<div
+						className="absolute z-40 min-w-44 overflow-hidden rounded-lg border border-border bg-surface-panel/96 p-1 text-xs text-fg-soft shadow-2xl backdrop-blur-md"
+						style={{ left: contextMenu.x, top: contextMenu.y }}
+					>
+						{contextMenu.kind === "element" ? (
+							<>
+								<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
+									{contextMenu.element.code}
+								</div>
+								<div className="border-border-subtle border-b px-3 pb-2 text-[11px] text-fg-secondary">
+									{contextMenu.connectedRoutes === 0
+										? "Sin fibras conectadas."
+										: `${contextMenu.connectedRoutes} fibra${
+												contextMenu.connectedRoutes === 1 ? "" : "s"
+											} conectada${
+												contextMenu.connectedRoutes === 1 ? "" : "s"
+											} se actualizará${
+												contextMenu.connectedRoutes === 1 ? "" : "n"
+											}.`}
+								</div>
+								<button
+									type="button"
+									onClick={() => startMovingElement(contextMenu.element)}
+									className="block w-full rounded-md px-3 py-2 text-left text-warning-fg transition-colors hover:bg-warning/12"
+								>
+									Mover elemento
+								</button>
+								{onStartRouteFromElementRef.current && (
+									<button
+										type="button"
+										onClick={() => {
+											onStartRouteFromElementRef.current?.(contextMenu.element);
+											setContextMenu(null);
+										}}
+										className="block w-full rounded-md px-3 py-2 text-left text-info-fg transition-colors hover:bg-info/12"
+									>
+										Crear fibra desde aquí
+									</button>
+								)}
+							</>
+						) : contextMenu.kind === "route" ? (
+							<>
+								<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
+									{contextMenu.route.code ?? "Ruta de fibra"}
+								</div>
+								<button
+									type="button"
+									onClick={() => {
+										onCreateRoutePointRef.current?.({
+											route: contextMenu.route,
+											type: "mufa",
+											position: { lng: contextMenu.lng, lat: contextMenu.lat },
+											properties: { closure_type: "mufa" },
+										});
+										setContextMenu(null);
+									}}
+									className="block w-full rounded-md px-3 py-2 text-left text-info-fg transition-colors hover:bg-info/12"
+								>
+									Agregar mufa
+								</button>
+								<button
+									type="button"
+									onClick={() => {
+										onCreateRoutePointRef.current?.({
+											route: contextMenu.route,
+											type: "mufa",
+											position: { lng: contextMenu.lng, lat: contextMenu.lat },
+											properties: {
+												closure_type: "mufa",
+												has_midspan_access: true,
+											},
+										});
+										setContextMenu(null);
+									}}
+									className="block w-full rounded-md px-3 py-2 text-left text-warning-fg transition-colors hover:bg-[rgba(246,199,104,0.12)]"
+								>
+									Agregar mufa + sangrado
+								</button>
+								<button
+									type="button"
+									onClick={() => {
+										onCreateRoutePointRef.current?.({
+											route: contextMenu.route,
+											type: "mufa",
+											position: { lng: contextMenu.lng, lat: contextMenu.lat },
+											properties: {
+												closure_type: "mufa",
+												has_splice: true,
+											},
+										});
+										setContextMenu(null);
+									}}
+									className="block w-full rounded-md px-3 py-2 text-left text-success-fg transition-colors hover:bg-success/12"
+								>
+									Agregar mufa + empalme
+								</button>
+								<button
+									type="button"
+									onClick={() => {
+										onCreateRoutePointRef.current?.({
+											route: contextMenu.route,
+											type: "mufa",
+											position: { lng: contextMenu.lng, lat: contextMenu.lat },
+											properties: {
+												closure_type: "mufa",
+												has_splitter: true,
+												split_ratio: "1:4",
+											},
+										});
+										setContextMenu(null);
+									}}
+									className="block w-full rounded-md px-3 py-2 text-left text-success-fg transition-colors hover:bg-success/12"
+								>
+									Agregar mufa + splitter
+								</button>
+								<button
+									type="button"
+									onClick={() => {
+										onCreateRoutePointRef.current?.({
+											route: contextMenu.route,
+											type: "mufa",
+											position: { lng: contextMenu.lng, lat: contextMenu.lat },
+											properties: {
+												closure_type: "mufa",
+												has_midspan_access: true,
+												has_splitter: true,
+												split_ratio: "1:4",
+											},
+										});
+										setContextMenu(null);
+									}}
+									className="block w-full rounded-md px-3 py-2 text-left text-success-fg transition-colors hover:bg-success/12"
+								>
+									Agregar mufa + sangrado + splitter
+								</button>
+							</>
+						) : (
+							<>
+								<div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
+									Crear elemento
+								</div>
+								{createElementTypes.map((elementType) => (
+									<button
+										key={elementType}
+										type="button"
+										onClick={() => {
+											if (onMapToolSelectRef.current) {
+												onMapToolSelectRef.current(elementType);
+											} else {
+												onMapElementCreateRef.current?.(elementType, {
+													lng: contextMenu.lng,
+													lat: contextMenu.lat,
+												});
+											}
+											setContextMenu(null);
+										}}
+										className="block w-full rounded-md px-3 py-2 text-left text-fg-soft transition-colors hover:bg-success/10 hover:text-success"
+									>
+										Crear {TOOL_LABELS[elementType]}
+									</button>
+								))}
+								{onMapClosureToolSelectRef.current && (
+									<>
+										<div className="my-1 border-t border-white/10" />
+										<button
+											type="button"
+											onClick={() => {
+												onMapClosureToolSelectRef.current?.(
+													{ closure_type: "mufa" },
+													"Mufa",
+												);
+												setContextMenu(null);
+											}}
+											className="block w-full rounded-md px-3 py-2 text-left text-info-fg transition-colors hover:bg-info/12"
+										>
+											Crear mufa
+										</button>
+										<button
+											type="button"
+											onClick={() => {
+												onMapClosureToolSelectRef.current?.(
+													{ closure_type: "mufa", has_midspan_access: true },
+													"Mufa + sangrado",
+												);
+												setContextMenu(null);
+											}}
+											className="block w-full rounded-md px-3 py-2 text-left text-warning-fg transition-colors hover:bg-[rgba(246,199,104,0.12)]"
+										>
+											Crear mufa + sangrado
+										</button>
+										<button
+											type="button"
+											onClick={() => {
+												onMapClosureToolSelectRef.current?.(
+													{ closure_type: "mufa", has_splice: true },
+													"Mufa + empalme",
+												);
+												setContextMenu(null);
+											}}
+											className="block w-full rounded-md px-3 py-2 text-left text-success-fg transition-colors hover:bg-success/12"
+										>
+											Crear mufa + empalme
+										</button>
+										<button
+											type="button"
+											onClick={() => {
+												onMapClosureToolSelectRef.current?.(
+													{
+														closure_type: "mufa",
+														has_splitter: true,
+														split_ratio: "1:4",
+													},
+													"Mufa + splitter",
+												);
+												setContextMenu(null);
+											}}
+											className="block w-full rounded-md px-3 py-2 text-left text-success-fg transition-colors hover:bg-success/12"
+										>
+											Crear mufa + splitter
+										</button>
+										<button
+											type="button"
+											onClick={() => {
+												onMapClosureToolSelectRef.current?.(
+													{
+														closure_type: "mufa",
+														has_midspan_access: true,
+														has_splitter: true,
+														split_ratio: "1:4",
+													},
+													"Mufa + sangrado + splitter",
+												);
+												setContextMenu(null);
+											}}
+											className="block w-full rounded-md px-3 py-2 text-left text-success-fg transition-colors hover:bg-success/12"
+										>
+											Crear mufa + sangrado + splitter
+										</button>
+									</>
+								)}
+							</>
+						)}
+						<button
+							type="button"
+							onClick={() => setContextMenu(null)}
+							className="block w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-tint/8"
+						>
+							Cancelar
+						</button>
+					</div>
+				)}
+				{showEditorChrome && (
+					<>
+						<div className="absolute left-4 top-4 z-20">
+							<EditorLeftPanel
+								activeTool={activeTool}
+								alerts={opticalAlerts}
+								counts={counts}
+								filterOptical={filterOptical}
+								filterStatus={filterStatus}
+								filterType={filterType}
+								mode={mode}
+								onAlertSelect={selectOpticalAlert}
+								onFit={() =>
+									fitToEquipment(mapRef.current, visibleEquipment, true)
+								}
+								onOpticalChange={setFilterOptical}
+								onStatusChange={setFilterStatus}
+								onTabChange={setLeftTab}
+								onTypeChange={setFilterType}
+								tab={leftTab}
+							/>
+						</div>
+						<div className="absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2">
+							<EditorMapStatus activeTool={activeTool} mode={mode} />
+							<MapLegend />
+							<MapControls
+								onFit={() =>
+									fitToEquipment(mapRef.current, visibleEquipment, true)
+								}
+								onResetNorth={() => mapRef.current?.resetNorth()}
+								onZoomIn={() => mapRef.current?.zoomIn()}
+								onZoomOut={() => mapRef.current?.zoomOut()}
+								measuring={isMeasuring}
+								onToggleMeasure={
+									onActiveToolChange
+										? () =>
+												onActiveToolChange(isMeasuring ? "select" : "measure")
+										: undefined
+								}
+							/>
+						</div>
+					</>
+				)}
+				<AnimatePresence mode="wait">
+					{showEditorChrome && selectedFeature && (
+						<SelectionInspector
+							key={`${selectedFeature.kind}:${selectedFeature.item.id}`}
+							feature={selectedFeature}
+							connections={connections}
+							equipment={equipment}
+							opticalAlert={
+								selectedFeature.kind === "element"
+									? (opticalAlerts.find(
+											(alert) => alert.id === selectedFeature.item.id,
+										) ?? null)
+									: null
+							}
+							onClose={() => onSelectionChange(null)}
+							onFocus={focusSelectedFeature}
+							onUpdateElement={onUpdateElement}
+							onUpdateRoute={onUpdateRoute}
+						/>
+					)}
+				</AnimatePresence>
+			</div>
+		</MapPanelContainerContext.Provider>
 	);
 }
 
@@ -1243,23 +1444,49 @@ function EditorLeftPanel({
 	onTypeChange: (type: string) => void;
 	tab: LeftPanelTab;
 }) {
+	const isDesktop = useIsDesktop();
+	const container = useMapPanelContainer();
+	const [mobileOpen, setMobileOpen] = useState(false);
+	const alertCount = alerts.length;
+
 	return (
-		<div className="hidden md:block">
+		<>
+			{!isDesktop && !mobileOpen && (
+				<button
+					type="button"
+					onClick={() => setMobileOpen(true)}
+					aria-label="Abrir herramientas del editor"
+					className="inline-flex h-11 items-center gap-2 rounded-full border border-border bg-surface-panel/94 px-4 text-sm font-medium text-fg shadow-2xl backdrop-blur-md transition-colors hover:bg-surface-panel/98"
+				>
+					<SlidersHorizontal className="size-4" aria-hidden="true" />
+					Herramientas
+					{alertCount > 0 && (
+						<span className="rounded-full bg-danger/18 px-1.5 font-mono text-xs text-danger-fg">
+							{alertCount}
+						</span>
+					)}
+				</button>
+			)}
 			<AppDrawer
-				open
-				onOpenChange={() => {}}
+				open={isDesktop ? true : mobileOpen}
+				onOpenChange={isDesktop ? () => {} : setMobileOpen}
 				title="Editor de red"
 				description="Herramientas, filtros y alertas del lienzo operativo."
-				direction="left"
-				modal={false}
-				dismissible={false}
-				showOverlay={false}
-				showClose={false}
+				direction={isDesktop ? "left" : "bottom"}
+				modal={!isDesktop}
+				dismissible={!isDesktop}
+				showOverlay={!isDesktop}
+				showClose={!isDesktop}
+				container={container}
 				size="md"
-				className="md:!left-4 md:!right-auto md:!top-4 md:!bottom-4 md:!w-72 bg-[rgba(34,35,36,0.92)] shadow-2xl backdrop-blur-md"
+				className={
+					isDesktop
+						? "md:!left-4 md:!right-auto md:!top-4 md:!bottom-4 md:!w-72 bg-surface-panel/92 shadow-2xl backdrop-blur-md"
+						: "max-h-[75dvh] bg-surface-panel/96 shadow-2xl backdrop-blur-md"
+				}
 				contentClassName="space-y-3"
 			>
-				<div className="border-b border-[rgba(164,164,164,0.12)] px-3 py-2.5">
+				<div className="border-b border-border-subtle px-3 py-2.5">
 					<div className="mb-2.5 grid grid-cols-4 gap-1.5">
 						<MapStatChip
 							label="OLT"
@@ -1282,7 +1509,7 @@ function EditorLeftPanel({
 							color="#a4a4a4"
 						/>
 					</div>
-					<div className="grid grid-cols-3 gap-1 rounded-md bg-[rgba(164,164,164,0.05)] p-1">
+					<div className="grid grid-cols-3 gap-1 rounded-md bg-tint/5 p-1">
 						{EDITOR_PANEL_TABS.map(({ value, label, icon: Icon }) => (
 							<button
 								key={value}
@@ -1293,7 +1520,7 @@ function EditorLeftPanel({
 								<Icon className="size-3" aria-hidden="true" />
 								<span>{label}</span>
 								{value === "alerts" && alerts.length > 0 && (
-									<span className="rounded bg-[#f59e0b]/20 px-1 font-mono text-[9px] text-[#fbbf24]">
+									<span className="rounded bg-warning/20 px-1 font-mono text-[10px] text-warning-fg">
 										{alerts.length}
 									</span>
 								)}
@@ -1304,18 +1531,18 @@ function EditorLeftPanel({
 				<div className="space-y-3 p-3">
 					{tab === "tools" ? (
 						<div className="space-y-3">
-							<div className="flex items-center justify-between rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.04)] px-3 py-2">
+							<div className="flex items-center justify-between rounded-md border border-border-subtle bg-tint/4 px-3 py-2">
 								<div>
-									<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+									<p className="text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 										Área
 									</p>
-									<p className="mt-0.5 text-xs font-semibold text-[#e6e6e6]">
+									<p className="mt-0.5 text-xs font-semibold text-fg">
 										{formatEditorMode(mode)}
 									</p>
 								</div>
-								<ListChecks className="size-4 text-[#fbbf24]" />
+								<ListChecks className="size-4 text-warning-fg" />
 							</div>
-							<div className="space-y-1.5 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.04)] p-2.5 text-xs">
+							<div className="space-y-1.5 rounded-md border border-border-subtle bg-tint/4 p-2.5 text-xs">
 								<StatRow label="Rutas" value={counts.routes} />
 								<StatRow label="Puntos de ruta" value={counts.routePoints} />
 								<StatRow label="Herramienta" value={TOOL_LABELS[activeTool]} />
@@ -1323,24 +1550,24 @@ function EditorLeftPanel({
 							<button
 								type="button"
 								onClick={onFit}
-								className="flex w-full items-center justify-center gap-2 rounded-md border border-[rgba(164,164,164,0.14)] bg-[rgba(164,164,164,0.06)] px-3 py-2 text-xs text-[#d7d7d7] transition-colors hover:bg-[rgba(164,164,164,0.1)]"
+								className="flex w-full items-center justify-center gap-2 rounded-md border border-border-subtle bg-tint/6 px-3 py-2 text-xs text-fg-soft transition-colors hover:bg-tint/10"
 							>
 								<LocateFixed className="size-3.5" /> Ajustar vista
 							</button>
 						</div>
 					) : tab === "layers" ? (
 						<div className="space-y-3">
-							<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+							<p className="text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 								Filtros de visibilidad
 							</p>
 							<label className="block">
-								<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+								<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 									Tipo
 								</span>
 								<select
 									value={filterType}
 									onChange={(event) => onTypeChange(event.target.value)}
-									className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2 py-2 text-xs text-[#e6e6e6] outline-none"
+									className="w-full rounded-md border border-border bg-surface px-2 py-2 text-xs text-fg outline-none"
 								>
 									<option value="all">Todos</option>
 									<option value="olt">OLT</option>
@@ -1349,13 +1576,13 @@ function EditorLeftPanel({
 								</select>
 							</label>
 							<label className="block">
-								<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+								<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 									Estado
 								</span>
 								<select
 									value={filterStatus}
 									onChange={(event) => onStatusChange(event.target.value)}
-									className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2 py-2 text-xs text-[#e6e6e6] outline-none"
+									className="w-full rounded-md border border-border bg-surface px-2 py-2 text-xs text-fg outline-none"
 								>
 									<option value="all">Todos</option>
 									<option value="planned">Planificado</option>
@@ -1365,7 +1592,7 @@ function EditorLeftPanel({
 								</select>
 							</label>
 							<label className="block">
-								<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+								<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 									Óptico
 								</span>
 								<select
@@ -1373,13 +1600,13 @@ function EditorLeftPanel({
 									onChange={(event) =>
 										onOpticalChange(event.target.value as OpticalFilter)
 									}
-									className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2 py-2 text-xs text-[#e6e6e6] outline-none"
+									className="w-full rounded-md border border-border bg-surface px-2 py-2 text-xs text-fg outline-none"
 								>
 									<option value="all">Todos</option>
 									<option value="alerts">Solo alertas</option>
 								</select>
 							</label>
-							<div className="space-y-1.5 rounded-md border border-[rgba(164,164,164,0.1)] bg-[rgba(164,164,164,0.04)] p-2.5 text-xs">
+							<div className="space-y-1.5 rounded-md border border-border-subtle bg-tint/4 p-2.5 text-xs">
 								<StatRow label="Rutas" value={counts.routes} />
 								<StatRow label="Puntos de ruta" value={counts.routePoints} />
 							</div>
@@ -1394,7 +1621,7 @@ function EditorLeftPanel({
 					)}
 				</div>
 			</AppDrawer>
-		</div>
+		</>
 	);
 }
 
@@ -1411,9 +1638,9 @@ function MapOpticalAlerts({
 }) {
 	if (alerts.length === 0) {
 		return (
-			<div className="rounded-md border border-[rgba(52,211,153,0.2)] bg-[rgba(52,211,153,0.08)] p-3 text-xs">
-				<p className="font-semibold text-[#86efac]">Sin alertas ópticas</p>
-				<p className="mt-1 text-[11px] leading-4 text-[#8f969e]">
+			<div className="rounded-md border border-success/20 bg-success/8 p-3 text-xs">
+				<p className="font-semibold text-success-fg">Sin alertas ópticas</p>
+				<p className="mt-1 text-[11px] leading-4 text-fg-muted">
 					Los elementos calculados mantienen margen suficiente.
 				</p>
 			</div>
@@ -1428,10 +1655,10 @@ function MapOpticalAlerts({
 	return (
 		<div className="space-y-2">
 			<div className="flex items-center justify-between gap-2">
-				<p className="text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+				<p className="text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 					Presupuesto óptico
 				</p>
-				<span className="font-mono text-[10px] text-[#fbbf24]">
+				<span className="font-mono text-[10px] text-warning-fg">
 					{alerts.length}
 				</span>
 			</div>
@@ -1452,7 +1679,7 @@ function MapOpticalAlerts({
 				onClick={() =>
 					onFilterChange(filterOptical === "alerts" ? "all" : "alerts")
 				}
-				className="flex w-full items-center justify-between rounded-md border border-[rgba(245,158,11,0.24)] bg-[rgba(245,158,11,0.08)] px-2.5 py-2 text-left text-xs text-[#fbbf24] transition-colors hover:bg-[rgba(245,158,11,0.13)]"
+				className="flex w-full items-center justify-between rounded-md border border-warning/24 bg-warning/8 px-2.5 py-2 text-left text-xs text-warning-fg transition-colors hover:bg-warning/13"
 			>
 				<span>
 					{filterOptical === "alerts"
@@ -1466,7 +1693,7 @@ function MapOpticalAlerts({
 			<button
 				type="button"
 				onClick={() => onSelect(alerts[0])}
-				className="flex w-full items-center justify-between rounded-md border border-[rgba(251,77,109,0.24)] bg-[rgba(251,77,109,0.08)] px-2.5 py-2 text-left text-xs text-[#fb7185] transition-colors hover:bg-[rgba(251,77,109,0.13)]"
+				className="flex w-full items-center justify-between rounded-md border border-danger/24 bg-danger/8 px-2.5 py-2 text-left text-xs text-danger-fg transition-colors hover:bg-danger/13"
 			>
 				<span>Ir al peor margen</span>
 				<span className="font-mono text-[10px]">
@@ -1489,15 +1716,15 @@ function MapOpticalAlerts({
 							title={alert.reason}
 						>
 							<span
-								className="text-[9px] font-bold uppercase tracking-[0.12em]"
+								className="text-[10px] font-bold uppercase tracking-[0.12em]"
 								style={{ color: style.color }}
 							>
 								{style.label}
 							</span>
-							<span className="mt-0.5 block truncate text-xs font-semibold text-[#e6e6e6]">
+							<span className="mt-0.5 block truncate text-xs font-semibold text-fg">
 								{alert.code} · {alert.type}
 							</span>
-							<span className="mt-1 block font-mono text-[10px] text-[#a4a4a4]">
+							<span className="mt-1 block font-mono text-[10px] text-fg-secondary">
 								Margen {alert.margin?.toFixed(1)} dB
 							</span>
 						</button>
@@ -1522,7 +1749,7 @@ function OpticalAlertCountPill({
 			<p className="font-mono text-xs font-bold" style={{ color }}>
 				{value}
 			</p>
-			<p className="text-[9px] font-semibold uppercase text-[#777879]">
+			<p className="text-[10px] font-semibold uppercase text-fg-muted">
 				{label}
 			</p>
 		</div>
@@ -1530,6 +1757,7 @@ function OpticalAlertCountPill({
 }
 
 function SelectionInspector({
+	connections,
 	equipment,
 	feature,
 	opticalAlert,
@@ -1538,6 +1766,7 @@ function SelectionInspector({
 	onUpdateElement,
 	onUpdateRoute,
 }: {
+	connections: ConnectionMapItem[];
 	equipment: EquipmentMapItem[];
 	feature: SelectedFeature;
 	opticalAlert: OpticalBudgetAlert | null;
@@ -1560,7 +1789,7 @@ function SelectionInspector({
 						<button
 							type="button"
 							onClick={onFocus}
-							className="flex items-center justify-center gap-2 rounded-md border border-[rgba(56,216,255,0.25)] bg-[rgba(56,216,255,0.1)] px-3 py-2 text-xs font-medium text-[#bdeafe] transition-colors hover:bg-[rgba(56,216,255,0.16)]"
+							className="flex items-center justify-center gap-2 rounded-md border border-info/25 bg-info/10 px-3 py-2 text-xs font-medium text-info-strong transition-colors hover:bg-info/16"
 						>
 							<LocateFixed className="size-3.5" />
 							Centrar
@@ -1568,7 +1797,7 @@ function SelectionInspector({
 						<button
 							type="button"
 							onClick={onClose}
-							className="rounded-md border border-[rgba(164,164,164,0.14)] bg-[rgba(164,164,164,0.06)] px-3 py-2 text-xs font-medium text-[#d7d7d7] transition-colors hover:bg-[rgba(164,164,164,0.1)]"
+							className="rounded-md border border-border-subtle bg-tint/6 px-3 py-2 text-xs font-medium text-fg-soft transition-colors hover:bg-tint/10"
 						>
 							Cerrar
 						</button>
@@ -1600,7 +1829,14 @@ function SelectionInspector({
 				/>
 			)}
 			{feature.kind === "routePoint" && (
-				<RoutePointInspectorDetails point={feature.item} />
+				<RoutePointSummary
+					point={feature.item}
+					routeCode={
+						connections.find(
+							(route) => route.id === feature.item.fiber_route_id,
+						)?.code ?? null
+					}
+				/>
 			)}
 		</MapInspectorShell>
 	);
@@ -1678,24 +1914,24 @@ function ElementInspectorDetails({
 	if (isEditing) {
 		return (
 			<div className="space-y-3">
-				<div className="rounded-md border border-[rgba(56,216,255,0.18)] bg-[rgba(56,216,255,0.07)] px-3 py-2 text-[11px] leading-4 text-[#bdeafe]">
+				<div className="rounded-md border border-info/18 bg-info/7 px-3 py-2 text-[11px] leading-4 text-info-strong">
 					Aplicar actualiza el borrador local. Usa Guardar en la barra superior
 					para persistir en Supabase.
 				</div>
 				<InspectorSection title="Identificación">
 					<InspectorRow label="Tipo" value={formatElementType(element.type)} />
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Nombre
 						</span>
 						<input
 							value={name}
 							onChange={(event) => setName(event.target.value)}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						/>
 					</label>
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Estado
 						</span>
 						<select
@@ -1703,7 +1939,7 @@ function ElementInspectorDetails({
 							onChange={(event) =>
 								setStatus(event.target.value as ElementStatus)
 							}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						>
 							<option value="planned">Planificado</option>
 							<option value="active">Activo</option>
@@ -1715,7 +1951,7 @@ function ElementInspectorDetails({
 				</InspectorSection>
 				{element.type === "olt" && (
 					<InspectorSection title="OLT técnica">
-						<div className="rounded-md border border-[rgba(164,164,164,0.12)] bg-[rgba(164,164,164,0.05)] p-3">
+						<div className="rounded-md border border-border-subtle bg-tint/5 p-3">
 							<OltModelSelector
 								selectedModelId={propertyString(properties, "olt_model_id")}
 								selectedOpticalClass={opticalClass}
@@ -1729,16 +1965,16 @@ function ElementInspectorDetails({
 							/>
 						</div>
 						<label className="block">
-							<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+							<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 								IP de gestión (SNMP)
 							</span>
 							<input
 								value={managementIp}
 								onChange={(event) => setManagementIp(event.target.value)}
 								placeholder="192.168.1.100"
-								className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 font-mono text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+								className="w-full rounded-md border border-border bg-surface px-2.5 py-2 font-mono text-xs text-fg outline-none transition-colors focus:border-info/40"
 							/>
-							<span className="mt-1 block text-[10px] leading-4 text-[#777879]">
+							<span className="mt-1 block text-[10px] leading-4 text-fg-muted">
 								Se enlaza con el colector SNMP. Aparecerá como nombre del OLT en
 								/monitoring cuando llegue telemetría.
 							</span>
@@ -1753,13 +1989,13 @@ function ElementInspectorDetails({
 				)}
 				<InspectorSection title="Ubicación">
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Referencia de dirección
 						</span>
 						<input
 							value={addressReference}
 							onChange={(event) => setAddressReference(event.target.value)}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						/>
 					</label>
 				</InspectorSection>
@@ -1769,7 +2005,7 @@ function ElementInspectorDetails({
 							value={notes}
 							onChange={(event) => setNotes(event.target.value)}
 							rows={3}
-							className="w-full resize-none rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full resize-none rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						/>
 					</label>
 				</InspectorSection>
@@ -1777,14 +2013,14 @@ function ElementInspectorDetails({
 					<button
 						type="button"
 						onClick={applyChanges}
-						className="rounded-md border border-[rgba(52,211,153,0.35)] bg-[rgba(52,211,153,0.12)] px-3 py-2 text-xs font-medium text-[#34d399] transition-colors hover:bg-[rgba(52,211,153,0.18)]"
+						className="rounded-md border border-success/35 bg-success/12 px-3 py-2 text-xs font-medium text-success transition-colors hover:bg-success/18"
 					>
 						Aplicar cambios
 					</button>
 					<button
 						type="button"
 						onClick={onCancelEdit}
-						className="rounded-md border border-[rgba(164,164,164,0.14)] bg-[rgba(164,164,164,0.06)] px-3 py-2 text-xs font-medium text-[#d7d7d7] transition-colors hover:bg-[rgba(164,164,164,0.1)]"
+						className="rounded-md border border-border-subtle bg-tint/6 px-3 py-2 text-xs font-medium text-fg-soft transition-colors hover:bg-tint/10"
 					>
 						Descartar edición
 					</button>
@@ -1850,30 +2086,24 @@ function ElementInspectorDetails({
 					/>
 				</InspectorSection>
 			)}
-			<InspectorSection title="Ubicación">
-				<InspectorRow
-					label="Calidad"
-					value={formatDataQuality(element.location_quality)}
-				/>
-				<InspectorRow
-					label="Coordenadas"
-					value={`${formatCoordinate(element.lat)}, ${formatCoordinate(element.lng)}`}
-				/>
-				<InspectorRow label="Referencia" value={element.address_reference} />
-			</InspectorSection>
+			<LocationSection
+				quality={element.location_quality}
+				lat={element.lat}
+				lng={element.lng}
+				reference={element.address_reference}
+			/>
 			<InspectorSection title="Capacidad">
 				<InspectorRow label="Puertos totales" value={element.total_ports} />
 				<InspectorRow label="Puertos usados" value={element.ports_used} />
 				<InspectorRow label="Split ratio" value={element.split_ratio} />
 			</InspectorSection>
-			<InspectorSection title="Notas">
-				<InspectorRow label="Notas" value={element.notes} />
-			</InspectorSection>
+			<PropertiesSection properties={element.properties} />
+			<NotesSection notes={element.notes} />
 			{onUpdateElement && (
 				<button
 					type="button"
 					onClick={onStartEdit}
-					className="mt-1 w-full rounded-md border border-[rgba(245,158,11,0.3)] bg-[rgba(245,158,11,0.1)] px-3 py-2 text-xs font-medium text-[#fbbf24] transition-colors hover:bg-[rgba(245,158,11,0.16)]"
+					className="mt-1 w-full rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-medium text-warning-fg transition-colors hover:bg-warning/16"
 				>
 					Editar propiedades
 				</button>
@@ -1908,7 +2138,7 @@ function OpticalAlertInspectorCard({ alert }: { alert: OpticalBudgetAlert }) {
 			<p className="mt-1 text-[11px] leading-4 text-[#c8c8c8]">
 				{alert.reason}.
 			</p>
-			<p className="mt-2 border-t border-white/10 pt-2 text-[11px] leading-4 text-[#a4a4a4]">
+			<p className="mt-2 border-t border-white/10 pt-2 text-[11px] leading-4 text-fg-secondary">
 				{recommendation}
 			</p>
 		</div>
@@ -1987,29 +2217,29 @@ function RouteInspectorDetails({
 	if (isEditing) {
 		return (
 			<div className="space-y-3">
-				<div className="rounded-md border border-[rgba(56,216,255,0.18)] bg-[rgba(56,216,255,0.07)] px-3 py-2 text-[11px] leading-4 text-[#bdeafe]">
+				<div className="rounded-md border border-info/18 bg-info/7 px-3 py-2 text-[11px] leading-4 text-info-strong">
 					Aplicar actualiza el borrador local. Usa Guardar en la barra superior
 					para persistir en Supabase.
 				</div>
 				<InspectorSection title="Identificación">
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Código
 						</span>
 						<input
 							value={code}
 							onChange={(event) => setCode(event.target.value)}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						/>
 					</label>
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Tipo
 						</span>
 						<select
 							value={type}
 							onChange={(event) => setType(event.target.value as RouteType)}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						>
 							<option value="feeder">Feeder</option>
 							<option value="distribution">Distribución</option>
@@ -2017,13 +2247,13 @@ function RouteInspectorDetails({
 						</select>
 					</label>
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Estado
 						</span>
 						<select
 							value={status}
 							onChange={(event) => setStatus(event.target.value as RouteStatus)}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						>
 							<option value="planned">Planificada</option>
 							<option value="installed">Instalada</option>
@@ -2035,7 +2265,7 @@ function RouteInspectorDetails({
 				</InspectorSection>
 				<InspectorSection title="Cable">
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Instalación
 						</span>
 						<select
@@ -2043,7 +2273,7 @@ function RouteInspectorDetails({
 							onChange={(event) =>
 								setInstallationType(event.target.value as InstallationType | "")
 							}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						>
 							<option value="">Sin definir</option>
 							<option value="aerial">Aérea</option>
@@ -2053,7 +2283,7 @@ function RouteInspectorDetails({
 						</select>
 					</label>
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Tipo de fibra
 						</span>
 						<select
@@ -2061,7 +2291,7 @@ function RouteInspectorDetails({
 							onChange={(event) =>
 								setFiberType(event.target.value as FiberType | "")
 							}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						>
 							<option value="">Sin definir</option>
 							<option value="g652d">G.652D</option>
@@ -2070,7 +2300,7 @@ function RouteInspectorDetails({
 						</select>
 					</label>
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Hilos
 						</span>
 						<input
@@ -2078,13 +2308,13 @@ function RouteInspectorDetails({
 							type="number"
 							value={fiberCount}
 							onChange={(event) => setFiberCount(event.target.value)}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						/>
 					</label>
 				</InspectorSection>
 				<InspectorSection title="Geometría">
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Calidad de ruta
 						</span>
 						<select
@@ -2092,7 +2322,7 @@ function RouteInspectorDetails({
 							onChange={(event) =>
 								setRouteQuality(event.target.value as DataQuality)
 							}
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						>
 							<option value="verified">Verificada</option>
 							<option value="gps_captured">GPS</option>
@@ -2110,7 +2340,7 @@ function RouteInspectorDetails({
 						}
 					/>
 					<label className="block">
-						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-[#777879]">
+						<span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
 							Reserva (m)
 						</span>
 						<input
@@ -2120,9 +2350,9 @@ function RouteInspectorDetails({
 							value={reservation}
 							onChange={(event) => setReservation(event.target.value)}
 							placeholder="0"
-							className="w-full rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+							className="w-full rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 						/>
-						<span className="mt-1 block text-[10px] text-[#777879]">
+						<span className="mt-1 block text-[10px] text-fg-muted">
 							Slack físico (bucles, holgura). Suma a la pérdida óptica del
 							tramo.
 						</span>
@@ -2133,21 +2363,21 @@ function RouteInspectorDetails({
 						value={notes}
 						onChange={(event) => setNotes(event.target.value)}
 						rows={3}
-						className="w-full resize-none rounded-md border border-[rgba(164,164,164,0.16)] bg-[#1b1c1d] px-2.5 py-2 text-xs text-[#e6e6e6] outline-none transition-colors focus:border-[#38d8ff]/40"
+						className="w-full resize-none rounded-md border border-border bg-surface px-2.5 py-2 text-xs text-fg outline-none transition-colors focus:border-info/40"
 					/>
 				</InspectorSection>
 				<div className="grid grid-cols-2 gap-2">
 					<button
 						type="button"
 						onClick={applyChanges}
-						className="rounded-md border border-[rgba(52,211,153,0.35)] bg-[rgba(52,211,153,0.12)] px-3 py-2 text-xs font-medium text-[#34d399] transition-colors hover:bg-[rgba(52,211,153,0.18)]"
+						className="rounded-md border border-success/35 bg-success/12 px-3 py-2 text-xs font-medium text-success transition-colors hover:bg-success/18"
 					>
 						Aplicar cambios
 					</button>
 					<button
 						type="button"
 						onClick={onCancelEdit}
-						className="rounded-md border border-[rgba(164,164,164,0.14)] bg-[rgba(164,164,164,0.06)] px-3 py-2 text-xs font-medium text-[#d7d7d7] transition-colors hover:bg-[rgba(164,164,164,0.1)]"
+						className="rounded-md border border-border-subtle bg-tint/6 px-3 py-2 text-xs font-medium text-fg-soft transition-colors hover:bg-tint/10"
 					>
 						Descartar edición
 					</button>
@@ -2160,12 +2390,24 @@ function RouteInspectorDetails({
 		<div className="space-y-3">
 			<InspectorSection title="Identificación">
 				<InspectorRow label="Código" value={route.code} />
-				<InspectorRow label="Tipo" value={route.type} />
-				<InspectorRow label="Estado" value={route.status} />
+				<InspectorRow
+					label="Tipo"
+					value={labelOf(ROUTE_TYPE_LABEL, route.type)}
+				/>
+				<InspectorRow
+					label="Estado"
+					value={labelOf(STATUS_LABEL, route.status)}
+				/>
 			</InspectorSection>
 			<InspectorSection title="Cable">
-				<InspectorRow label="Cable" value={route.cable_type ?? route.type} />
-				<InspectorRow label="Fibra" value={route.fiber_type} />
+				<InspectorRow
+					label="Cable"
+					value={labelOf(CABLE_LABEL, route.cable_type ?? route.type)}
+				/>
+				<InspectorRow
+					label="Fibra"
+					value={labelOf(FIBER_TYPE_LABEL, route.fiber_type)}
+				/>
 				<InspectorRow label="Hilos" value={route.fiber_count} />
 				<InspectorRow
 					label="Longitud"
@@ -2205,73 +2447,13 @@ function RouteInspectorDetails({
 				<button
 					type="button"
 					onClick={onStartEdit}
-					className="mt-1 w-full rounded-md border border-[rgba(245,158,11,0.3)] bg-[rgba(245,158,11,0.1)] px-3 py-2 text-xs font-medium text-[#fbbf24] transition-colors hover:bg-[rgba(245,158,11,0.16)]"
+					className="mt-1 w-full rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-medium text-warning-fg transition-colors hover:bg-warning/16"
 				>
 					Editar propiedades
 				</button>
 			)}
 		</div>
 	);
-}
-
-function RoutePointInspectorDetails({ point }: { point: RoutePoint }) {
-	const mufaDescription =
-		point.type === "mufa" ? describeMufaProperties(point.properties) : null;
-
-	return (
-		<div className="space-y-2">
-			<InspectorRow label="Tipo" value={point.type} />
-			{mufaDescription && (
-				<InspectorRow label="Configuración" value={mufaDescription} />
-			)}
-			<InspectorRow label="Estado" value={point.status} />
-			<InspectorRow label="Ruta" value={point.fiber_route_id} />
-			<InspectorRow label="Calidad ubicación" value={point.location_quality} />
-			<InspectorRow
-				label="Coordenadas"
-				value={`${formatCoordinate(point.lat)}, ${formatCoordinate(point.lng)}`}
-			/>
-			<InspectorRow
-				label="Posición"
-				value={
-					point.position_on_route_m == null
-						? null
-						: `${point.position_on_route_m.toFixed(1)} m`
-				}
-			/>
-			<InspectorRow label="Reserva" value={point.reserve_length_m} />
-			<InspectorRow label="Riesgo" value={point.risk_level} />
-			<InspectorRow label="Referencia" value={point.reference_text} />
-			{point.type === "mufa" && (
-				<>
-					<InspectorRow
-						label="Sangrado"
-						value={point.properties.has_midspan_access === true ? "Sí" : "No"}
-					/>
-					<InspectorRow
-						label="Empalme"
-						value={point.properties.has_splice === true ? "Sí" : "No"}
-					/>
-					<InspectorRow
-						label="Splitter"
-						value={
-							point.properties.has_splitter === true
-								? `Sí (${String(point.properties.split_ratio ?? "sin ratio")})`
-								: "No"
-						}
-					/>
-				</>
-			)}
-		</div>
-	);
-}
-
-function describeMufaProperties(properties: Record<string, unknown>) {
-	const details = [];
-	if (properties.has_midspan_access === true) details.push("sangrado");
-	if (properties.has_splice === true) details.push("empalme");
-	if (properties.has_splitter === true) details.push("splitter");
-	return details.length > 0 ? `Mufa + ${details.join(" + ")}` : "Mufa simple";
 }
 
 function mufaVariant(properties: Record<string, unknown>) {
@@ -2998,45 +3180,12 @@ function getRoutePointLabel(type: RoutePoint["type"]) {
 	return labels[type] ?? type;
 }
 
-function formatCoordinate(value: number) {
-	return value.toFixed(6);
-}
-
 function formatElementType(type: EquipmentMapItem["type"]) {
-	const labels: Record<string, string> = {
-		olt: "OLT",
-		nap: "NAP",
-		closure: "Mufa",
-		splitter: "Splitter",
-		ont: "ONT",
-	};
-	return labels[type] ?? type;
+	return labelOf(ELEMENT_TYPE_LABEL, type);
 }
 
 function formatElementStatus(status: EquipmentMapItem["status"]) {
-	const labels: Record<string, string> = {
-		active: "Activo",
-		alarm: "En alarma",
-		faulty: "Con falla",
-		inactive: "Inactivo",
-		online: "En línea",
-		planned: "Planificado",
-		retired: "Retirado",
-	};
-	return labels[status] ?? status;
-}
-
-function formatDataQuality(quality: EquipmentMapItem["location_quality"]) {
-	const labels: Record<string, string> = {
-		approximate: "Aproximada",
-		estimated: "Estimada",
-		gps: "GPS",
-		manual: "Manual",
-		surveyed: "Levantada",
-		unknown: "Desconocida",
-		verified: "Verificada",
-	};
-	return labels[quality] ?? quality;
+	return labelOf(STATUS_LABEL, status);
 }
 
 function emptyToNull(value: string) {
@@ -3090,14 +3239,14 @@ function formatEditorMode(mode: EditorMode) {
 }
 
 function tabButtonClass(active: boolean) {
-	return `flex items-center justify-center gap-1.5 rounded px-2 py-1.5 text-[10px] font-medium transition-colors ${active ? "bg-[rgba(56,216,255,0.14)] text-[#bdeafe]" : "text-[#777879] hover:bg-[rgba(164,164,164,0.06)] hover:text-[#d7d7d7]"}`;
+	return `flex items-center justify-center gap-1.5 rounded px-2 py-1.5 text-[10px] font-medium transition-colors ${active ? "bg-info/14 text-info-strong" : "text-fg-muted hover:bg-tint/6 hover:text-fg-soft"}`;
 }
 
 function StatRow({ label, value }: { label: string; value: number | string }) {
 	return (
 		<div className="flex items-center justify-between">
-			<span className="text-[#777879]">{label}</span>
-			<span className="font-mono text-[#e6e6e6]">{value}</span>
+			<span className="text-fg-muted">{label}</span>
+			<span className="font-mono text-fg">{value}</span>
 		</div>
 	);
 }
@@ -3110,7 +3259,7 @@ function EditorMapStatus({
 	mode: EditorMode;
 }) {
 	return (
-		<div className="rounded-lg border border-[rgba(164,164,164,0.18)] bg-[rgba(34,35,36,0.9)] px-3 py-2 text-xs text-[#a4a4a4] shadow-2xl backdrop-blur-md">
+		<div className="rounded-lg border border-border bg-surface-panel/90 px-3 py-2 text-xs text-fg-secondary shadow-2xl backdrop-blur-md">
 			<AnimatePresence mode="wait" initial={false}>
 				<motion.span
 					key={mode}

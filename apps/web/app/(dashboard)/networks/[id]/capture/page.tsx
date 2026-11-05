@@ -29,6 +29,7 @@ export default async function NetworkCapturePage({ params }: Props) {
 	return (
 		<NetworkCaptureShell
 			canCapture={canWriteInfrastructure(userRole)}
+			canManageZones={userRole === "admin" || userRole === "network_engineer"}
 			network={network as Network}
 			networkId={id}
 		/>

@@ -16,21 +16,13 @@ import {
 	type RouteCoordinate,
 	removeRouteVertex,
 } from "@/lib/map/route-geometry-editor";
+import { translateDbError } from "@/lib/supabase/errors";
 
 function getSaveErrorMessage(error: unknown) {
-	if (error instanceof Error && error.message) return error.message;
-	if (typeof error === "object" && error !== null) {
-		const record = error as Record<string, unknown>;
-		const message =
-			record.message ?? record.details ?? record.hint ?? record.code;
-		if (typeof message === "string" && message.length > 0) return message;
-		try {
-			return JSON.stringify(record);
-		} catch {
-			return "Error desconocido";
-		}
-	}
-	return String(error);
+	return translateDbError(
+		error,
+		"Error inesperado al guardar. Tus cambios siguen en pantalla; inténtalo de nuevo.",
+	);
 }
 
 function addUniqueId(ids: string[], id: string) {
@@ -181,8 +173,11 @@ export interface NetworkEditorStore extends TemporalState {
 	) => void;
 	loadNetwork: (id: string) => Promise<void>;
 	validate: () => ValidationError[];
-	save: () => Promise<void>;
+	/** Resolves true when every pending change was persisted. */
+	save: () => Promise<boolean>;
 	discard: () => void;
+	/** Drop local data without refetching (used when leaving the editor). */
+	resetEditor: () => void;
 }
 
 // ── Store implementation ──────────────────────────────────────────────────────
@@ -512,6 +507,12 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 			// ── Persistence ───────────────────────────────────────────────────
 
 			hydrateNetwork: (id, data) => {
+				// Never clobber unsaved local edits of the same network with a
+				// (re)fetched server snapshot — e.g. editor ↔ capture navigation or
+				// a React Query background refetch.
+				const current = get();
+				if (current.isDirty && current.networkId === id) return;
+
 				const toRecord = <T extends { id: string }>(arr: T[]) =>
 					Object.fromEntries(arr.map((x) => [x.id, x]));
 
@@ -724,7 +725,7 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 					networkId,
 					validate,
 				} = get();
-				if (!networkId) return;
+				if (!networkId) return false;
 
 				const errors = validate();
 				if (errors.length > 0) {
@@ -732,7 +733,7 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 						isSaving: false,
 						statusMessage: `No se guardó: ${errors.map((error) => error.message).join(" · ")}`,
 					});
-					return;
+					return false;
 				}
 
 				set({ isSaving: true });
@@ -909,6 +910,7 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 						statusMessage: "Cambios guardados.",
 					});
 					useNetworkEditorStore.temporal.getState().clear();
+					return true;
 				} catch (error) {
 					const errorMessage = getSaveErrorMessage(error);
 					set({
@@ -916,6 +918,7 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 						statusMessage: `No se pudo guardar: ${errorMessage}`,
 					});
 					console.error("Save failed:", errorMessage, error);
+					return false;
 				}
 			},
 
@@ -935,6 +938,27 @@ export const useNetworkEditorStore = create<NetworkEditorStore>()(
 						modifiedRouteIds: [],
 						modifiedRoutePointIds: [],
 					});
+				useNetworkEditorStore.temporal.getState().clear();
+			},
+
+			resetEditor: () => {
+				set({
+					elements: {},
+					routes: {},
+					routePoints: {},
+					networkId: null,
+					selection: null,
+					activeDraft: null,
+					isDirty: false,
+					isSaving: false,
+					validationErrors: [],
+					createdElementIds: [],
+					createdRouteIds: [],
+					createdRoutePointIds: [],
+					modifiedElementIds: [],
+					modifiedRouteIds: [],
+					modifiedRoutePointIds: [],
+				});
 				useNetworkEditorStore.temporal.getState().clear();
 			},
 		}),
