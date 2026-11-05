@@ -85,6 +85,8 @@ apps/web/
     │                             # olt-catalog, olt-properties, nap-config, symbology
     ├── map/                      # palette, route-geometry-editor
     ├── store/network-editor.ts   # Zustand + Zundo
+    ├── queries/network-editor.ts # llamadas RPC del editor/captura (fetch, create, update, delete, zonas)
+    ├── motion/config.ts          # presets de animación (motion)
     ├── hooks/                    # use-ont-realtime, atajos editor/navegación/historial
     ├── auth/                     # roles, permissions, rate-limit, supabase-errors
     ├── audit/log.ts              # escritura de audit_logs
@@ -140,11 +142,15 @@ docs/                             # ver "Mapa de documentación"
 
 ## Base de datos (Supabase)
 
-> ⚠️ **Las migraciones del repo NO reconstruyen la BD.** La tabla `networks`, las columnas
-> `network_id` de infraestructura y el RPC `create_network` se aplicaron directamente en Supabase
-> y no están en ninguna migración. `010_network_zones.sql` referencia `networks(id)`, por lo que
-> aplicar 001→029 sobre una BD vacía falla. No asumir que el repo es la fuente de verdad del schema
-> hasta resolverlo (dump + migración baseline).
+> ⚠️ **Las migraciones del repo NO reconstruyen la BD.** Aplicado directamente en Supabase y ausente de toda migración:
+> - tabla `networks` (columnas base, RLS y policies salvo `networks_update` de 026)
+> - columnas `network_id` en `infrastructure_elements` y `fiber_routes` (¿y `route_points`?)
+> - RPC `create_network(p_name, p_description, p_topology)` y la primera versión de `list_networks`
+> - `fiber_routes_for_map(p_network_id)` y `route_points_for_map(p_network_id)` (022 solo versiona la de elementos)
+> - **cómo reciben `network_id` los elementos y rutas nuevos**: `create_*_draft` no lo reciben como parámetro
+>
+> `010_network_zones.sql` referencia `networks(id)`, por lo que aplicar 001→029 sobre una BD vacía falla.
+> Para resolverlo, extraer el DDL real (consulta de introspección en el PR / sesión) y escribir la migración baseline.
 
 **Tablas:**
 | Tabla | Propósito |

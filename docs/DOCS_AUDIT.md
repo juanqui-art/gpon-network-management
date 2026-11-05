@@ -25,6 +25,7 @@ Método: verificación cruzada de afirmaciones concretas (rutas, archivos, const
 
 ### C1. Schema no reproducible: falta la tabla `networks` en las migraciones
 - Ninguna migración crea `networks`, ni las columnas `network_id` de `infrastructure_elements`/`fiber_routes`/`route_points`, ni el RPC `create_network` (usado en `apps/web`).
+- Tampoco `fiber_routes_for_map(p_network_id)` ni `route_points_for_map(p_network_id)`, que usa `lib/queries/network-editor.ts`; y `create_*_draft` no reciben `network_id`, así que el mecanismo que asigna la red a elementos nuevos tampoco está en el repo.
 - `010_network_zones.sql:7` hace `REFERENCES networks(id)` → una BD nueva aplicando 001→027 **falla en 010**.
 - Las versiones `*_for_map(p_network_id)` aparecen recién en `022`; `004` solo define las variantes sin parámetro, pero CLAUDE.md dice "004 … (con/sin p_network_id)".
 - Implicación: esas piezas se aplicaron a mano en Supabase y nunca se versionaron. La afirmación "001-021 APLICADAS" oculta que *aplicado ≠ reproducible*.
@@ -79,7 +80,7 @@ Nadie coincide con nadie. El código además usa `"yellow"` mientras la doc dice
 ADR 0003 (Aceptado) pospone `signal_history` y `audit_log` a Fase 4. Ambas existen (`012_audit_logs.sql`, `021_ont_monitoring_tables.sql`). Un ADR aceptado que el código contradice pierde su valor; corresponde marcarlo *Superseded (parcial)* o crear ADR 0004 "Monitoreo ONT adelantado a Fase 2" con el porqué.
 
 ### A5. README.md (raíz)
-- "001-017 SQL migrations (001-013 applied)", "17 migrations", "19 markdown docs" (hay 34), `database/seed/`, `packages/types/`, `geodata/`, `lib/queries/` — inexistentes.
+- "001-017 SQL migrations (001-013 applied)", "17 migrations", "19 markdown docs" (hay 34), `database/seed/`, `packages/types/`, `geodata/` — inexistentes. *(Corrección: `lib/queries/` sí existe — `lib/queries/network-editor.ts`; el listado inicial de esta auditoría estaba truncado.)*
 - Node "18+" — `package.json` exige `>=20.9.0`.
 - Setup lista `SUPABASE_URL, MAPBOX_TOKEN…` sin prefijo `NEXT_PUBLIC_` y omite `NEXT_PUBLIC_SITE_URL` y `UPSTASH_REDIS_REST_*` (sin estas el rate limit queda fail-open).
 - "Phase 2+: OLT telemetry, audit logs" — ya implementados.
