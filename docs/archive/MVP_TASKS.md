@@ -1,5 +1,7 @@
 # Tareas MVP - Editor de Infraestructura GPON
 
+> **Archivado (2026-11-04).** Snapshot de 2026-04-27; no refleja el estado actual. Estado vigente: `CLAUDE.md` § Estado funcional y § Pendiente.
+
 Fecha de actualizacion: 2026-04-27
 
 ## Realizado

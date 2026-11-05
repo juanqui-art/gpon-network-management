@@ -1,7 +1,7 @@
 # Monitoreo en Tiempo Real — Investigación y Diseño
 
 **Fecha:** 2026-05-10
-**Estado:** Investigación completada, pendiente implementación
+**Estado:** Implementado (colector `apps/collector`, migraciones 021-024, `/monitoring`). Pendiente: actualización en vivo de marcadores del mapa y despliegue en RPi. Ver ADR 0004.
 **Complementa:** `OLT_INTEGRATION_GUIDE.md` (visión general por fabricante)
 **Enfoque:** Decisiones técnicas verificadas para el módulo de monitoreo en tiempo real
 

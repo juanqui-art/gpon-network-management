@@ -1,5 +1,9 @@
 # Plan del Editor de Infraestructura GPON
 
+> **Estado: histórico (previo a ADR 0001).** Las secciones con `organizations` / `organization_id` contradicen [ADR 0001](adr/0001-single-tenant-mvp.md) (single-tenant): no se implementaron.
+> El estado real del editor está en `CLAUDE.md` § Estado funcional.
+
+
 ## Alcance MVP cerrado
 
 El alcance MVP vigente esta documentado en:

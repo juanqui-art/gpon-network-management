@@ -1,5 +1,10 @@
 # OLT Integration Guide — APIs, Protocolos y Automatización para Desarrolladores
 
+> **Estado: parcialmente superado (2026-11-04).** El panorama por fabricante (APIs, SNMP, NETCONF, TR-069) sigue siendo válido.
+> La arquitectura de implementación propuesta aquí (colector dentro de Next.js en `apps/web/lib/workers/`, `app/api/olt/[id]/metrics`, `OltDashboard.tsx`) **se descartó**:
+> el colector real es standalone en `apps/collector` y la UI está en `/monitoring`. Ver `REALTIME_MONITORING_RESEARCH.md` y `docs/adr/0004-monitoring-and-audit-before-phase-4.md`.
+
+
 ## 1. DISPONIBILIDAD DE APIs POR FABRICANTE
 
 ### 1.1 Situación Actual (2025)

@@ -1,238 +1,140 @@
-# 📡 GPON Network Management & Interactive Mapping System
+# GPON Network Management
 
-## 🧠 Overview
+Web platform to **design, document and monitor GPON / XGS-PON outside plant**, built for fiber operators in Ecuador.
 
-This project is a **web-based system for managing and visualizing GPON (Gigabit Passive Optical Network) infrastructure** through interactive maps and operational tools.
+It combines a GIS map editor for the passive network (OLT → splitter → NAP), an optical budget calculator tuned for tropical conditions, and live ONT telemetry collected over SNMP.
 
-It is designed to support both:
-
-- **Technical teams** (network deployment, troubleshooting, maintenance)
-- **Administrative teams** (monitoring, planning, decision-making)
-
-The system combines **geospatial data (GIS)**, **telecommunications network modeling**, and **modern web technologies** to provide a centralized platform for network operations.
+> Developer and agent documentation (architecture, database, roles, conventions) lives in [`CLAUDE.md`](CLAUDE.md). This README is the entry point.
 
 ---
 
-## 🎯 Objectives
+## What it does today
 
-- Visualize GPON network infrastructure on interactive maps
-- Manage network components (OLT, Splitters, NAPs, ONTs)
-- Assist technicians in field operations
-- Provide real-time network status and incident tracking
-- Enable scalable and structured network data management
+**Network editor** (`/networks/[id]`)
+- View / Design / Edit modes on a Mapbox map, with undo/redo (50 steps)
+- OLTs, splitters, NAPs, closures (mufas), fiber routes and route points (crossings, reserves, splices)
+- Logical single-line diagram with per-path accumulated optical loss
+- Optical budget semaphore per route (fiber + splitters + connectors + splices + safety margin)
+- NAP capacity tracking (used / reserved / available, warnings at 70% / 90%)
+- Data quality per element (unknown → approximate → drawn → GPS captured → verified)
+- Topology templates: Star 1:16, Tree 1:32, Cascade 1:64
+- Operative codes by zone (`PIC-UIO-Z05-NAP-128`)
 
----
+**Field capture** (`/networks/[id]/capture`) — closures and internal splitters.
 
-## 🏗️ Architecture
+**Monitoring** (`/monitoring`)
+- Standalone SNMP collector (`apps/collector`) polling Huawei OLTs (or a mock with 16 synthetic ONTs)
+- ONT status, RX power, temperature and distance, pushed live via Supabase Realtime
+- Filtered history: only status changes, degradations (> 1.5 dB) and periodic samples (~94% less volume), with tiered retention (samples 30 days, events 1 year)
 
-### Phase 1 (Current)
+**Administration** (`/admin`) — user and role management, network archiving, and an audit log that records every network/infrastructure change via database triggers.
 
-- **Frontend:** Next.js (React)
-- **Backend:** Supabase (Auth, Database, Realtime)
-- **Database:** PostgreSQL + PostGIS
-- **Data Format:** GeoJSON
-
-### Phase 2+ (Post-MVP Roadmap)
-
-- **Customers & Drop Lines:** Subscriber management and service delivery
-- **OLT Integration:** SNMP/TR-069 telemetry and performance monitoring
-- **Field Operations:** Mobile app for technicians, QR code scanning
-- **Advanced Analytics:** Predictive maintenance, capacity forecasting
+**Not yet:** live map markers, fault localization along routes, distance measuring tool, customers / services / drops (Phase 4). See *Pendiente* in [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
-## 🧩 Core Features
+## Stack
 
-### 🌍 Interactive Map
-
-- Display network topology (OLT → Splitter → NAP → ONT)
-- Layer-based visualization
-- Zoom and clustering support
-
-### 🛠️ Network Management
-
-- CRUD operations for network elements (OLT, Splitters, NAPs)
-- Hierarchical network structure with drag-to-move positioning
-- Capacity tracking (ports, split ratios, usage/reserved/available)
-- Non-blocking warnings (NAP saturation, splitter imbalance)
-- Undo/redo support (50 steps) via Zustand + Zundo
-
-### 📊 Infrastructure Editor Features
-
-- **Three Editor Modes:** View (read-only), Design (create elements), Edit (modify existing)
-- **Logical Diagram:** Tree-based visualization with optical budget per path
-- **Optical Budget Calculator:** Real-time signal loss calculation (fiber + splitters + connectors + safety margin)
-  - Semaphore: Green (>3dB margin) / Amber (1-3dB) / Red (<1dB) / Gray (no OLT class)
-  - Tropical Ecuador margins (4.0 dB) for UV/humidity/repairs
-- **Data Quality Tracking:** Unknown / Approximate / Drawn / GPS Captured / Verified
-- **Topologies:** Star (1:16), Tree (1:32), Cascade (1:64), Bus (asymmetric)
-- **Network Zones:** Geographic sectors with operative code generation (e.g., `PIC-UIO-Z05-NAP-128`)
-- **Equipment Layers:** Centralized Mapbox layer management for clean scaling
-
-### 👥 User Roles (Role-Based Access Control)
-
-- **Admin** — Government/oversight; full CRUD + delete authority
-- **Network Engineer** — Design & validation; CRUD infrastructure
-- **Outside Plant** — Field operations; mark crossings/reserves/splices
-- **Installer** — Phase 4 (customer installations)
-- **Support** — Phase 4 (incident management)
+| Layer | Tech |
+|---|---|
+| Frontend | Next.js 16 (App Router), React 19, Tailwind CSS v4, shadcn/ui |
+| Map | Mapbox GL JS 3, mapbox-gl-draw, Turf.js |
+| State | Zustand + Zundo, TanStack Query |
+| Backend | Supabase: Auth, PostgreSQL + PostGIS, Realtime, RLS |
+| Collector | Node.js + net-snmp (SNMP v2c) |
+| Tooling | pnpm, Biome, TypeScript |
 
 ---
 
-## 🗺️ Data Modeling
-
-The system represents the GPON network using:
-
-- **Hierarchical structures (tree model)** → logical representation
-- **Graph structures** → routing and analysis
-- **Geospatial models (GIS)** → real-world mapping
-
----
-
-## 🗄️ Database
-
-- PostgreSQL with PostGIS extension
-- Geospatial queries for:
-  - distance calculations
-  - nearest node detection
-  - coverage analysis
-
----
-
-## 📁 Project Structure
+## Repository layout
 
 ```
-gpon-system/
-├── apps/web/                    # Next.js 16 frontend (React 19)
-│   ├── app/                     # App Router (layout, pages, routes)
-│   ├── components/              # React components
-│   │   ├── map/                 # Map editor & viewer (20+ files)
-│   │   │   └── logical-diagram/ # Tree-based network visualization
-│   │   └── topology/
-│   ├── lib/
-│   │   ├── gpon/                # Optical budget, operative codes, topology templates
-│   │   ├── map/                 # Mapbox utilities, route geometry editor
-│   │   ├── store/               # Zustand + Zundo state management
-│   │   ├── queries/             # React Query hooks
-│   │   ├── supabase/            # Auth & DB client
-│   │   └── types/
-│   ├── proxy.ts                 # Auth middleware (Next.js 16)
-│   └── biome.json               # Linting & formatting
-├── database/
-│   ├── migrations/              # 001-017 SQL migrations (001-013 applied)
-│   └── seed/                    # Development data
-├── docs/                        # 19 markdown docs + research sources
-│   ├── MVP_SCOPE.md
-│   ├── GPON_FTTH_ECUADOR_RESEARCH.md  # Canonical reference
-│   ├── TOPOLOGIES.md            # Star/Tree/Cascade/Bus guide
-│   ├── adr/                     # Architecture Decision Records
-│   └── research-sources/        # Original whitepapers
-├── packages/types/              # Shared TypeScript types (planned)
-├── geodata/                     # GeoJSON fixtures (planned)
-└── CLAUDE.md                    # Project documentation (source of truth)
+apps/
+├── web/           # Next.js app
+└── collector/     # SNMP → Supabase poller (see apps/collector/README.md)
+database/
+└── migrations/    # 001-030 SQL migrations (+ 009b approximate baseline) (schema, RLS, RPCs, seeds)
+docs/              # Domain research, UX specs, ADRs — index in CLAUDE.md
 ```
 
----
-
-## 🚀 Development Roadmap
-
-### Current Status: MVP (Infrastructure Editor)
-
-The MVP is a **complete web-based infrastructure editor for GPON external plant**, featuring:
-
-- ✅ Network topology visualization (OLT → Splitter → NAP)
-- ✅ Interactive map editor (design, edit, delete modes)
-- ✅ Optical budget calculator with live semaphore (green/amber/red)
-- ✅ Logical tree diagram (unifilar) with per-path loss calculation
-- ✅ Role-based access control (5 roles, RLS enforced)
-- ✅ Undo/redo (50 steps)
-- ✅ Data quality tracking (Unknown/Approximate/Drawn/GPS/Verified)
-- ✅ Capacity management (NAP ports, split ratios)
-- ✅ Network zones + operative code generation
-- ✅ Development seeds (Quito, Cuenca)
-
-See [`docs/MVP_SCOPE.md`](docs/MVP_SCOPE.md) for detailed scope and closure criteria.
-
-### Phase 2+ (Post-MVP)
-
-- Customers, drop lines, service delivery
-- OLT telemetry (SNMP/TR-069)
-- Field technician mobile app
-- Incident tracking and audit logs
-- Predictive maintenance analytics
-
-### Technical Foundation
-
-- **Database:** 17 migrations covering schema, RLS, RPCs, audit trails, network zones
-- **Frontend:** 20+ map components + logical diagram system
-- **Documentation:** Ecuadorian GPON research, topologies, OLT operations, workflow analysis
-
-Technical references:
-- [`docs/GPON_FTTH_ECUADOR_RESEARCH.md`](docs/GPON_FTTH_ECUADOR_RESEARCH.md) — Consolidated market analysis, optical budgets, materials
-- [`docs/TOPOLOGIES.md`](docs/TOPOLOGIES.md) — Star/Tree/Cascade/Bus topology guide
-- [`CLAUDE.md`](CLAUDE.md) — Complete project documentation (source of truth)
+There is no root workspace: each app installs its own dependencies.
 
 ---
 
-## 🛠️ Getting Started
+## Getting started
 
-### Prerequisites
+**Prerequisites:** Node.js ≥ 20.9, pnpm 10, a Supabase project with PostGIS, a Mapbox token. Upstash Redis is optional but recommended.
 
-- **Node.js 18+**, **pnpm** (package manager)
-- **Supabase** account (auth, database, PostGIS extension)
-- **Mapbox** account (interactive maps)
-
-### Setup
+### Web app
 
 ```bash
-# Install dependencies
 cd apps/web
 pnpm install
-
-# Copy environment variables
 cp .env.local.example .env.local
-# Fill in: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_SECRET_KEY, MAPBOX_TOKEN
-
-# Start development server
 pnpm dev
+```
 
-# Run linter/formatter
-pnpm check:fix
+Fill `.env.local`:
 
-# Build for production
+| Variable | Notes |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase 2025 key format (replaces the anon key) |
+| `SUPABASE_SECRET_KEY` | Server only — user admin and audit |
+| `NEXT_PUBLIC_MAPBOX_TOKEN` | |
+| `NEXT_PUBLIC_SITE_URL` | Used in password reset emails |
+| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | Rate limiting for login and password reset. **If missing, those endpoints run unprotected.** |
+
+There is no public sign-up: an admin invites users by email from `/admin/users`. The role is stored in `auth.users.app_metadata.role`.
+
+### Collector
+
+```bash
+cd apps/collector
+pnpm install
+cp .env.example .env
+pnpm dev
+```
+
+`MOCK_MODE=true` (the default) generates synthetic ONTs without hardware. For a real OLT, set `MOCK_MODE=false`, `OLT_HOST`, `OLT_COMMUNITY`, `SUPABASE_SERVICE_KEY` and `NETWORK_ID`. Details in [`apps/collector/README.md`](apps/collector/README.md).
+
+### Database
+
+> ⚠️ `009b_networks_baseline.sql` and `030_network_scoped_map_rpcs.sql` are an **approximate baseline reconstructed from code** for objects that were applied directly in Supabase (`networks`, `network_id`, `create_network`). With them the full chain applies on an empty database, but they may differ from production. On production they are no-ops. Known issue: `create_infrastructure_element_draft` returns a pre-022 shape and fails; see `CLAUDE.md` § Base de datos.
+
+### Checks
+
+```bash
+cd apps/web
+pnpm check
+```
+
+```bash
+cd apps/web
 pnpm build
 ```
 
-See [`CLAUDE.md`](CLAUDE.md) for complete configuration and architecture details.
+---
+
+## Roles
+
+| Role | Scope |
+|---|---|
+| `admin` | Everything, including deletes, users and archiving |
+| `network_engineer` | Design and edit infrastructure |
+| `outside_plant` | Field review and data quality (no direct infrastructure writes) |
+| `installer`, `support` | Reserved for Phase 4 |
+
+Authorization is enforced by Postgres RLS. The full matrix is in [`CLAUDE.md`](CLAUDE.md#roles-y-permisos).
 
 ---
 
-## 🔮 XGS-PON & Next-Generation Networks
+## Documentation
 
-The system is designed to support **XGS-PON** (10 Gbps symmetric) alongside GPON:
+Most documentation is in Spanish.
 
-- Topologies and optical budgets are XGS-PON ready
-- OLT class selection supports both GPON (B/B+) and XGS-PON (D.1/D.2/D.3)
-- Future: Combo ports for seamless GPON ↔ XGS-PON migration
-
----
-
-## ⚠️ Philosophy
-
-This is **not** a simple CRUD application.
-
-It is a **specialized network operations system** combining:
-- **GIS integration** (PostGIS, Mapbox, geospatial queries)
-- **Telecom infrastructure modeling** (hierarchical + graph structures)
-- **Real-time state management** (Zustand + Zundo, undo/redo)
-- **Domain-specific logic** (optical budgets, capacity tracking, zone-based codes)
-
-The codebase prioritizes **correctness** (RLS enforcement, audit trails), **usability** (interactive editor), and **scalability** (modular components, centralized state).
-
----
-
-## 📌 Mission
-
-To build a scalable, modern platform that improves how GPON networks are **designed, validated, operated, and scaled** across Ecuador and beyond.
-
----
+- [`CLAUDE.md`](CLAUDE.md): current state, architecture, database, roles, conventions, and an index of `docs/` with each document's status
+- [`docs/GPON_FTTH_ECUADOR_RESEARCH.md`](docs/GPON_FTTH_ECUADOR_RESEARCH.md): canonical technical reference (optical budgets, materials, practices)
+- [`docs/TOPOLOGIES.md`](docs/TOPOLOGIES.md): Star / Tree / Cascade / Bus and XGS-PON readiness
+- [`docs/adr/`](docs/adr/): architecture decision records
+- [`docs/DOCS_AUDIT.md`](docs/DOCS_AUDIT.md): latest documentation audit and known inconsistencies

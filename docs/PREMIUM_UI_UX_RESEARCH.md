@@ -1,5 +1,10 @@
 # Premium UI/UX Research — GPON Network Management
 
+> **Estado: propuesta parcialmente implementada (2026-11-04).** Las rutas de archivo de este documento son un plan, no el código actual.
+> - Implementado: `components/command/palette.tsx`, `components/command/shortcuts-overlay.tsx` (no en `components/help/`), atajos globales y de editor (`lib/hooks/use-*-shortcuts.ts`), `components/ui/app-drawer.tsx`, dependencias `motion`, `cmdk`, `lightweight-charts`.
+> - No creado: `components/ui/motion-panel.tsx`, `animated-mode-switch.tsx`, `components/command/registry.ts`, `components/monitoring/ont-history-chart.tsx`, `nap-density-heatmap.tsx`, `components/empty-states/`, `components/skeletons/`.
+
+
 > Investigación consolidada para elevar la app a calidad premium (nivel Linear / Vercel / Mapbox Studio).
 > Fecha de la investigación: 2026-05-11. Audit interno + research web 2026.
 

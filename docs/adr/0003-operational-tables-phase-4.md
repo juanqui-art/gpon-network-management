@@ -1,7 +1,7 @@
 # ADR 0003 — Tablas operativas en Fase 4
 
 **Fecha:** 2026-04-27
-**Estado:** Aceptado
+**Estado:** Aceptado — **parcialmente superado** por [ADR 0004](0004-monitoring-and-audit-before-phase-4.md): `signal_history` y `audit_log` ya existen (migraciones 012 y 021). El resto de este ADR sigue vigente.
 **Contexto del MVP:** `docs/MVP_SCOPE.md`
 
 ## Decision
