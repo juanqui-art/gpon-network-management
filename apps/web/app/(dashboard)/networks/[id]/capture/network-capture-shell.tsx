@@ -65,6 +65,9 @@ const CAPTURE_ELEMENT_TYPES: Array<Extract<CaptureType, "olt" | "nap">> = [
 	"nap",
 ];
 
+/** Types placeable from the panel (desktop) and the dock (mobile). */
+const PLACEABLE_TYPES: CaptureType[] = ["olt", "nap", "closure"];
+
 const TYPE_LABELS: Record<CaptureType, string> = {
 	olt: "OLT",
 	nap: "NAP",
@@ -831,37 +834,31 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 								className="space-y-4"
 								onSubmit={(event) => {
 									event.preventDefault();
-									selectCreateTool(type);
+									pickPlacementTool(type);
 								}}
 							>
-								<div>
-									<span className="mb-2 block text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
+								<fieldset>
+									<legend className="mb-2 block text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
 										Tipo
-									</span>
-									<div className="grid grid-cols-2 gap-1.5">
-										{CAPTURE_ELEMENT_TYPES.map((item) => (
+									</legend>
+									<div className="grid grid-cols-3 gap-1.5">
+										{PLACEABLE_TYPES.map((item) => (
 											<button
 												key={item}
 												type="button"
+												aria-pressed={type === item}
 												onClick={() => handleTypeChange(item)}
-												className="rounded-lg border px-3 py-2.5 text-xs font-semibold transition-all hover:-translate-y-0.5"
-												style={{
-													backgroundColor:
-														type === item
-															? "rgba(56,216,255,0.16)"
-															: "rgba(164,164,164,0.04)",
-													borderColor:
-														type === item
-															? "rgba(56,216,255,0.35)"
-															: "rgba(164,164,164,0.12)",
-													color: type === item ? "#8bdff4" : "#a4a4a4",
-												}}
+												className={`rounded-lg border px-3 py-2.5 text-xs font-semibold transition-all hover:-translate-y-0.5 ${
+													type === item
+														? "border-info/35 bg-info/16 text-info-fg"
+														: "border-border-subtle bg-tint/4 text-fg-secondary"
+												}`}
 											>
 												{TYPE_LABELS[item]}
 											</button>
 										))}
 									</div>
-								</div>
+								</fieldset>
 
 								<div className="grid grid-cols-[1fr_96px] gap-3">
 									<div className="rounded-md border border-border-subtle bg-surface-sunken px-3 py-2">
@@ -895,7 +892,7 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 									<button
 										type="button"
 										disabled={!canCapture}
-										onClick={() => selectCreateTool(type)}
+										onClick={() => pickPlacementTool(type)}
 										className="flex items-center justify-center gap-2 rounded-md border border-info/30 bg-info/10 px-3 py-2.5 text-xs font-semibold text-info-fg transition-colors hover:bg-info/16 disabled:cursor-not-allowed disabled:opacity-50"
 									>
 										<Plus className="size-4" aria-hidden="true" />
@@ -1555,7 +1552,7 @@ function CaptureCheckboxField({
 	);
 }
 
-const DOCK_TOOLS: CaptureType[] = ["olt", "nap", "closure"];
+const DOCK_TOOLS = PLACEABLE_TYPES;
 
 /**
  * Phone-only control strip under the map: the whole capture loop (pick type →
