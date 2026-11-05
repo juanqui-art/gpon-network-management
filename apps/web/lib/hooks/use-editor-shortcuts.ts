@@ -9,6 +9,7 @@ import { useNetworkEditorStore } from "@/lib/store/network-editor";
 /**
  * Single-key mode shortcuts for the network editor:
  *   v → view  |  d → design  |  e → edit (only if canEdit)
+ *   m → toggle the distance ruler (any mode)
  * Skips when focus is inside an editable element, a modifier key is held, or
  * the key completes a global `g → x` navigation chord.
  */
@@ -27,6 +28,13 @@ export function useEditorShortcuts({
 
 			const { setMode, setActiveTool, deselect } =
 				useNetworkEditorStore.getState();
+
+			if (event.key === "m") {
+				event.preventDefault();
+				const { activeTool } = useNetworkEditorStore.getState();
+				setActiveTool(activeTool === "measure" ? "select" : "measure");
+				return;
+			}
 
 			let next: EditorMode | null = null;
 			if (event.key === "v") next = "view";

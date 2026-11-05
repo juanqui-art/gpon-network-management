@@ -341,6 +341,7 @@ export function NetworkEditorShell({ network, networkId, userRole }: Props) {
 					onInsertRouteVertex={canEdit ? insertRouteVertex : undefined}
 					onMoveRouteVertex={canEdit ? moveRouteVertex : undefined}
 					onMoveElement={canEdit ? moveElement : undefined}
+					onActiveToolChange={setActiveTool}
 				/>
 			</div>
 

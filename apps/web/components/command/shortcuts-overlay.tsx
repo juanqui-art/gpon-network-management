@@ -33,6 +33,10 @@ const SECTIONS: Section[] = [
 			{ keys: ["v"], label: "Modo consulta" },
 			{ keys: ["d"], label: "Modo diseño / captura" },
 			{ keys: ["e"], label: "Modo edición de inventario" },
+			{
+				keys: ["m"],
+				label: "Medir distancia (Retroceso quita el último punto)",
+			},
 			{ keys: ["⌘", "Z"], label: "Deshacer" },
 			{ keys: ["⌘", "⇧", "Z"], label: "Rehacer" },
 			{ keys: ["Esc"], label: "Cerrar inspector / cancelar acción" },

@@ -133,3 +133,10 @@ export const SURFACE = {
 	textSecondary: "#b1b2b4",
 	textMuted: "#979899",
 } as const;
+
+// ── Distance ruler (editor "Medir") ─────────────────────────────────────────
+// High-contrast neutral so it never reads as a fiber type or a status.
+export const MEASURE_COLOR = {
+	line: "#f8fafc",
+	vertexStroke: "#111213",
+} as const;

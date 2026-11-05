@@ -5,7 +5,10 @@ import {
 	Layers,
 	ListChecks,
 	LocateFixed,
+	Ruler,
 	SlidersHorizontal,
+	Undo2,
+	X,
 } from "lucide-react";
 import mapboxgl from "mapbox-gl";
 import { AnimatePresence, motion } from "motion/react";
@@ -76,7 +79,19 @@ import {
 	withDefaultOltProperties,
 } from "@/lib/gpon/olt-properties";
 import { useIsDesktop } from "@/lib/hooks/use-media-query";
-import { CABLE_LABEL, ROUTE_POINT_COLOR, TYPE_COLOR } from "@/lib/map/palette";
+import {
+	appendMeasurePoint,
+	buildMeasureGeoJson,
+	formatDistance,
+	type MeasurePoint,
+	summarizeMeasure,
+} from "@/lib/map/measure";
+import {
+	CABLE_LABEL,
+	MEASURE_COLOR,
+	ROUTE_POINT_COLOR,
+	TYPE_COLOR,
+} from "@/lib/map/palette";
 import {
 	getRouteMidpoints,
 	getRouteVertices,
@@ -144,6 +159,8 @@ interface NetworkEditorMapProps {
 		coordinate: RouteCoordinate,
 	) => void;
 	onMoveElement?: (id: string, lng: number, lat: number) => void;
+	/** Enables the ruler (Medir) control; the editor shell passes setActiveTool. */
+	onActiveToolChange?: (tool: EditorTool) => void;
 }
 
 type LeftPanelTab = "tools" | "layers" | "alerts";
@@ -197,6 +214,7 @@ const TOOL_LABELS: Record<EditorTool, string> = {
 };
 
 const ZOOM_ROUTE_POINTS = 15;
+const MEASURE_SOURCE = "editor-measure";
 const EMPTY_INCIDENTS: IncidentMapItem[] = [];
 const EDITOR_PANEL_TABS = [
 	{ value: "tools" as const, label: "Resumen", icon: ListChecks },
@@ -254,6 +272,7 @@ export function NetworkEditorMap({
 	onCreateRoutePoint,
 	onMoveRouteVertex,
 	onMoveElement,
+	onActiveToolChange,
 }: NetworkEditorMapProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [panelHost, setPanelHost] = useState<HTMLDivElement | null>(null);
@@ -284,6 +303,8 @@ export function NetworkEditorMap({
 	const [contextMenu, setContextMenu] = useState<ElementContextMenu | null>(
 		null,
 	);
+	const [measurePoints, setMeasurePoints] = useState<MeasurePoint[]>([]);
+	const isMeasuring = activeTool === "measure";
 	const [movingElement, setMovingElement] = useState<EquipmentMapItem | null>(
 		null,
 	);
@@ -601,6 +622,14 @@ export function NetworkEditorMap({
 				return;
 			}
 
+			// Ruler: clicks add points; nothing gets selected or edited.
+			if (activeToolRef.current === "measure") {
+				setMeasurePoints((points) =>
+					appendMeasurePoint(points, [event.lngLat.lng, event.lngLat.lat]),
+				);
+				return;
+			}
+
 			if (
 				onMapPlacementRef.current &&
 				(activeToolRef.current === "olt" ||
@@ -847,15 +876,97 @@ export function NetworkEditorMap({
 
 	useEffect(() => {
 		if (!mapRef.current) return;
-		mapRef.current.getCanvas().style.cursor = movingElement
-			? "crosshair"
-			: isPlacementTool
-				? "copy"
-				: "";
+		mapRef.current.getCanvas().style.cursor =
+			movingElement || isMeasuring
+				? "crosshair"
+				: isPlacementTool
+					? "copy"
+					: "";
 		return () => {
 			if (mapRef.current) mapRef.current.getCanvas().style.cursor = "";
 		};
-	}, [isPlacementTool, movingElement]);
+	}, [isMeasuring, isPlacementTool, movingElement]);
+
+	// Ruler layers live on top of everything; created once the style is ready.
+	useEffect(() => {
+		const map = mapRef.current;
+		if (!isReady || !map || map.getSource(MEASURE_SOURCE)) return;
+		map.addSource(MEASURE_SOURCE, {
+			type: "geojson",
+			data: buildMeasureGeoJson([]),
+		});
+		map.addLayer({
+			id: `${MEASURE_SOURCE}-line`,
+			type: "line",
+			source: MEASURE_SOURCE,
+			filter: ["==", ["get", "kind"], "line"],
+			layout: { "line-cap": "round", "line-join": "round" },
+			paint: {
+				"line-color": MEASURE_COLOR.line,
+				"line-width": 2.5,
+				"line-dasharray": [2, 1.5],
+				"line-emissive-strength": 1,
+			},
+		});
+		map.addLayer({
+			id: `${MEASURE_SOURCE}-vertex`,
+			type: "circle",
+			source: MEASURE_SOURCE,
+			filter: ["==", ["get", "kind"], "vertex"],
+			paint: {
+				"circle-radius": 4.5,
+				"circle-color": MEASURE_COLOR.line,
+				"circle-stroke-color": MEASURE_COLOR.vertexStroke,
+				"circle-stroke-width": 2,
+				"circle-emissive-strength": 1,
+			},
+		});
+	}, [isReady]);
+
+	useEffect(() => {
+		if (!isReady || !mapRef.current) return;
+		const source = mapRef.current.getSource(MEASURE_SOURCE) as
+			| mapboxgl.GeoJSONSource
+			| undefined;
+		source?.setData(buildMeasureGeoJson(measurePoints));
+	}, [isReady, measurePoints]);
+
+	// Entering/leaving the ruler: double click adds points instead of zooming;
+	// leaving clears the measurement.
+	useEffect(() => {
+		const map = mapRef.current;
+		if (!isMeasuring) {
+			setMeasurePoints([]);
+			map?.doubleClickZoom.enable();
+			return;
+		}
+		map?.doubleClickZoom.disable();
+		const onKeyDown = (event: KeyboardEvent) => {
+			const target = event.target;
+			if (
+				target instanceof HTMLElement &&
+				(target.isContentEditable ||
+					["input", "textarea", "select"].includes(
+						target.tagName.toLowerCase(),
+					))
+			) {
+				return;
+			}
+			if (event.key === "Backspace") {
+				event.preventDefault();
+				setMeasurePoints((points) => points.slice(0, -1));
+			} else if (event.key === "Escape") {
+				onActiveToolChange?.("select");
+			}
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => {
+			window.removeEventListener("keydown", onKeyDown);
+			map?.doubleClickZoom.enable();
+		};
+	}, [isMeasuring, onActiveToolChange]);
+
+	const measureSummary = summarizeMeasure(measurePoints);
 
 	useEffect(() => {
 		if (!movingElement) return;
@@ -901,6 +1012,58 @@ export function NetworkEditorMap({
 				<div ref={containerRef} className="absolute inset-0 h-full w-full" />
 				<MapPanelHost onHost={setPanelHost} />
 				<div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-gradient-to-b from-[#1b1c1d]/70 to-transparent" />
+				{isMeasuring && (
+					<div
+						role="status"
+						aria-live="polite"
+						className="absolute top-4 left-1/2 z-30 flex max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-border bg-surface-panel/95 py-1.5 pr-1.5 pl-3 text-xs text-fg-soft shadow-2xl backdrop-blur-md"
+					>
+						<span className="inline-flex items-center gap-1.5 font-medium text-fg">
+							<Ruler className="size-3.5" aria-hidden="true" />
+							{measureSummary.segments > 0
+								? formatDistance(measureSummary.totalMeters)
+								: "Medir distancia"}
+						</span>
+						<span className="text-fg-muted">
+							{measurePoints.length === 0
+								? "Haz clic en el mapa para empezar"
+								: measureSummary.segments === 0
+									? "Agrega el siguiente punto"
+									: `${measureSummary.segments} ${measureSummary.segments === 1 ? "tramo" : "tramos"} · último ${formatDistance(measureSummary.lastSegmentMeters ?? 0)}`}
+						</span>
+						<span className="flex items-center gap-1">
+							<button
+								type="button"
+								disabled={measurePoints.length === 0}
+								onClick={() =>
+									setMeasurePoints((points) => points.slice(0, -1))
+								}
+								title="Quitar último punto (Retroceso)"
+								className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-fg-secondary transition-colors hover:bg-tint/10 hover:text-fg disabled:opacity-40"
+							>
+								<Undo2 className="size-3.5" aria-hidden="true" />
+								Punto
+							</button>
+							<button
+								type="button"
+								disabled={measurePoints.length === 0}
+								onClick={() => setMeasurePoints([])}
+								className="inline-flex h-7 items-center rounded-md px-2 text-fg-secondary transition-colors hover:bg-tint/10 hover:text-fg disabled:opacity-40"
+							>
+								Limpiar
+							</button>
+							<button
+								type="button"
+								onClick={() => onActiveToolChange?.("select")}
+								title="Terminar (Esc)"
+								className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-fg-secondary transition-colors hover:bg-tint/10 hover:text-fg"
+							>
+								<X className="size-3.5" aria-hidden="true" />
+								Terminar
+							</button>
+						</span>
+					</div>
+				)}
 				{isPlacementTool && !movingElement && (
 					<div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-lg border border-success/30 bg-surface-panel/94 px-3 py-2 text-xs text-success-fg shadow-2xl backdrop-blur-md">
 						<span className="font-medium">
@@ -1206,6 +1369,13 @@ export function NetworkEditorMap({
 								onResetNorth={() => mapRef.current?.resetNorth()}
 								onZoomIn={() => mapRef.current?.zoomIn()}
 								onZoomOut={() => mapRef.current?.zoomOut()}
+								measuring={isMeasuring}
+								onToggleMeasure={
+									onActiveToolChange
+										? () =>
+												onActiveToolChange(isMeasuring ? "select" : "measure")
+										: undefined
+								}
 							/>
 						</div>
 					</>

@@ -95,6 +95,7 @@ apps/web/
 │   ├── map/
 │   │   ├── palette.ts                    # Colores (TYPE_COLOR, STATUS_COLOR, DATA_QUALITY_COLOR…)
 │   │   ├── format.ts                     # Formato compartido: coordenadas, metros, dB
+│   │   ├── measure.ts                    # Regla del editor: resumen, formato de distancia, GeoJSON
 │   │   └── route-geometry-editor.ts      # Dibujo de rutas, snap de vértices, validación geométrica
 │   ├── gpon/
 │   │   ├── optical-budget.ts             # Calculadora presupuesto óptico GPON/XGS-PON
@@ -215,7 +216,7 @@ docs/
 - ⚠️ Templates de topología: el formulario de nueva red guarda `topology` (Star 1:16, Tree 1:32, Cascade 1:64, Blank) vía RPC `create_network`, que no está versionada en `database/migrations`. El generador cliente `lib/gpon/topology-templates.ts` se eliminó por no tener uso.
 
 ### Pendiente en el editor
-- ❌ **Herramienta `measure`**: medir distancia sobre el mapa (Turf.js ya instalado)
+- ✅ **Herramienta `measure`**: regla en el mapa (botón en controles o `M`); clic agrega puntos, Retroceso quita el último, Esc sale. Misma fórmula haversine que la longitud de rutas (`lib/map/measure.ts`)
 - ⚠️ **Creación de elementos/rutas en NetworkEditorMap**: continuar consolidando flujo de diseño
 
 ## Pendiente de construir (priorizado)
@@ -228,7 +229,7 @@ docs/
 
 ### 🟡 Fase 2c (Editor)
 5. **Completar flujo de creación en `NetworkEditorMap`**
-6. **Herramienta `measure`** — Turf.js `@turf/length` ya instalado
+6. ~~**Herramienta `measure`**~~ ✅
 7. **Consolidar formularios compartidos del inspector**
 
 ### 🟢 Media prioridad

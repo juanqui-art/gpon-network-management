@@ -1,6 +1,6 @@
 "use client";
 
-import { Compass, Crosshair, List, Minus, Plus, X } from "lucide-react";
+import { Compass, Crosshair, List, Minus, Plus, Ruler, X } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { FIBER_RENDER_COLOR } from "@/components/map/mapbox-shared-style";
 import { useIsDesktop } from "@/lib/hooks/use-media-query";
@@ -158,12 +158,17 @@ export function MapControls({
 	onZoomIn,
 	onZoomOut,
 	compact = false,
+	measuring = false,
+	onToggleMeasure,
 }: {
 	onFit: () => void;
 	onResetNorth: () => void;
 	onZoomIn: () => void;
 	onZoomOut: () => void;
 	compact?: boolean;
+	/** When provided, shows a ruler toggle (Medir, shortcut M). */
+	measuring?: boolean;
+	onToggleMeasure?: () => void;
 }) {
 	const wrapperClass = compact
 		? "flex flex-col overflow-hidden rounded-md border border-border bg-surface-panel/94 shadow-xl backdrop-blur-md"
@@ -183,6 +188,16 @@ export function MapControls({
 			<IconControl label="Reset norte" onClick={onResetNorth} compact={compact}>
 				<Compass className={compact ? "size-3.5" : "size-4"} />
 			</IconControl>
+			{onToggleMeasure && (
+				<IconControl
+					label={measuring ? "Terminar medición (M)" : "Medir distancia (M)"}
+					onClick={onToggleMeasure}
+					compact={compact}
+					pressed={measuring}
+				>
+					<Ruler className={compact ? "size-3.5" : "size-4"} />
+				</IconControl>
+			)}
 		</div>
 	);
 }
@@ -192,19 +207,23 @@ function IconControl({
 	label,
 	onClick,
 	compact = false,
+	pressed,
 }: {
 	children: ReactNode;
 	label: string;
 	onClick: () => void;
 	compact?: boolean;
+	/** Toggle controls only. */
+	pressed?: boolean;
 }) {
 	return (
 		<button
 			type="button"
 			aria-label={label}
+			aria-pressed={pressed}
 			title={label}
 			onClick={onClick}
-			className={`grid place-items-center border-r border-border-subtle text-fg-soft transition-colors last:border-r-0 hover:bg-white/10 ${
+			className={`grid place-items-center border-r border-border-subtle transition-colors last:border-r-0 hover:bg-white/10 ${pressed ? "bg-info/16 text-info-fg" : "text-fg-soft"} ${
 				compact
 					? "size-8 border-r-0 border-b last:border-b-0 last:border-r-0"
 					: "size-9"
