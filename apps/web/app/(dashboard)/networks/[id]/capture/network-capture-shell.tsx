@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { ZoneField } from "@/components/capture/zone-field";
 import { NetworkEditorMap } from "@/components/map/network-editor-map";
 import { NetworkLoadState } from "@/components/map/network-load-state";
 import type {
@@ -29,7 +30,12 @@ import type {
 } from "@/components/map/types";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/feedback/toast";
-import { generateDraftCode, nextSequence } from "@/lib/gpon/operative-code";
+import {
+	generateDraftCode,
+	inferCodePrefix,
+	inferZoneCode,
+	nextSequence,
+} from "@/lib/gpon/operative-code";
 import { useIsCoarsePointer } from "@/lib/hooks/use-media-query";
 import { useNetworkEditorHistoryShortcuts } from "@/lib/hooks/use-network-editor-history-shortcuts";
 import { useUnsavedChangesGuard } from "@/lib/hooks/use-unsaved-changes-guard";
@@ -201,11 +207,18 @@ const DEFAULTS_BY_TYPE: Record<
 
 interface Props {
 	canCapture: boolean;
+	/** admin / network_engineer can create zones (RLS on network_zones). */
+	canManageZones: boolean;
 	network: Network;
 	networkId: string;
 }
 
-export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
+export function NetworkCaptureShell({
+	canCapture,
+	canManageZones,
+	network,
+	networkId,
+}: Props) {
 	const queryClient = useQueryClient();
 	const networkQuery = useQuery({
 		queryKey: networkEditorKeys.detail(networkId),
@@ -237,7 +250,7 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 	} = useNetworkEditorStore();
 
 	const [type, setType] = useState<CaptureType>("nap");
-	const [zone, setZone] = useState("Z05");
+	const [zone, setZone] = useState<string | null>(null);
 	const [lastCreatedCode, setLastCreatedCode] = useState<string | null>(null);
 	const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
 	const isCoarsePointer = useIsCoarsePointer();
@@ -286,12 +299,34 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 	const elements = getElementsArray();
 	const routes = getRoutesArray();
 	const routePoints = getRoutePointsArray();
-	const suggestedCode = useMemo(() => {
-		const existingCodes = elements
-			.filter((element) => element.type === type)
-			.map((element) => element.code);
-		return generateDraftCode(type, nextSequence(existingCodes), zone);
-	}, [elements, type, zone]);
+	// Province-city and default zone follow the network's existing codes, so a
+	// Cuenca network keeps generating AZU-CUE-… instead of the Quito default.
+	const networkCodes = useMemo(
+		() => [
+			...elements.map((element) => element.code),
+			...routes.map((route) => route.code),
+		],
+		[elements, routes],
+	);
+	const codePrefix = useMemo(
+		() => inferCodePrefix(networkCodes),
+		[networkCodes],
+	);
+	const preferredZone = useMemo(
+		() => inferZoneCode(networkCodes),
+		[networkCodes],
+	);
+	// "ZXX" only while no zone is chosen (shown as a warning in the panel).
+	const codeContext = { zone: zone ?? "ZXX", prefix: codePrefix };
+	const suggestedCode = generateDraftCode(
+		type,
+		nextSequence(
+			elements
+				.filter((element) => element.type === type)
+				.map((element) => element.code),
+		),
+		codeContext,
+	);
 	const routeSource = routeSourceId
 		? elements.find((element) => element.id === routeSourceId)
 		: null;
@@ -359,7 +394,11 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 		const existingCodes = elements
 			.filter((element) => element.type === elementType)
 			.map((element) => element.code);
-		return generateDraftCode(elementType, nextSequence(existingCodes), zone);
+		return generateDraftCode(
+			elementType,
+			nextSequence(existingCodes),
+			codeContext,
+		);
 	};
 
 	const inferRouteType = (
@@ -373,7 +412,11 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 			.filter((route) => route.type === routeType)
 			.map((route) => route.code)
 			.filter((routeCode): routeCode is string => routeCode !== null);
-		return generateDraftCode(routeType, nextSequence(existingCodes), zone);
+		return generateDraftCode(
+			routeType,
+			nextSequence(existingCodes),
+			codeContext,
+		);
 	};
 
 	const codeForRoutePoint = (pointType: RoutePointType) => {
@@ -381,7 +424,11 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 			.filter((point) => point.type === pointType)
 			.map((point) => point.code)
 			.filter((pointCode): pointCode is string => pointCode !== null);
-		return generateDraftCode(pointType, nextSequence(existingCodes), zone);
+		return generateDraftCode(
+			pointType,
+			nextSequence(existingCodes),
+			codeContext,
+		);
 	};
 
 	const handleTypeChange = (nextType: CaptureType) => {
@@ -860,7 +907,14 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 									</div>
 								</fieldset>
 
-								<div className="grid grid-cols-[1fr_96px] gap-3">
+								<div className="space-y-3">
+									<ZoneField
+										networkId={networkId}
+										value={zone}
+										onChange={setZone}
+										canManage={canManageZones}
+										preferredZone={preferredZone}
+									/>
 									<div className="rounded-md border border-border-subtle bg-surface-sunken px-3 py-2">
 										<p className="text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
 											Próximo código
@@ -868,17 +922,12 @@ export function NetworkCaptureShell({ canCapture, network, networkId }: Props) {
 										<p className="mt-1 font-mono text-sm font-semibold text-fg">
 											{suggestedCode}
 										</p>
+										{!zone && (
+											<p className="mt-1 text-[11px] text-warning-fg">
+												Elige una zona: el código usa «ZXX» mientras tanto.
+											</p>
+										)}
 									</div>
-									<label className="block">
-										<span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
-											Zona
-										</span>
-										<input
-											value={zone}
-											onChange={(event) => setZone(event.target.value)}
-											className="w-full rounded-md border border-border bg-surface-sunken px-2.5 py-2 text-xs text-fg outline-none focus:border-info/40"
-										/>
-									</label>
 								</div>
 
 								{lastCreatedCode && (

@@ -85,6 +85,8 @@ apps/web/
 │   │       ├── tree-builder.ts           # Construcción del árbol jerárquico
 │   │       ├── path-utils.ts             # Utilidades de rutas SVG
 │   │       └── types.ts                  # Tipos del diagrama
+│   └── capture/
+│       └── zone-field.tsx                # Selector/creación de zona operativa (network_zones)
 ├── lib/
 │   ├── env.ts
 │   ├── types/
@@ -230,7 +232,7 @@ docs/
 7. **Consolidar formularios compartidos del inspector**
 
 ### 🟢 Media prioridad
-8. Zona operativa configurable en código (Z05 hardcoded → seleccionable)
+8. ~~Zona operativa configurable en código~~ ✅ selector de `network_zones` en la captura (+ prefijo provincia-ciudad inferido)
 9. Historial de cambios (quién modificó qué y cuándo)
 10. Splitters desbalanceados (ratios 10/90, 20/80, etc.)
 11. Vista árbol lógico más completa (con longitudes y pérdidas por tramo)
@@ -309,4 +311,6 @@ Patrón: {PROV}-{CIUDAD}-{ZONA}-{TIPO}-{SEQ}
 Draft:  PIC-UIO-DRF-NAP-001
 Campo:  PIC-UIO-Z05-NAP-128
 ```
+- **Zona:** se elige en la captura entre las zonas de la red (`network_zones`, RPC `network_zones_for_network`); admin y network_engineer pueden crear zonas ahí mismo (`create_network_zone`). Código de zona: 2–6 letras/números, sin `-`. Se recuerda la última zona por red (localStorage).
+- **Provincia-ciudad:** `inferCodePrefix()` toma la más frecuente entre los códigos existentes de la red (una red de Cuenca sigue con `AZU-CUE-…`); sin códigos, `PIC-UIO`.
 Documentado en GPON_FTTH_ECUADOR_RESEARCH.md §9.
