@@ -10,7 +10,7 @@ Método: verificación cruzada de afirmaciones concretas (rutas, archivos, const
 | C4 — `AGENTS.md` raíz | ✅ Reducido a puntero + reglas de seguridad |
 | A5 — README raíz | ✅ Reescrito |
 | M3 — `apps/web/README.md` | ✅ Reemplazado |
-| C1 — schema `networks` sin versionar | ⬜ Pendiente (requiere dump de Supabase) |
+| C1 — schema `networks` sin versionar | 🟡 Baseline **aproximada** desde el código (009b + 030); 001→030 aplica en BD vacía. Falta reemplazar por DDL real. Encontrados: bug en 015 (corregido) y `create_infrastructure_element_draft` roto desde 022 (abierto) |
 | C3 — semáforo óptico | ⬜ Pendiente de decisión; CLAUDE.md documenta el código |
 | A4 — ADR 0004 + estado de ADR 0003 | ✅ Creado |
 | M1 — banners en OLT_INTEGRATION_GUIDE, PREMIUM_UI_UX_RESEARCH, INFRASTRUCTURE_EDITOR_PLAN, REALTIME_MONITORING_RESEARCH | ✅ |

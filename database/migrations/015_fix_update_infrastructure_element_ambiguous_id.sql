@@ -4,6 +4,16 @@ DROP FUNCTION IF EXISTS public.update_infrastructure_element(
   pon_standard, int, split_ratio, numeric, int, text, text, jsonb, text
 );
 
+-- Added 2026-11-05: the signature actually created by 013 orders
+-- (…, p_notes text, p_optical_class text, p_properties jsonb). The DROP above
+-- never matched it, so on a fresh database the CREATE below failed with
+-- "already exists with same argument types". Harmless where already applied.
+DROP FUNCTION IF EXISTS public.update_infrastructure_element(
+  uuid, text, text, element_status, data_quality,
+  double precision, double precision,
+  pon_standard, int, split_ratio, numeric, int, text, text, text, jsonb
+);
+
 CREATE FUNCTION public.update_infrastructure_element(
   p_id                 uuid,
   p_code               text               DEFAULT NULL,

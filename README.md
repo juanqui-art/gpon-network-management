@@ -53,7 +53,7 @@ apps/
 ├── web/           # Next.js app
 └── collector/     # SNMP → Supabase poller (see apps/collector/README.md)
 database/
-└── migrations/    # 001-029 SQL migrations (schema, RLS, RPCs, seeds)
+└── migrations/    # 001-030 SQL migrations (+ 009b approximate baseline) (schema, RLS, RPCs, seeds)
 docs/              # Domain research, UX specs, ADRs — index in CLAUDE.md
 ```
 
@@ -100,7 +100,7 @@ pnpm dev
 
 ### Database
 
-> ⚠️ The migrations in `database/migrations` **cannot yet rebuild the database from scratch**: the `networks` table and the `create_network` RPC were applied directly in Supabase and are not versioned. Use the existing Supabase project until a baseline migration is added.
+> ⚠️ `009b_networks_baseline.sql` and `030_network_scoped_map_rpcs.sql` are an **approximate baseline reconstructed from code** for objects that were applied directly in Supabase (`networks`, `network_id`, `create_network`). With them the full chain applies on an empty database, but they may differ from production. On production they are no-ops. Known issue: `create_infrastructure_element_draft` returns a pre-022 shape and fails; see `CLAUDE.md` § Base de datos.
 
 ### Checks
 

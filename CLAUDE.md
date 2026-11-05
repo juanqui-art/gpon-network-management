@@ -97,7 +97,7 @@ apps/web/
 apps/collector/                   # Node SNMP → Supabase (ver apps/collector/README.md)
 └── src/{config,index}.ts, snmp/, parser/, decide/, persist/
 
-database/migrations/              # 001-029 (ver advertencia abajo)
+database/migrations/              # 001-030 + 009b (ver advertencia abajo)
 docs/                             # ver "Mapa de documentación"
 ```
 
@@ -130,7 +130,8 @@ docs/                             # ver "Mapa de documentación"
 - ✅ Rate limiting de auth (si faltan las vars de Upstash: **fail-open** con warning)
 
 ## Pendiente (priorizado)
-1. 🔴 **Versionar schema faltante** — ver advertencia de BD
+1. 🔴 **`create_infrastructure_element_draft` roto desde 022** + `network_id` en `create_*_draft` — ver advertencia de BD
+1b. 🟡 Reemplazar la baseline aproximada (009b/030) por el DDL real de producción
 2. 🔴 **Unificar regla del semáforo óptico** — ver sección calculadora
 3. 🟡 Marcadores del mapa en vivo + diagnóstico `locate_fault_along_route()`
 4. 🟡 Herramienta `measure` (`@turf/length` instalado)
@@ -142,20 +143,25 @@ docs/                             # ver "Mapa de documentación"
 
 ## Base de datos (Supabase)
 
-> ⚠️ **Las migraciones del repo NO reconstruyen la BD.** Aplicado directamente en Supabase y ausente de toda migración:
-> - tabla `networks` (columnas base, RLS y policies salvo `networks_update` de 026)
-> - columnas `network_id` en `infrastructure_elements` y `fiber_routes` (¿y `route_points`?)
-> - RPC `create_network(p_name, p_description, p_topology)` y la primera versión de `list_networks`
-> - `fiber_routes_for_map(p_network_id)` y `route_points_for_map(p_network_id)` (022 solo versiona la de elementos)
-> - **cómo reciben `network_id` los elementos y rutas nuevos**: `create_*_draft` no lo reciben como parámetro
->
-> `010_network_zones.sql` referencia `networks(id)`, por lo que aplicar 001→029 sobre una BD vacía falla.
-> Para resolverlo, extraer el DDL real (consulta de introspección en el PR / sesión) y escribir la migración baseline.
+> ⚠️ **Baseline aproximada (009b + 030).** `networks`, las columnas `network_id`, `create_network()` y
+> `fiber_routes_for_map(p_network_id)` / `route_points_for_map(p_network_id)` se aplicaron directamente en
+> Supabase y nunca se versionaron. `009b_networks_baseline.sql` y `030_network_scoped_map_rpcs.sql` los
+> **reconstruyen desde el código** (no desde un dump): con ellas, 001→030 se aplica sobre una BD vacía
+> (verificado en Postgres 16 + PostGIS + pg_cron). Ambas están protegidas: en producción, donde ya existen,
+> no hacen nada.
+> - Pueden diferir de producción: nombre del ENUM `network_topology`, defaults, `ON DELETE` de las FKs,
+>   si `create_network` siembra zonas. Reemplazarlas por el DDL real cuando se extraiga.
+> - **Abierto:** `create_*_draft` no reciben `network_id` → en una BD nueva, elementos y rutas creados
+>   desde el editor quedan sin red. Cómo lo resuelve producción no está en el repo.
+> - **Bug encontrado:** `create_infrastructure_element_draft` (019) devuelve una forma anterior a 022
+>   (`management_ip`) → falla con "structure of query does not match function result type". Si producción
+>   es igual al repo, crear elementos desde el editor está roto desde 022.
+> - 015 incluía un `DROP` con firma equivocada; se añadió el `DROP` correcto (inocuo donde ya se aplicó).
 
 **Tablas:**
 | Tabla | Propósito |
 |---|---|
-| `networks` | raíz; nombre, topología, `created_by`, `archived_at/by` (027) — *no versionada* |
+| `networks` | raíz; nombre, topología (ENUM), `created_by`, `archived_at/by` (027) — *baseline aproximada 009b* |
 | `infrastructure_elements` | OLT, splitter, NAP, closure (mufa); `management_ip` para OLT (022) |
 | `fiber_routes` | feeder / distribution; `from/to_element_id`; `reservation_m` (020) |
 | `route_points` | crossing, reserve, splice, mufa |
@@ -173,7 +179,8 @@ docs/                             # ver "Mapa de documentación"
 Update → `metadata.changes` `{col: {old, new}}` (geometría solo `{changed: true}`); delete → `metadata.snapshot` con la fila completa.
 Omite updates que solo tocan `updated_at/by` y el archivado (lo registra `archive_network()`). Si el insert de auditoría falla, la escritura falla.
 
-**Migraciones:** 001-029. Notables desde 017:
+**Migraciones:** 001-030 + 009b (orden alfabético: `009_…` < `009b_…` < `010_…`). Notables:
+- 009b **baseline aproximada**: `networks`, `network_topology`, `network_id`, `create_network()`, redes seed `10000000-…-0001` (Quito) y `…-0002` (Cuenca)
 - 018-019 closures/mufas y splitters dentro de closure/NAP
 - 020 `reservation_m` (slack óptico)
 - 021 tablas de monitoreo ONT · 022 `management_ip` · 023 seed telemetría Cuenca · 024 índices + Realtime delete
@@ -181,6 +188,7 @@ Omite updates que solo tocan `updated_at/by` y el archivado (lo registra `archiv
 - 026 `WITH CHECK` en update de `networks` · 027 archivado de redes
 - 028 triggers de auditoría `audit_row_change()` en `networks`, `network_zones`, `infrastructure_elements`, `fiber_routes`, `route_points`
 - 029 retención de `ont_signal_history`: `PROCEDURE prune_ont_signal_history(30, 365)` con borrado por lotes + `pg_cron` diario 08:17 UTC (03:17 Ecuador)
+- 030 **aproximada**: `fiber_routes_for_map(p_network_id)`, `route_points_for_map(p_network_id)` (solo si faltan) + asigna la seed de Cuenca a su red
 
 **Retención (029):** `sample` > 30 días y `change`/`degradation` > 365 días se borran en lotes de 10k con `COMMIT` entre lotes.
 Requiere `pg_cron` (la migración ejecuta `CREATE EXTENSION`). Historial de ejecuciones: `cron.job_run_details`.
@@ -263,6 +271,7 @@ UPSTASH_REDIS_REST_TOKEN
 
 ## Convenciones para mantener este archivo
 - Al añadir una migración: actualizar la sección BD (y la matriz RLS si toca políticas).
+- Al cambiar la forma de un `*_for_map()`: actualizar también su variante `(p_network_id)` y los `create_*`/`update_*` que hacen `RETURN QUERY … FROM *_for_map()`.
 - Al añadir una tabla de red: agregarle el trigger `audit_row_change('<target_type>')` y su etiqueta en `app/(dashboard)/admin/audit/page.tsx`.
 - Al añadir una ruta en `app/`: actualizar "Rutas".
 - Valores numéricos de la calculadora: solo aquí y en `optical-budget.ts`; los demás docs enlazan.
