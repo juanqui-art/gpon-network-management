@@ -95,7 +95,7 @@ apps/web/
 apps/collector/                   # Node SNMP → Supabase (ver apps/collector/README.md)
 └── src/{config,index}.ts, snmp/, parser/, decide/, persist/
 
-database/migrations/              # 001-028 (ver advertencia abajo)
+database/migrations/              # 001-029 (ver advertencia abajo)
 docs/                             # ver "Mapa de documentación"
 ```
 
@@ -114,6 +114,7 @@ docs/                             # ver "Mapa de documentación"
 ### Monitoreo (Fase 2)
 - ✅ Colector `apps/collector` (mock y SNMP v2c real, Huawei)
 - ✅ Tablas `ont_current_state` + `ont_signal_history`, publicadas en Realtime
+- ✅ Retención de `ont_signal_history` (029): `sample` 30 días, `change`/`degradation` 365 días; job diario `pg_cron`
 - ✅ `/monitoring` y `/monitoring/olt/[host]` con suscripción Realtime (`lib/hooks/use-ont-realtime.ts`)
 - ✅ Telemetría ONT en `equipment-panel.tsx`
 - ❌ Marcadores del mapa actualizados en vivo (el mapa no se suscribe a Realtime)
@@ -134,7 +135,7 @@ docs/                             # ver "Mapa de documentación"
 5. 🟡 Consolidar flujo de creación y formularios del inspector
 6. 🟢 Splitters desbalanceados (10/90, 20/80…)
 7. 🟢 Flujo de propuesta/verificación para `outside_plant` (hoy no puede escribir infraestructura)
-8. 🟢 Retención de `ont_signal_history` (hoy crece sin límite) — ADR 0004
+8. 🟢 Resumen diario por ONT (`ont_signal_daily`) para tendencias largas — opcional, ver ADR 0004
 9. 🔵 Fase 4: clientes, servicios, drops, incidentes (ADR 0003)
 
 ## Base de datos (Supabase)
@@ -142,7 +143,7 @@ docs/                             # ver "Mapa de documentación"
 > ⚠️ **Las migraciones del repo NO reconstruyen la BD.** La tabla `networks`, las columnas
 > `network_id` de infraestructura y el RPC `create_network` se aplicaron directamente en Supabase
 > y no están en ninguna migración. `010_network_zones.sql` referencia `networks(id)`, por lo que
-> aplicar 001→028 sobre una BD vacía falla. No asumir que el repo es la fuente de verdad del schema
+> aplicar 001→029 sobre una BD vacía falla. No asumir que el repo es la fuente de verdad del schema
 > hasta resolverlo (dump + migración baseline).
 
 **Tablas:**
@@ -155,7 +156,7 @@ docs/                             # ver "Mapa de documentación"
 | `network_zones` | zonas por red → `{ZONA}` del código operativo (010) |
 | `audit_logs` | trazabilidad: acciones de usuarios (app) + cambios de red/infraestructura (triggers, 028) |
 | `ont_current_state` | último estado por ONT (UPSERT del colector) (021) |
-| `ont_signal_history` | historial filtrado (change / degradation / sample) (021) |
+| `ont_signal_history` | historial filtrado (change / degradation / sample) (021); retención por tipo (029) |
 
 **ENUMs:** 13 originales (001) + valores añadidos en 018 (`element_type.closure`, `route_point_type.mufa`) y ENUMs de 021 para monitoreo.
 **Geometría:** `geography(Point/LineString, 4326)`. Longitud de rutas desde geometría GIS (017).
@@ -166,13 +167,19 @@ docs/                             # ver "Mapa de documentación"
 Update → `metadata.changes` `{col: {old, new}}` (geometría solo `{changed: true}`); delete → `metadata.snapshot` con la fila completa.
 Omite updates que solo tocan `updated_at/by` y el archivado (lo registra `archive_network()`). Si el insert de auditoría falla, la escritura falla.
 
-**Migraciones:** 001-028. Notables desde 017:
+**Migraciones:** 001-029. Notables desde 017:
 - 018-019 closures/mufas y splitters dentro de closure/NAP
 - 020 `reservation_m` (slack óptico)
 - 021 tablas de monitoreo ONT · 022 `management_ip` · 023 seed telemetría Cuenca · 024 índices + Realtime delete
 - 025 **restringe escritura de infraestructura a admin/network_engineer**
 - 026 `WITH CHECK` en update de `networks` · 027 archivado de redes
 - 028 triggers de auditoría `audit_row_change()` en `networks`, `network_zones`, `infrastructure_elements`, `fiber_routes`, `route_points`
+- 029 retención de `ont_signal_history`: `PROCEDURE prune_ont_signal_history(30, 365)` con borrado por lotes + `pg_cron` diario 08:17 UTC (03:17 Ecuador)
+
+**Retención (029):** `sample` > 30 días y `change`/`degradation` > 365 días se borran en lotes de 10k con `COMMIT` entre lotes.
+Requiere `pg_cron` (la migración ejecuta `CREATE EXTENSION`). Historial de ejecuciones: `cron.job_run_details`.
+Ejecución manual solo como sentencia suelta (`CALL prune_ont_signal_history();` en psql); dentro de `BEGIN…COMMIT` falla.
+La UI lee solo las últimas 24 h; si alguna vista necesita más de 30 días de muestras, ajustar el parámetro.
 
 **Seeds:** 003 (Quito: 8 elementos, 7 rutas, 3 puntos), 014 (Cuenca, Star 1:16), 023 (16 ONTs mock).
 

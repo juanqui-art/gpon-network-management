@@ -25,7 +25,7 @@ It combines a GIS map editor for the passive network (OLT → splitter → NAP),
 **Monitoring** (`/monitoring`)
 - Standalone SNMP collector (`apps/collector`) polling Huawei OLTs (or a mock with 16 synthetic ONTs)
 - ONT status, RX power, temperature and distance, pushed live via Supabase Realtime
-- Filtered history: only status changes, degradations (> 1.5 dB) and periodic samples (~94% less volume)
+- Filtered history: only status changes, degradations (> 1.5 dB) and periodic samples (~94% less volume), with tiered retention (samples 30 days, events 1 year)
 
 **Administration** (`/admin`) — user and role management, network archiving, and an audit log that records every network/infrastructure change via database triggers.
 
@@ -53,7 +53,7 @@ apps/
 ├── web/           # Next.js app
 └── collector/     # SNMP → Supabase poller (see apps/collector/README.md)
 database/
-└── migrations/    # 001-028 SQL migrations (schema, RLS, RPCs, seeds)
+└── migrations/    # 001-029 SQL migrations (schema, RLS, RPCs, seeds)
 docs/              # Domain research, UX specs, ADRs — index in CLAUDE.md
 ```
 
