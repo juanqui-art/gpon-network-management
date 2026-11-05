@@ -84,8 +84,6 @@ apps/web/
 │   │       ├── tree-builder.ts           # Construcción del árbol jerárquico
 │   │       ├── path-utils.ts             # Utilidades de rutas SVG
 │   │       └── types.ts                  # Tipos del diagrama
-│   └── topology/
-│       └── topology-picker.tsx           # Selector de topología (Star/Tree/Cascade)
 ├── lib/
 │   ├── env.ts
 │   ├── types/
