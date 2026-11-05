@@ -94,8 +94,7 @@ apps/web/
 │   │   └── route-geometry-editor.ts      # Dibujo de rutas, snap de vértices, validación geométrica
 │   ├── gpon/
 │   │   ├── optical-budget.ts             # Calculadora presupuesto óptico GPON/XGS-PON
-│   │   ├── operative-code.ts             # Generador códigos operativos (PIC-UIO-Z05-NAP-128)
-│   │   └── topology-templates.ts         # Generador topologías pre-configuradas
+│   │   └── operative-code.ts             # Generador códigos operativos (PIC-UIO-Z05-NAP-128)
 │   ├── store/
 │   │   └── network-editor.ts             # Zustand store con undo/redo para el editor
 │   ├── providers/
@@ -209,7 +208,7 @@ docs/
 - ✅ Calculadora óptica: semáforo por ruta/unifilar basado en fibra + splitters + conectores + empalmes + cabecera
 - ✅ Códigos operativos: patrón PIC-UIO-DRF-{TIPO}-{SEQ} para drafts
 - ✅ Undo/redo: Zundo con 50 steps para elementos/rutas/puntos
-- ✅ Templates de topología: Star (1:16), Tree (1:32), Cascade (1:64), Blank
+- ⚠️ Templates de topología: el formulario de nueva red guarda `topology` (Star 1:16, Tree 1:32, Cascade 1:64, Blank) vía RPC `create_network`, que no está versionada en `database/migrations`. El generador cliente `lib/gpon/topology-templates.ts` se eliminó por no tener uso.
 
 ### Pendiente en el editor
 - ❌ **Herramienta `measure`**: medir distancia sobre el mapa (Turf.js ya instalado)

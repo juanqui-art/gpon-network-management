@@ -26,7 +26,7 @@ Sprint 3 — notas:
 - Cian de UI `#38d8ff` unificado con `--gpon-olt` (#38bdf8).
 - `lib/gpon/labels.ts` es la única fuente de etiquetas de ENUM. Corrige `formatDataQuality` del editor (usaba claves inexistentes) y el UUID mostrado como "Ruta".
 - M2 completo (un solo componente de inspector para `/map` y editor) queda pendiente: requiere decidir qué campos muestra cada contexto.
-- `components/topology/topology-picker.tsx` no se usaba en ninguna parte: eliminado. `lib/gpon/topology-templates.ts` quedó sin imports en el código (solo lo citan `docs/TOPOLOGIES.md` y `docs/NAP_CAPACITY.md`).
+- `components/topology/topology-picker.tsx` no se usaba en ninguna parte: eliminado. `lib/gpon/topology-templates.ts` quedó sin imports y también se eliminó.
 
 Sprint 4 — notas:
 - Navegación y command palette según el rol (los enlaces de administración solo para `admin`); chip con el rol en la nav; "Dashboard administrador" → "Inicio" / título según rol.
