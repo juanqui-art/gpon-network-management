@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { signOut } from "@/app/actions/auth";
 import { AppDrawer } from "@/components/ui/app-drawer";
 import { Button } from "@/components/ui/button";
-import { ROLE_LABELS } from "@/lib/auth/roles";
+import { homePathForRole, ROLE_LABELS } from "@/lib/auth/roles";
 import { useModifierKey } from "@/lib/hooks/use-modifier-key";
 import {
 	isLeaveBlocked,
@@ -96,7 +96,7 @@ export function DashboardNav({
 		<header className="relative z-30 flex h-12 shrink-0 items-center justify-between border-b border-border bg-card px-4">
 			<div className="flex items-center gap-6">
 				<Link
-					href="/dashboard"
+					href={homePathForRole(role)}
 					className="text-sm font-semibold text-foreground transition-colors hover:text-primary"
 				>
 					GPON

@@ -6,6 +6,7 @@ import {
 	checkPasswordResetRateLimit,
 	checkSignInRateLimit,
 } from "@/lib/auth/rate-limit";
+import { getUserRoleFromMetadata, homePathForRole } from "@/lib/auth/roles";
 import { translateAuthError } from "@/lib/auth/supabase-errors";
 import { env } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
@@ -29,12 +30,12 @@ export async function signIn(
 	}
 
 	const supabase = await createClient();
-	const { error } = await supabase.auth.signInWithPassword({
+	const { data, error } = await supabase.auth.signInWithPassword({
 		email,
 		password: formData.get("password") as string,
 	});
 	if (error) return "Email o contraseña incorrectos";
-	redirect("/dashboard");
+	redirect(homePathForRole(getUserRoleFromMetadata(data.user?.app_metadata)));
 }
 
 export async function requestPasswordReset(
@@ -79,7 +80,10 @@ export async function updatePassword(
 	cookieStore.delete(RECOVERY_COOKIE);
 	// Revoke other devices in case the account was compromised before reset.
 	await supabase.auth.signOut({ scope: "others" });
-	redirect("/map");
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	redirect(homePathForRole(getUserRoleFromMetadata(user?.app_metadata)));
 }
 
 export async function signOut(): Promise<void> {

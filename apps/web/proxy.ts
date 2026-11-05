@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { getUserRoleFromMetadata, homePathForRole } from "@/lib/auth/roles";
 
 export async function proxy(request: NextRequest) {
 	let supabaseResponse = NextResponse.next({ request });
@@ -61,7 +62,7 @@ export async function proxy(request: NextRequest) {
 
 	if (user && isPublicOnlyPath) {
 		const url = request.nextUrl.clone();
-		url.pathname = "/dashboard";
+		url.pathname = homePathForRole(getUserRoleFromMetadata(user.app_metadata));
 		const redirectResponse = NextResponse.redirect(url);
 		for (const cookie of supabaseResponse.cookies.getAll()) {
 			redirectResponse.cookies.set(cookie.name, cookie.value);

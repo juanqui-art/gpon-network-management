@@ -30,7 +30,7 @@ pnpm build        # build de producción
 
 ## Rutas de la aplicación
 ```
-/                   → redirige a /networks
+/                   → inicio según rol: /networks (outside_plant) o /dashboard (resto)
 /login              → auth
 /register           → auth
 /networks           → lista de redes + crear nueva
@@ -44,7 +44,7 @@ apps/web/
 ├── app/
 │   ├── globals.css
 │   ├── layout.tsx
-│   ├── page.tsx                          # Redirige a /networks
+│   ├── page.tsx                          # Redirige al inicio del rol (homePathForRole)
 │   ├── (auth)/
 │   │   ├── login/page.tsx
 │   │   └── register/page.tsx
